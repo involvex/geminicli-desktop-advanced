@@ -135,12 +135,6 @@ export function ConversationList({
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           {conversation.messages.length} message{conversation.messages.length !== 1 ? 's' : ''}
                         </p>
-                        {conversation.messages.length > 0 && (
-                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 truncate">
-                            {conversation.messages[conversation.messages.length - 1]?.content?.slice(0, 60) || '...'}
-                            {(conversation.messages[conversation.messages.length - 1]?.content?.length || 0) > 60 ? '...' : ''}
-                          </p>
-                        )}
                       </div>
                       
                       {/* End Chat Button */}

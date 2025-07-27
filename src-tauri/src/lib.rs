@@ -770,6 +770,54 @@ async fn send_tool_call_confirmation_response(
 }
 
 #[tauri::command]
+async fn generate_conversation_title(message: String) -> Result<String, String> {
+    println!("🏷️ Generating title for message: {}", message.chars().take(50).collect::<String>());
+    
+    let prompt = format!(
+        "Generate a short, concise title (3-6 words) for a conversation that starts with this user message: \"{}\". Only return the title, nothing else.",
+        message.chars().take(200).collect::<String>()
+    );
+    
+    // Run gemini with flash-lite model
+    let output = if cfg!(target_os = "windows") {
+        Command::new("cmd")
+            .args(&["/C", "echo", &format!("\"{}\"", prompt), "|", "gemini", "--model", "gemini-2.5-flash-lite"])
+            .output()
+            .await
+            .map_err(|e| format!("Failed to run gemini for title generation: {}", e))?
+    } else {
+        Command::new("sh")
+            .args(&["-c", &format!("echo '{}' | gemini --model gemini-2.5-flash-lite", prompt)])
+            .output()
+            .await
+            .map_err(|e| format!("Failed to run gemini for title generation: {}", e))?
+    };
+    
+    if !output.status.success() {
+        return Err(format!("Gemini CLI failed: {}", String::from_utf8_lossy(&output.stderr)));
+    }
+    
+    let title = String::from_utf8_lossy(&output.stdout)
+        .trim()
+        .lines()
+        .last()
+        .unwrap_or("New Conversation")
+        .trim_matches('"')
+        .trim()
+        .to_string();
+    
+    // Fallback if title is too long or empty
+    let final_title = if title.is_empty() || title.len() > 50 {
+        message.chars().take(30).collect::<String>()
+    } else {
+        title
+    };
+    
+    println!("✅ Generated title: {}", final_title);
+    Ok(final_title)
+}
+
+#[tauri::command]
 async fn debug_environment() -> Result<String, String> {
     let path = std::env::var("PATH").unwrap_or_else(|_| "PATH not found".to_string());
     let home = std::env::var("HOME").unwrap_or_else(|_| std::env::var("USERPROFILE").unwrap_or_else(|_| "HOME not found".to_string()));
@@ -833,6 +881,7 @@ pub fn run() {
             kill_process,
             test_gemini_command,
             send_tool_call_confirmation_response,
+            generate_conversation_title,
             debug_environment
         ])
         .run(tauri::generate_context!())

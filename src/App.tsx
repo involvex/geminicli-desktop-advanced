@@ -424,13 +424,31 @@ function App() {
     } else {
       const newConversation: Conversation = {
         id: Date.now().toString(),
-        title: input.slice(0, 50),
+        title: "Generating title...",
         messages: [newMessage],
         lastUpdated: new Date()
       };
       setConversations(prev => [...prev, newConversation]);
       setActiveConversation(newConversation.id);
       conversationId = newConversation.id;
+
+      // Generate title using Gemini CLI flash lite
+      try {
+        const generatedTitle = await invoke<string>('generate_conversation_title', { message: input });
+        setConversations(prev => prev.map(conv =>
+          conv.id === conversationId
+            ? { ...conv, title: generatedTitle }
+            : conv
+        ));
+      } catch (error) {
+        console.error('Failed to generate title:', error);
+        // Fallback to truncated input
+        setConversations(prev => prev.map(conv =>
+          conv.id === conversationId
+            ? { ...conv, title: input.slice(0, 50) }
+            : conv
+        ));
+      }
 
       // Set up event listener for this conversation
       setupEventListenerForConversation(conversationId);
