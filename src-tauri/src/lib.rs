@@ -6,6 +6,7 @@ use tauri::{AppHandle, Emitter, State};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader as AsyncBufReader};
 use tokio::process::{Command, ChildStdin, ChildStdout};
 use tokio::sync::mpsc;
+use std::time::Duration;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SessionInfo {
@@ -35,6 +36,79 @@ type ProcessMap = Arc<Mutex<HashMap<String, PersistentSession>>>;
 
 struct AppState {
     processes: ProcessMap,
+}
+
+// Security: Check if a command is safe to execute
+fn is_command_safe(command: &str) -> bool {
+    let dangerous_patterns = [
+        "rm ", "del ", "format", "mkfs", "dd if=", "sudo rm", "sudo del",
+        "> /dev/", "curl ", "wget ", "powershell", "cmd /c del", "cmd /c rd",
+        "shutdown", "reboot", "halt", "init 0", "systemctl", "service ",
+        "apt-get remove", "yum remove", "dnf remove", "brew uninstall",
+        "npm uninstall -g", "pip uninstall", "cargo uninstall",
+        "chmod 777", "chown ", "passwd", "su ", "sudo su",
+        "export PATH=", "set PATH=", "alias rm=", "alias del=",
+        "eval ", "exec ", "`", "$(", "${", "||", "&&",
+        "; rm", "; del", "; sudo", "; curl", "; wget",
+        "| rm", "| del", "| sudo", "| curl", "| wget"
+    ];
+    
+    let command_lower = command.to_lowercase();
+    for pattern in &dangerous_patterns {
+        if command_lower.contains(pattern) {
+            return false;
+        }
+    }
+    
+    // Allow common safe commands
+    let safe_commands = [
+        "echo", "cat", "ls", "dir", "pwd", "whoami", "date", "time",
+        "python", "node", "npm", "cargo", "git", "rustc", "gcc", "clang",
+        "java", "javac", "go", "php", "ruby", "perl", "make", "cmake",
+        "grep", "find", "sort", "head", "tail", "wc", "awk", "sed",
+        "ping", "nslookup", "dig", "ps", "top", "htop", "df", "du",
+        "uname", "which", "where", "type", "help", "man", "--help", "--version"
+    ];
+    
+    let first_word = command_lower.split_whitespace().next().unwrap_or("");
+    safe_commands.iter().any(|&safe_cmd| first_word.starts_with(safe_cmd))
+}
+
+// Execute a terminal command safely
+async fn execute_terminal_command(command: &str) -> Result<String, String> {
+    if !is_command_safe(command) {
+        return Err("Command not allowed for security reasons".to_string());
+    }
+    
+    println!("🖥️ Executing terminal command: {}", command);
+    
+    let output = if cfg!(target_os = "windows") {
+        Command::new("cmd")
+            .args(&["/C", command])
+            .output()
+            .await
+    } else {
+        Command::new("sh")
+            .args(&["-c", command])
+            .output()
+            .await
+    };
+    
+    match output {
+        Ok(result) => {
+            let stdout = String::from_utf8_lossy(&result.stdout);
+            let stderr = String::from_utf8_lossy(&result.stderr);
+            
+            if result.status.success() {
+                Ok(format!("Exit code: {}\nOutput:\n{}", 
+                    result.status.code().unwrap_or(0), stdout))
+            } else {
+                Err(format!("Exit code: {}\nError:\n{}\nOutput:\n{}", 
+                    result.status.code().unwrap_or(-1), stderr, stdout))
+            }
+        }
+        Err(e) => Err(format!("Failed to execute command: {}", e))
+    }
 }
 
 // JSON-RPC types
@@ -136,17 +210,22 @@ struct RequestToolCallConfirmationParams {
 struct ToolCallConfirmationContent {
     #[serde(rename = "type")]
     content_type: String,
-    path: String,
-    #[serde(rename = "oldText")]
-    old_text: String,
-    #[serde(rename = "newText")]
-    new_text: String,
+    #[serde(default)]
+    path: Option<String>,
+    #[serde(rename = "oldText", default)]
+    old_text: Option<String>,
+    #[serde(rename = "newText", default)]
+    new_text: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ToolCallConfirmation {
     #[serde(rename = "type")]
     confirmation_type: String,
+    #[serde(rename = "rootCommand", default)]
+    root_command: Option<String>,
+    #[serde(default)]
+    command: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -769,35 +848,95 @@ async fn send_tool_call_confirmation_response(
     Ok(())
 }
 
+// New command to execute terminal commands after confirmation
+#[tauri::command]
+async fn execute_confirmed_command(
+    command: String,
+    app_handle: AppHandle,
+) -> Result<String, String> {
+    println!("🖥️ Executing confirmed command: {}", command);
+    
+    match execute_terminal_command(&command).await {
+        Ok(output) => {
+            println!("✅ Command executed successfully");
+            
+            // Emit command result event
+            let _ = app_handle.emit("command-result", &serde_json::json!({
+                "command": command,
+                "success": true,
+                "output": output
+            }));
+            
+            Ok(output)
+        }
+        Err(error) => {
+            println!("❌ Command execution failed: {}", error);
+            
+            // Emit command result event
+            let _ = app_handle.emit("command-result", &serde_json::json!({
+                "command": command,
+                "success": false,
+                "error": error
+            }));
+            
+            Err(error)
+        }
+    }
+}
+
 #[tauri::command]
 async fn generate_conversation_title(message: String) -> Result<String, String> {
-    println!("🏷️ Generating title for message: {}", message.chars().take(50).collect::<String>());
     
     let prompt = format!(
         "Generate a short, concise title (3-6 words) for a conversation that starts with this user message: \"{}\". Only return the title, nothing else.",
         message.chars().take(200).collect::<String>()
     );
     
-    // Run gemini with flash-lite model
-    let output = if cfg!(target_os = "windows") {
+    // Run gemini with flash-lite model using simple direct execution
+    
+    let mut child = if cfg!(target_os = "windows") {
         Command::new("cmd")
-            .args(&["/C", "echo", &format!("\"{}\"", prompt), "|", "gemini", "--model", "gemini-2.5-flash-lite"])
-            .output()
-            .await
-            .map_err(|e| format!("Failed to run gemini for title generation: {}", e))?
+            .args(&["/C", "gemini", "--model", "gemini-2.5-flash"])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to spawn gemini for title generation: {}", e))?
     } else {
-        Command::new("sh")
-            .args(&["-c", &format!("echo '{}' | gemini --model gemini-2.5-flash-lite", prompt)])
-            .output()
-            .await
-            .map_err(|e| format!("Failed to run gemini for title generation: {}", e))?
+        Command::new("gemini")
+            .args(&["--model", "gemini-2.5-flash"])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to spawn gemini for title generation: {}", e))?
     };
+
+    // Write prompt to stdin
+    if let Some(stdin) = child.stdin.take() {
+        use tokio::io::AsyncWriteExt;
+        let mut stdin = tokio::process::ChildStdin::from(stdin);
+        stdin.write_all(prompt.as_bytes()).await.map_err(|e| {
+            format!("Failed to write prompt to gemini stdin: {}", e)
+        })?;
+        stdin.shutdown().await.map_err(|e| {
+            format!("Failed to close gemini stdin: {}", e)
+        })?;
+    }
+
+    // Wait for completion and get output
+    let output = child.wait_with_output().await.map_err(|e| {
+        format!("Failed to run gemini for title generation: {}", e)
+    })?;
     
     if !output.status.success() {
-        return Err(format!("Gemini CLI failed: {}", String::from_utf8_lossy(&output.stderr)));
+        let error_msg = format!("Gemini CLI failed with exit code {:?}: {}", output.status.code(), String::from_utf8_lossy(&output.stderr));
+        return Err(error_msg);
     }
     
-    let title = String::from_utf8_lossy(&output.stdout)
+    let raw_output = String::from_utf8_lossy(&output.stdout);
+    
+    let title = raw_output
         .trim()
         .lines()
         .last()
@@ -808,12 +947,12 @@ async fn generate_conversation_title(message: String) -> Result<String, String> 
     
     // Fallback if title is too long or empty
     let final_title = if title.is_empty() || title.len() > 50 {
-        message.chars().take(30).collect::<String>()
+        let fallback = message.chars().take(30).collect::<String>();
+        fallback
     } else {
         title
     };
     
-    println!("✅ Generated title: {}", final_title);
     Ok(final_title)
 }
 
@@ -881,6 +1020,7 @@ pub fn run() {
             kill_process,
             test_gemini_command,
             send_tool_call_confirmation_response,
+            execute_confirmed_command,
             generate_conversation_title,
             debug_environment
         ])

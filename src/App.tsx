@@ -46,12 +46,14 @@ interface ToolCallConfirmationRequest {
   icon: string;
   content: {
     type: string;
-    path: string;
-    oldText: string;
-    newText: string;
+    path?: string;
+    oldText?: string;
+    newText?: string;
   };
   confirmation: {
     type: string;
+    rootCommand?: string;
+    command?: string;
   };
   locations: any[];
 }
@@ -105,9 +107,7 @@ function App() {
   const [activeConversation, setActiveConversation] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [isCliInstalled, setIsCliInstalled] = useState<boolean | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const [processStatuses, setProcessStatuses] = useState<any[]>([]);
   const [cliIOLogs, setCliIOLogs] = useState<CliIO[]>([]);
   const [confirmationRequest, setConfirmationRequest] = useState<ToolCallConfirmationRequest | null>(null);
@@ -126,27 +126,6 @@ function App() {
   }, []);
 
 
-  // Auto-scroll to bottom when new messages arrive (if enabled)
-  useEffect(() => {
-    if (shouldAutoScroll && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [currentConversation?.messages, shouldAutoScroll]);
-
-  // Detect manual scrolling to disable auto-scroll
-  useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
-
-    const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 10; // 10px threshold
-      setShouldAutoScroll(isAtBottom);
-    };
-
-    container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, [currentConversation?.id]);
 
   const checkCliInstallation = async () => {
     try {
@@ -421,10 +400,39 @@ function App() {
           : conv
       ));
       conversationId = activeConversation;
+
+      // Check if this is the 3rd user message and generate title
+      const currentConv = conversations.find(c => c.id === activeConversation);
+      if (currentConv) {
+        const userMessageCount = [...currentConv.messages, newMessage].filter(msg => msg.sender === 'user').length;
+        
+        if (userMessageCount === 3) {
+          
+          // Generate title using all 3 user messages
+          const userMessages = [...currentConv.messages, newMessage]
+            .filter(msg => msg.sender === 'user')
+            .map(msg => msg.content)
+            .join(' | ');
+          
+          
+          try {
+            const generatedTitle = await invoke<string>('generate_conversation_title', { message: userMessages });
+            
+            setConversations(prev => prev.map(conv =>
+              conv.id === activeConversation
+                ? { ...conv, title: generatedTitle }
+                : conv
+            ));
+          } catch (error) {
+          }
+        } else {
+        }
+      } else {
+      }
     } else {
       const newConversation: Conversation = {
         id: Date.now().toString(),
-        title: "Generating title...",
+        title: input.slice(0, 50),
         messages: [newMessage],
         lastUpdated: new Date()
       };
@@ -432,31 +440,12 @@ function App() {
       setActiveConversation(newConversation.id);
       conversationId = newConversation.id;
 
-      // Generate title using Gemini CLI flash lite
-      try {
-        const generatedTitle = await invoke<string>('generate_conversation_title', { message: input });
-        setConversations(prev => prev.map(conv =>
-          conv.id === conversationId
-            ? { ...conv, title: generatedTitle }
-            : conv
-        ));
-      } catch (error) {
-        console.error('Failed to generate title:', error);
-        // Fallback to truncated input
-        setConversations(prev => prev.map(conv =>
-          conv.id === conversationId
-            ? { ...conv, title: input.slice(0, 50) }
-            : conv
-        ));
-      }
-
       // Set up event listener for this conversation
       setupEventListenerForConversation(conversationId);
     }
 
     const messageText = input;
     setInput("");
-    setShouldAutoScroll(true);
 
     try {
       // Send message with conversation context (like claudia does)
@@ -522,6 +511,19 @@ function App() {
         requestId: confirmationRequest.requestId,
         confirmed
       });
+
+      // If confirmed and it's a terminal command, execute it
+      if (confirmed && confirmationRequest.confirmation.type === 'execute' && confirmationRequest.confirmation.command) {
+        try {
+          const result = await invoke<string>('execute_confirmed_command', {
+            command: confirmationRequest.confirmation.command
+          });
+          console.log('✅ Command executed successfully:', result);
+        } catch (error) {
+          console.error('❌ Command execution failed:', error);
+        }
+      }
+
       setConfirmationRequest(null);
     } catch (error) {
       console.error('Failed to send confirmation response:', error);
@@ -570,7 +572,7 @@ function App() {
 
               {/* Right - Model info */}
               <div className="text-gray-500 dark:text-gray-400 font-mono text-sm">
-                gemini-2.5-flash-lite
+                gemini-2.5-flash
               </div>
             </div>
 
@@ -677,24 +679,7 @@ function App() {
                   )}
                 </div>
               ))}
-              <div ref={messagesEndRef} />
             </div>
-            {/* Auto-scroll indicator */}
-            {!shouldAutoScroll && (
-              <div className="absolute bottom-20 right-4">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => {
-                    setShouldAutoScroll(true);
-                    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-                  }}
-                  className="shadow-lg"
-                >
-                  ↓ Scroll to bottom
-                </Button>
-              </div>
-            )}
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
@@ -811,30 +796,53 @@ function App() {
             </DialogHeader>
             
             <div className="space-y-4">
-              <div className="text-sm text-muted-foreground">
-                The assistant wants to {confirmationRequest.content.type === 'diff' ? 'write to' : 'modify'} the following file:
-              </div>
-              
-              <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-lg">
-                <div className="font-mono text-sm font-medium text-blue-600 dark:text-blue-400">
-                  {confirmationRequest.content.path}
+              {confirmationRequest.confirmation.type === 'execute' ? (
+                <div>
+                  <div className="text-sm text-muted-foreground mb-3">
+                    The assistant wants to execute the following terminal command:
+                  </div>
+                  
+                  <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-lg">
+                    <div className="font-mono text-sm font-medium text-green-600 dark:text-green-400">
+                      {confirmationRequest.confirmation.command}
+                    </div>
+                  </div>
+                  
+                  <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                    <div className="text-sm text-yellow-800 dark:text-yellow-200">
+                      <strong>⚠️ Security Notice:</strong> Only commands from a predefined safe list can be executed. 
+                      Dangerous operations like file deletion, system modification, or network requests are blocked.
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div>
+                  <div className="text-sm text-muted-foreground">
+                    The assistant wants to {confirmationRequest.content.type === 'diff' ? 'write to' : 'modify'} the following file:
+                  </div>
+                  
+                  <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-lg">
+                    <div className="font-mono text-sm font-medium text-blue-600 dark:text-blue-400">
+                      {confirmationRequest.content.path}
+                    </div>
+                  </div>
+                </div>
+              )}
 
-              {confirmationRequest.content.type === 'diff' && (
+              {confirmationRequest.content.type === 'diff' && confirmationRequest.confirmation.type !== 'execute' && (
                 <div className="space-y-3">
                   <div className="text-sm font-medium">Changes:</div>
                   
                   {(() => {
                     const { oldDiff, newDiff } = createCharDiff(
-                      confirmationRequest.content.oldText, 
-                      confirmationRequest.content.newText
+                      confirmationRequest.content.oldText || '', 
+                      confirmationRequest.content.newText || ''
                     );
                     
                     return (
                       <>
                         {/* Old content with character-level diff */}
-                        {confirmationRequest.content.oldText && (
+                        {confirmationRequest.content.oldText && confirmationRequest.content.oldText.length > 0 && (
                           <div>
                             <div className="text-xs text-red-600 dark:text-red-400 font-medium mb-1">- Removed:</div>
                             <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-3">
