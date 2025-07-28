@@ -33,6 +33,20 @@ export function MessageContent({ content, sender: _ }: MessageContentProps) {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
+          // Custom link styling - opens external links in new tab
+          a({ href, children, ...props }: any) {
+            return (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline"
+                {...props}
+              >
+                {children}
+              </a>
+            );
+          },
           // Custom code block styling with react-syntax-highlighter
           code({ node, className, children, ...props }: any) {
             const match = /language-(\w+)/.exec(className || "");

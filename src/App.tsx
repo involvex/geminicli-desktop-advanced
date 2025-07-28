@@ -18,7 +18,7 @@ import { GeminiLogo } from "./components/GeminiLogo";
 import { PiebaldLogo } from "./components/PiebaldLogo";
 import { MentionInput } from "./components/MentionInput";
 import { type ToolCall } from "./utils/toolCallParser";
-import { Send, ImagePlus, Info, Check, X, AlertCircleIcon } from "lucide-react";
+import { Send, ImagePlus, Info, Check, X, AlertCircleIcon, AlertTriangle } from "lucide-react";
 import "./index.css";
 
 interface Message {
@@ -660,6 +660,31 @@ function App() {
     const messageText = input;
     setInput("");
 
+    // Check if user is trying to use the disabled model
+    if (selectedModel === "gemini-2.5-flash-lite") {
+      const templateMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: "Unfortunately, Gemini 2.5 Flash-Lite isn't usable, due to thinking issues.  See here for more details: [#1953](https://github.com/google-gemini/gemini-cli/issues/1953) and [#4548](https://github.com/google-gemini/gemini-cli/issues/4548).  Waiting on PR [#3033](https://github.com/google-gemini/gemini-cli/pull/3033)/[#4652](https://github.com/google-gemini/gemini-cli/pull/4652).",
+        sender: "assistant",
+        timestamp: new Date(),
+      };
+
+      if (conversationId) {
+        setConversations((prev) =>
+          prev.map((conv) =>
+            conv.id === conversationId
+              ? {
+                  ...conv,
+                  messages: [...conv.messages, templateMessage],
+                  lastUpdated: new Date(),
+                }
+              : conv
+          )
+        );
+      }
+      return;
+    }
+
     try {
       // Send message with conversation context (like claudia does)
       if (conversationId) {
@@ -922,6 +947,17 @@ function App() {
               </Alert>
             </div>
           )}
+          {selectedModel === "gemini-2.5-flash-lite" && (
+            <div className="p-4">
+              <Alert className="border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950/30">
+                <AlertTriangle className="!text-yellow-600 dark:text-yellow-400" />
+                <AlertTitle className="text-yellow-800 dark:text-yellow-200">Model unavailable</AlertTitle>
+                <AlertDescription className="text-yellow-700 dark:text-yellow-300">
+                  Still waitin'... This model currently has issues.
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
           {currentConversation ? (
             <div
               ref={messagesContainerRef}
@@ -1068,7 +1104,7 @@ function App() {
                   </div>
                   <Button
                     type="submit"
-                    disabled={isCliInstalled === false || !input.trim()}
+                    disabled={isCliInstalled === false || !input.trim() || selectedModel === "gemini-2.5-flash-lite"}
                     size="icon"
                     className="bg-blue-600 hover:bg-blue-700"
                   >

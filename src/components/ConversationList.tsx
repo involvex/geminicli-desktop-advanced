@@ -19,12 +19,18 @@ import {
   SelectValue,
 } from "./ui/select";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "./ui/tooltip";
+import {
   X,
   MessageCircle,
   Clock,
   Check,
   X as XIcon,
   Folder,
+  AlertTriangle,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -149,8 +155,25 @@ export function ConversationList({
             <SelectContent>
               <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
               <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
+              <SelectItem 
+                value="gemini-2.5-flash-lite" 
+                // disabled
+              >
+                <div className="flex items-center gap-2">
+                  <span>Gemini 2.5 Flash-Lite</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Still waitin'...</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              </SelectItem>
             </SelectContent>
           </Select>
+          
         </div>
 
         {/* Working Directory Input */}
