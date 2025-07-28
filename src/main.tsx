@@ -8,5 +8,5 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <ThemeProvider defaultTheme="system" storageKey="gemini-ui-theme">
       <App />
     </ThemeProvider>
-  </React.StrictMode>,
+  </React.StrictMode>
 );

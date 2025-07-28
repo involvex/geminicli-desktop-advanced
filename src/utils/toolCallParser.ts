@@ -3,7 +3,7 @@ export interface ToolCall {
   name: string;
   parameters: Record<string, any>;
   result?: any;
-  status?: 'pending' | 'running' | 'completed' | 'failed';
+  status?: "pending" | "running" | "completed" | "failed";
   inputJsonRpc?: string;
   outputJsonRpc?: string;
 }
@@ -24,45 +24,45 @@ export class ToolCallParser {
     // This might look like: "Calling tool: search_web with parameters: {"query": "..."}"
     // Or: "Tool call: get_weather(location=San Francisco)"
     // Or JSON-like tool call formats
-    
+
     const patterns = [
       // Pattern 1: "Calling tool: toolName with parameters: {...}"
       /Calling tool: (\w+) with parameters: ({.*?})/g,
-      
-      // Pattern 2: "Tool call: toolName({...})" 
+
+      // Pattern 2: "Tool call: toolName({...})"
       /Tool call: (\w+)\(([^)]*)\)/g,
-      
+
       // Pattern 3: Function call format "toolName({...})"
       /^(\w+)\(({.*?})\)$/gm,
-      
+
       // Pattern 4: JSON-like tool calls
       /"tool_calls":\s*\[\s*{[^}]*"name":\s*"(\w+)"[^}]*"parameters":\s*({[^}]*})/g,
-      
+
       // Pattern 5: MCP-style tool calls
       /\[TOOL_CALL\]\s*(\w+):\s*({.*?})\s*\[\/TOOL_CALL\]/g,
     ];
 
-    patterns.forEach(pattern => {
+    patterns.forEach((pattern) => {
       let match;
       while ((match = pattern.exec(output)) !== null) {
         try {
           const toolName = match[1];
           const parametersStr = match[2];
-          
+
           let parameters: Record<string, any> = {};
-          
+
           // Try to parse parameters as JSON
           try {
             parameters = JSON.parse(parametersStr);
           } catch {
             // If JSON parsing fails, try to parse as key=value pairs
-            if (parametersStr.includes('=')) {
-              const pairs = parametersStr.split(',');
-              pairs.forEach(pair => {
-                const [key, value] = pair.split('=').map(s => s.trim());
+            if (parametersStr.includes("=")) {
+              const pairs = parametersStr.split(",");
+              pairs.forEach((pair) => {
+                const [key, value] = pair.split("=").map((s) => s.trim());
                 if (key && value) {
                   // Remove quotes if present
-                  parameters[key] = value.replace(/^["']|["']$/g, '');
+                  parameters[key] = value.replace(/^["']|["']$/g, "");
                 }
               });
             }
@@ -72,16 +72,15 @@ export class ToolCallParser {
             id: `tool_${++this.toolCallCounter}_${Date.now()}`,
             name: toolName,
             parameters,
-            status: 'pending'
+            status: "pending",
           };
 
           toolCalls.push(toolCall);
-          
+
           // Remove the tool call text from the main content
-          cleanedText = cleanedText.replace(match[0], '');
-          
+          cleanedText = cleanedText.replace(match[0], "");
         } catch (error) {
-          console.warn('Failed to parse tool call:', match[0], error);
+          console.warn("Failed to parse tool call:", match[0], error);
         }
       }
     });
@@ -91,7 +90,7 @@ export class ToolCallParser {
 
     return {
       text: cleanedText.trim(),
-      toolCalls
+      toolCalls,
     };
   }
 
@@ -100,49 +99,53 @@ export class ToolCallParser {
     const resultPatterns = [
       // Pattern 1: "Tool result: {...}"
       /Tool result: ({.*?})/g,
-      
+
       // Pattern 2: "Result from toolName: {...}"
       /Result from (\w+): ({.*?})/g,
-      
+
       // Pattern 3: MCP-style results
       /\[TOOL_RESULT\]\s*({.*?})\s*\[\/TOOL_RESULT\]/g,
-      
+
       // Pattern 4: Simple success/error messages
       /(Tool executed successfully|Tool execution failed|Error executing tool)/g,
     ];
 
-    resultPatterns.forEach(pattern => {
+    resultPatterns.forEach((pattern) => {
       let match;
       while ((match = pattern.exec(output)) !== null) {
         try {
           // Find the most recent tool call to attach this result to
           const latestToolCall = toolCalls[toolCalls.length - 1];
           if (latestToolCall && !latestToolCall.result) {
-            if (match[1] && match[1].startsWith('{')) {
+            if (match[1] && match[1].startsWith("{")) {
               // JSON result
               latestToolCall.result = JSON.parse(match[1]);
             } else {
               // Text result
               latestToolCall.result = { message: match[0] };
             }
-            latestToolCall.status = 'completed';
+            latestToolCall.status = "completed";
           }
         } catch (error) {
-          console.warn('Failed to parse tool result:', match[0], error);
+          console.warn("Failed to parse tool result:", match[0], error);
         }
       }
     });
   }
 
-  static detectStreamingToolCall(chunk: string): { isToolCall: boolean; toolName?: string; isComplete: boolean } {
+  static detectStreamingToolCall(chunk: string): {
+    isToolCall: boolean;
+    toolName?: string;
+    isComplete: boolean;
+  } {
     // Detect if the current chunk is part of a tool call
     const toolCallStart = /Calling tool:|Tool call:|^\w+\(/;
     const toolCallEnd = /\)$|}\s*$/;
-    
+
     return {
       isToolCall: toolCallStart.test(chunk),
       toolName: chunk.match(/(?:Calling tool:|Tool call:)\s*(\w+)/)?.[1],
-      isComplete: toolCallEnd.test(chunk)
+      isComplete: toolCallEnd.test(chunk),
     };
   }
 }

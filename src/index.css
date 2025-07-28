@@ -8,7 +8,8 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --font-family-roboto-mono: 'Roboto Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
+  --font-family-roboto-mono: "Roboto Mono", "Consolas", "Monaco", "Courier New",
+    monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -117,7 +118,8 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI",
+      sans-serif;
     font-display: swap;
   }
 }

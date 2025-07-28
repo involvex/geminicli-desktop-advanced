@@ -1,11 +1,32 @@
-import { Badge } from './ui/badge';
-import { Button } from './ui/button';
-import { Card, CardHeader, CardContent } from './ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from './ui/dialog';
-import { Input } from './ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { X, MessageCircle, Clock, Check, X as XIcon, Folder } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import { Card, CardHeader, CardContent } from "./ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogTrigger,
+} from "./ui/dialog";
+import { Input } from "./ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
+import {
+  X,
+  MessageCircle,
+  Clock,
+  Check,
+  X as XIcon,
+  Folder,
+} from "lucide-react";
+import { useState, useEffect } from "react";
 
 interface ProcessStatus {
   conversation_id: string;
@@ -40,27 +61,37 @@ export function ConversationList({
   onWorkingDirectoryChange,
   onModelChange,
 }: ConversationListProps) {
-  const [selectedConversationForEnd, setSelectedConversationForEnd] = useState<{ id: string; title: string } | null>(null);
-  const [workingDirectory, setWorkingDirectory] = useState<string>('');
-  const [isValidDirectory, setIsValidDirectory] = useState<boolean | null>(null);
-  const [selectedModel, setSelectedModel] = useState<string>('gemini-2.5-flash');
-  
+  const [selectedConversationForEnd, setSelectedConversationForEnd] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
+  const [workingDirectory, setWorkingDirectory] = useState<string>("");
+  const [isValidDirectory, setIsValidDirectory] = useState<boolean | null>(
+    null
+  );
+  const [selectedModel, setSelectedModel] =
+    useState<string>("gemini-2.5-flash");
+
   const getProcessStatus = (conversationId: string) => {
-    return processStatuses.find(status => status.conversation_id === conversationId);
+    return processStatuses.find(
+      (status) => status.conversation_id === conversationId
+    );
   };
 
   // Validate directory path using backend
   useEffect(() => {
     if (!workingDirectory.trim()) {
       setIsValidDirectory(null);
-      onWorkingDirectoryChange?.('', false);
+      onWorkingDirectoryChange?.("", false);
       return;
     }
 
     const validateDirectory = async () => {
       try {
-        const { invoke } = await import('@tauri-apps/api/core');
-        const isValid = await invoke<boolean>('validate_directory', { path: workingDirectory.trim() });
+        const { invoke } = await import("@tauri-apps/api/core");
+        const isValid = await invoke<boolean>("validate_directory", {
+          path: workingDirectory.trim(),
+        });
         setIsValidDirectory(isValid);
         onWorkingDirectoryChange?.(workingDirectory.trim(), isValid);
       } catch (error) {
@@ -80,7 +111,7 @@ export function ConversationList({
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-    if (diffMins < 1) return 'Just now';
+    if (diffMins < 1) return "Just now";
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     return `${diffDays}d ago`;
@@ -95,9 +126,10 @@ export function ConversationList({
           Conversations
         </h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          {conversations.length} conversation{conversations.length !== 1 ? 's' : ''}
+          {conversations.length} conversation
+          {conversations.length !== 1 ? "s" : ""}
         </p>
-        
+
         {/* Model Selector */}
         <div className="mt-4">
           <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
@@ -106,7 +138,7 @@ export function ConversationList({
           <Select
             value={selectedModel}
             onValueChange={(value) => {
-              console.log('Model changed to:', value);
+              console.log("Model changed to:", value);
               setSelectedModel(value);
               onModelChange?.(value);
             }}
@@ -120,7 +152,7 @@ export function ConversationList({
             </SelectContent>
           </Select>
         </div>
-        
+
         {/* Working Directory Input */}
         <div className="mt-4">
           <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
@@ -145,7 +177,7 @@ export function ConversationList({
               )}
             </div>
           </div>
-          
+
           {/* Validation Status */}
           {workingDirectory.trim() && (
             <div className="mt-2 flex items-center gap-2 text-xs">
@@ -154,12 +186,16 @@ export function ConversationList({
               ) : isValidDirectory ? (
                 <>
                   <Check className="h-3 w-3 text-green-500" />
-                  <span className="text-green-600 dark:text-green-400">Valid directory path</span>
+                  <span className="text-green-600 dark:text-green-400">
+                    Valid directory path
+                  </span>
                 </>
               ) : (
                 <>
                   <XIcon className="h-3 w-3 text-red-500" />
-                  <span className="text-red-600 dark:text-red-400">Invalid directory path</span>
+                  <span className="text-red-600 dark:text-red-400">
+                    Invalid directory path
+                  </span>
                 </>
               )}
             </div>
@@ -188,8 +224,8 @@ export function ConversationList({
                   key={conversation.id}
                   className={`cursor-pointer transition-all hover:shadow-md ${
                     isSelected
-                      ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                      : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                      ? "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                      : "hover:bg-gray-100 dark:hover:bg-gray-700"
                   }`}
                   onClick={() => onConversationSelect(conversation.id)}
                 >
@@ -206,7 +242,7 @@ export function ConversationList({
                           </span>
                         </div>
                       </div>
-                      
+
                       {/* Process Status Badge */}
                       <div className="flex items-center gap-1">
                         {isActive ? (
@@ -215,7 +251,9 @@ export function ConversationList({
                             className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-xs px-2 py-0.5"
                           >
                             <div className="w-2 h-2 bg-green-500 rounded-full mr-1" />
-                            {processStatus?.pid ? `PID: ${processStatus.pid}` : 'Active'}
+                            {processStatus?.pid
+                              ? `PID: ${processStatus.pid}`
+                              : "Active"}
                           </Badge>
                         ) : (
                           <Badge
@@ -229,20 +267,26 @@ export function ConversationList({
                       </div>
                     </div>
                   </CardHeader>
-                  
+
                   <CardContent className="p-3 pt-0">
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {conversation.messages.length} message{conversation.messages.length !== 1 ? 's' : ''}
+                          {conversation.messages.length} message
+                          {conversation.messages.length !== 1 ? "s" : ""}
                         </p>
                       </div>
-                      
+
                       {/* End Chat Button */}
                       {isActive && (
-                        <Dialog open={selectedConversationForEnd?.id === conversation.id} onOpenChange={(open) => {
-                          if (!open) setSelectedConversationForEnd(null);
-                        }}>
+                        <Dialog
+                          open={
+                            selectedConversationForEnd?.id === conversation.id
+                          }
+                          onOpenChange={(open) => {
+                            if (!open) setSelectedConversationForEnd(null);
+                          }}
+                        >
                           <DialogTrigger asChild>
                             <Button
                               variant="ghost"
@@ -250,7 +294,10 @@ export function ConversationList({
                               className="h-7 w-7 p-0 ml-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
                               onClick={(e) => {
                                 e.stopPropagation(); // Prevent conversation selection
-                                setSelectedConversationForEnd({ id: conversation.id, title: conversation.title });
+                                setSelectedConversationForEnd({
+                                  id: conversation.id,
+                                  title: conversation.title,
+                                });
                               }}
                               title="End chat"
                             >
@@ -261,18 +308,22 @@ export function ConversationList({
                             <DialogHeader>
                               <DialogTitle>End Chat</DialogTitle>
                               <DialogDescription>
-                                Are you sure you want to end the chat "{conversation.title}"? This will terminate the active session.
+                                Are you sure you want to end the chat "
+                                {conversation.title}"? This will terminate the
+                                active session.
                               </DialogDescription>
                             </DialogHeader>
                             <DialogFooter>
-                              <Button 
-                                variant="outline" 
-                                onClick={() => setSelectedConversationForEnd(null)}
+                              <Button
+                                variant="outline"
+                                onClick={() =>
+                                  setSelectedConversationForEnd(null)
+                                }
                               >
                                 Cancel
                               </Button>
-                              <Button 
-                                variant="destructive" 
+                              <Button
+                                variant="destructive"
                                 onClick={() => {
                                   onKillProcess(conversation.id);
                                   setSelectedConversationForEnd(null);

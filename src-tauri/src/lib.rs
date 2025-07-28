@@ -199,8 +199,6 @@ struct UpdateToolCallParams {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct RequestToolCallConfirmationParams {
-    #[serde(default)]
-    id: Option<String>,
     label: String,
     icon: String,
     content: Option<ToolCallConfirmationContent>,
@@ -631,7 +629,6 @@ async fn handle_cli_request(
                 let confirmation_data = serde_json::json!({
                     "requestId": request.id,
                     "sessionId": session_id,
-                    "toolCallId": params.id,
                     "label": params.label,
                     "icon": params.icon,
                     "content": params.content.as_ref().map(|content| serde_json::json!({

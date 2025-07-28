@@ -1,17 +1,17 @@
-import { ThemeProvider as NextThemesProvider } from 'next-themes'
+import { ThemeProvider as NextThemesProvider } from "next-themes";
 
-type Theme = 'dark' | 'light' | 'system'
+type Theme = "dark" | "light" | "system";
 
 type ThemeProviderProps = {
-  children: React.ReactNode
-  defaultTheme?: Theme
-  storageKey?: string
-}
+  children: React.ReactNode;
+  defaultTheme?: Theme;
+  storageKey?: string;
+};
 
 export function ThemeProvider({
   children,
-  defaultTheme = 'system',
-  storageKey = 'vite-ui-theme',
+  defaultTheme = "system",
+  storageKey = "vite-ui-theme",
   ...props
 }: ThemeProviderProps) {
   return (
@@ -24,5 +24,5 @@ export function ThemeProvider({
     >
       {children}
     </NextThemesProvider>
-  )
+  );
 }

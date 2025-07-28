@@ -1,19 +1,18 @@
-import { Check, X } from 'lucide-react';
-import { Button } from './ui/button';
-import type { ToolCall } from '../utils/toolCallParser';
+import { Check, X } from "lucide-react";
+import { Button } from "./ui/button";
+import type { ToolCall } from "../utils/toolCallParser";
 
 interface ToolCallDisplayProps {
   toolCall: ToolCall;
 }
 
 export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
-  
   // Convert snake_case to PascalCase
   const formatToolName = (name: string) => {
     return name
-      .split('_')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join('');
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join("");
   };
   // const getToolIcon = (toolName: string) => {
   //   // Common Gemini CLI tools
@@ -67,7 +66,7 @@ export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
   // const getToolDescription = (toolCall: ToolCall) => {
   //   const params = toolCall.parameters;
   //   const name = toolCall.name.toLowerCase();
-  //   
+  //
   //   // Handle specific tool types
   //   if (name === 'list_files' || name === 'list_directory') {
   //     return `Listing files in: ${params.path || '.'}`;
@@ -82,7 +81,7 @@ export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
   //   if (params.code) return `Executing code`;
   //   if (params.location) return `Getting weather for ${params.location}`;
   //   if (params.url) return `Fetching: ${params.url}`;
-  //   
+  //
   //   return `Using tool: ${toolCall.name}`;
   // };
 
@@ -168,89 +167,93 @@ export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
 
   const getResultSummary = (toolCall: ToolCall) => {
     if (!toolCall.result) return null;
-    
+
     const name = toolCall.name.toLowerCase();
     const result = toolCall.result;
-    
-    if (name === 'list_files' && result.files) {
+
+    if (name === "list_files" && result.files) {
       return `Listed ${result.files.length} files.`;
     }
-    if (name === 'search_files' && result.matches) {
+    if (name === "search_files" && result.matches) {
       return `Found ${result.total || result.matches.length} matches.`;
     }
     if (result.message) {
       return result.message;
     }
-    if (typeof result === 'string') {
-      return result.substring(0, 50) + (result.length > 50 ? '...' : '');
+    if (typeof result === "string") {
+      return result.substring(0, 50) + (result.length > 50 ? "..." : "");
     }
-    
-    return 'Completed successfully.';
+
+    return "Completed successfully.";
   };
 
   const getErrorSummary = (toolCall: ToolCall) => {
-    if (!toolCall.result) return 'Failed to execute.';
-    
+    if (!toolCall.result) return "Failed to execute.";
+
     const result = toolCall.result;
-    
+
     // If result has markdown field (like in the error example)
     if (result.markdown) {
       const error = result.markdown.trim();
       // Return first line of error, truncated if needed
-      const firstLine = error.split('\n')[0];
-      return firstLine.length > 60 ? firstLine.substring(0, 60) + '...' : firstLine;
+      const firstLine = error.split("\n")[0];
+      return firstLine.length > 60
+        ? firstLine.substring(0, 60) + "..."
+        : firstLine;
     }
-    
+
     // If result is a string
-    if (typeof result === 'string') {
-      const firstLine = result.trim().split('\n')[0];
-      return firstLine.length > 60 ? firstLine.substring(0, 60) + '...' : firstLine;
+    if (typeof result === "string") {
+      const firstLine = result.trim().split("\n")[0];
+      return firstLine.length > 60
+        ? firstLine.substring(0, 60) + "..."
+        : firstLine;
     }
-    
+
     // If result has error field
     if (result.error) {
-      return result.error.length > 60 ? result.error.substring(0, 60) + '...' : result.error;
+      return result.error.length > 60
+        ? result.error.substring(0, 60) + "..."
+        : result.error;
     }
-    
-    return 'Command failed.';
+
+    return "Command failed.";
   };
 
   const getRunningDescription = (toolCall: ToolCall) => {
     const params = toolCall.parameters;
     const name = toolCall.name.toLowerCase();
-    
-    if (name === 'write_file' || name === 'writefile') {
-      return `Writing to ${params.file || params.path || 'file'}`;
+
+    if (name === "write_file" || name === "writefile") {
+      return `Writing to ${params.file || params.path || "file"}`;
     }
-    if (name === 'list_files') {
-      return `Listing files in ${params.path || '.'}`;
+    if (name === "list_files") {
+      return `Listing files in ${params.path || "."}`;
     }
-    if (name === 'search_files') {
+    if (name === "search_files") {
       return `Searching for "${params.pattern || params.query}"`;
     }
-    if (name === 'read_file') {
+    if (name === "read_file") {
       return `Reading ${params.file || params.path}`;
     }
-    
-    return 'Running...';
+
+    return "Running...";
   };
 
   return (
     <div className="my-4 w-full">
       {/* Pending State */}
-      {toolCall.status === 'pending' && (
+      {toolCall.status === "pending" && (
         <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
           <div className="mb-3">
-            <span 
-              className="font-medium text-base text-black dark:text-white font-mono"
-            >
+            <span className="font-medium text-base text-black dark:text-white font-mono">
               {formatToolName(toolCall.name)}
             </span>
             <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
               Pending approval...
             </span>
           </div>
-          
+
           <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
             <span className="animate-pulse">●</span>
             Waiting for user approval
@@ -259,7 +262,9 @@ export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
           {/* Input JSON-RPC */}
           {toolCall.inputJsonRpc && (
             <div className="mt-4">
-              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">Input:</div>
+              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                Input:
+              </div>
               <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto border">
                 <code>{toolCall.inputJsonRpc}</code>
               </pre>
@@ -267,29 +272,35 @@ export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
           )}
         </div>
       )}
-      
+
       {/* Running State */}
-      {toolCall.status === 'running' && (
+      {toolCall.status === "running" && (
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
           <div className="mb-3">
-            <span 
-              className="font-medium text-base text-black dark:text-white font-mono"
-            >
+            <span className="font-medium text-base text-black dark:text-white font-mono">
               {formatToolName(toolCall.name)}
             </span>
             <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
               {getRunningDescription(toolCall)}
             </span>
           </div>
-          
-          
+
           {/* Approval Buttons */}
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-700 dark:text-gray-300">Approve?</span>
-            <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 text-xs">
+            <span className="text-sm text-gray-700 dark:text-gray-300">
+              Approve?
+            </span>
+            <Button
+              size="sm"
+              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 text-xs"
+            >
               Yes
             </Button>
-            <Button size="sm" variant="destructive" className="px-3 py-1 text-xs">
+            <Button
+              size="sm"
+              variant="destructive"
+              className="px-3 py-1 text-xs"
+            >
               No
             </Button>
           </div>
@@ -297,7 +308,9 @@ export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
           {/* Input JSON-RPC */}
           {toolCall.inputJsonRpc && (
             <div className="mt-4">
-              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">Input:</div>
+              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                Input:
+              </div>
               <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto border">
                 <code>{toolCall.inputJsonRpc}</code>
               </pre>
@@ -305,13 +318,11 @@ export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
           )}
         </div>
       )}
-      
+
       {/* Failed State */}
-      {toolCall.status === 'failed' && (
+      {toolCall.status === "failed" && (
         <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-md px-4 py-3">
-          <div 
-            className="font-medium text-sm text-black dark:text-white mb-1 font-mono"
-          >
+          <div className="font-medium text-sm text-black dark:text-white mb-1 font-mono">
             {formatToolName(toolCall.name)}
           </div>
           <div className="flex items-center gap-2 text-sm text-red-700 dark:text-red-300">
@@ -322,7 +333,9 @@ export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
           {/* Input JSON-RPC */}
           {toolCall.inputJsonRpc && (
             <div className="mt-4">
-              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">Input:</div>
+              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                Input:
+              </div>
               <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto border">
                 <code>{toolCall.inputJsonRpc}</code>
               </pre>
@@ -332,7 +345,9 @@ export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
           {/* Output JSON-RPC */}
           {toolCall.outputJsonRpc && (
             <div className="mt-4">
-              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">Output:</div>
+              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                Output:
+              </div>
               <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto border">
                 <code>{toolCall.outputJsonRpc}</code>
               </pre>
@@ -342,11 +357,9 @@ export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
       )}
 
       {/* Completed State */}
-      {toolCall.result && toolCall.status === 'completed' && (
+      {toolCall.result && toolCall.status === "completed" && (
         <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md px-4 py-3">
-          <div 
-            className="font-medium text-sm text-black dark:text-white mb-1 font-mono"
-          >
+          <div className="font-medium text-sm text-black dark:text-white mb-1 font-mono">
             {formatToolName(toolCall.name)}
           </div>
           <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-300">
@@ -357,7 +370,9 @@ export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
           {/* Input JSON-RPC */}
           {toolCall.inputJsonRpc && (
             <div className="mt-4">
-              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">Input:</div>
+              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                Input:
+              </div>
               <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto border">
                 <code>{toolCall.inputJsonRpc}</code>
               </pre>
@@ -367,7 +382,9 @@ export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
           {/* Output JSON-RPC */}
           {toolCall.outputJsonRpc && (
             <div className="mt-4">
-              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">Output:</div>
+              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                Output:
+              </div>
               <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto border">
                 <code>{toolCall.outputJsonRpc}</code>
               </pre>
