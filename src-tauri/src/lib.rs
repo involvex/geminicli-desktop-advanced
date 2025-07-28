@@ -192,7 +192,7 @@ struct PushToolCallResult {
 #[derive(Debug, Serialize, Deserialize)]
 struct UpdateToolCallParams {
     #[serde(rename = "toolCallId")]
-    tool_call_id: String,
+    tool_call_id: u32,
     status: String,
     content: Option<serde_json::Value>,
 }

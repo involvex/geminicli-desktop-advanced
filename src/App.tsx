@@ -752,20 +752,9 @@ function App() {
               <span className="text-lg font-medium text-blue-600 pt-2">Desktop</span>
             </div>
 
-            {/* Center section - Model Info - Aligned with message container */}
-            <div className="max-w-4xl w-full flex items-center justify-end">
-              {/* Model info */}
-              <div className="text-gray-500 dark:text-gray-400 font-mono text-sm">
-                gemini-2.5-flash
-              </div>
-            </div>
-
             {/* Right section - Piebald branding */}
             <div className="flex flex-1 flex-col items-end text-xs text-gray-400">
-              <div className="flex items-center gap-1">
-                From the creators of <PiebaldLogo />
-              </div>
-              <div>Copyright 2025 Piebald LLC</div>
+                <p>From the creators of</p> <PiebaldLogo />
             </div>
           </div>
         </div>

@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 import { Card, CardHeader, CardContent } from './ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from './ui/dialog';
 import { Input } from './ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { X, MessageCircle, Clock, Check, X as XIcon, Folder } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -27,6 +28,7 @@ interface ConversationListProps {
   onConversationSelect: (conversationId: string) => void;
   onKillProcess: (conversationId: string) => void;
   onWorkingDirectoryChange?: (directory: string, isValid: boolean) => void;
+  onModelChange?: (model: string) => void;
 }
 
 export function ConversationList({
@@ -36,10 +38,12 @@ export function ConversationList({
   onConversationSelect,
   onKillProcess,
   onWorkingDirectoryChange,
+  onModelChange,
 }: ConversationListProps) {
   const [selectedConversationForEnd, setSelectedConversationForEnd] = useState<{ id: string; title: string } | null>(null);
   const [workingDirectory, setWorkingDirectory] = useState<string>('');
   const [isValidDirectory, setIsValidDirectory] = useState<boolean | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string>('gemini-2.5-pro');
   
   const getProcessStatus = (conversationId: string) => {
     return processStatuses.find(status => status.conversation_id === conversationId);
@@ -93,6 +97,29 @@ export function ConversationList({
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           {conversations.length} conversation{conversations.length !== 1 ? 's' : ''}
         </p>
+        
+        {/* Model Selector */}
+        <div className="mt-4">
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+            Model
+          </label>
+          <Select
+            value={selectedModel}
+            onValueChange={(value) => {
+              console.log('Model changed to:', value);
+              setSelectedModel(value);
+              onModelChange?.(value);
+            }}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select a model" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
+              <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         
         {/* Working Directory Input */}
         <div className="mt-4">
