@@ -4,11 +4,11 @@ A powerful, modern desktop UI for Gemini CLI.  Built with Tauri and web technolo
 
 ![Screenshot of Gemini Desktop](./assets/screenshot.png)
 
-### How it works
+## How it works
 
 Gemini CLI can function as an ACP (Agent Communication Protocol) server, which enables real-time communication via JSON RPC 2.0 between the client, Gemini Desktop, and the server, Gemini CLI.
 
-### Building
+## Building
 
 ```
 git clone https://github.com/Piebald-AI/gemini-desktop
@@ -17,11 +17,11 @@ pnpm install
 pnpm tauri dev
 ```
 
-### Contributing
+## Contributing
 
 Contributions are welcome, although it's a bit raw still.
 
-### License
+## License
 
 [MIT](./LICENSE)
 
