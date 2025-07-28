@@ -1,4 +1,4 @@
-import { Check } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import { Button } from './ui/button';
 import type { ToolCall } from '../utils/toolCallParser';
 
@@ -188,6 +188,33 @@ export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
     return 'Completed successfully.';
   };
 
+  const getErrorSummary = (toolCall: ToolCall) => {
+    if (!toolCall.result) return 'Failed to execute.';
+    
+    const result = toolCall.result;
+    
+    // If result has markdown field (like in the error example)
+    if (result.markdown) {
+      const error = result.markdown.trim();
+      // Return first line of error, truncated if needed
+      const firstLine = error.split('\n')[0];
+      return firstLine.length > 60 ? firstLine.substring(0, 60) + '...' : firstLine;
+    }
+    
+    // If result is a string
+    if (typeof result === 'string') {
+      const firstLine = result.trim().split('\n')[0];
+      return firstLine.length > 60 ? firstLine.substring(0, 60) + '...' : firstLine;
+    }
+    
+    // If result has error field
+    if (result.error) {
+      return result.error.length > 60 ? result.error.substring(0, 60) + '...' : result.error;
+    }
+    
+    return 'Command failed.';
+  };
+
   const getRunningDescription = (toolCall: ToolCall) => {
     const params = toolCall.parameters;
     const name = toolCall.name.toLowerCase();
@@ -210,6 +237,37 @@ export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
 
   return (
     <div className="my-4 w-full">
+      {/* Pending State */}
+      {toolCall.status === 'pending' && (
+        <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+          <div className="mb-3">
+            <span 
+              className="font-medium text-base text-black dark:text-white font-mono"
+            >
+              {formatToolName(toolCall.name)}
+            </span>
+            <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
+              Pending approval...
+            </span>
+          </div>
+          
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+            <span className="animate-pulse">●</span>
+            Waiting for user approval
+          </div>
+
+          {/* Input JSON-RPC */}
+          {toolCall.inputJsonRpc && (
+            <div className="mt-4">
+              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">Input:</div>
+              <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto border">
+                <code>{toolCall.inputJsonRpc}</code>
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
+      
       {/* Running State */}
       {toolCall.status === 'running' && (
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
@@ -235,11 +293,56 @@ export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
               No
             </Button>
           </div>
+
+          {/* Input JSON-RPC */}
+          {toolCall.inputJsonRpc && (
+            <div className="mt-4">
+              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">Input:</div>
+              <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto border">
+                <code>{toolCall.inputJsonRpc}</code>
+              </pre>
+            </div>
+          )}
         </div>
       )}
       
+      {/* Failed State */}
+      {toolCall.status === 'failed' && (
+        <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-md px-4 py-3">
+          <div 
+            className="font-medium text-sm text-black dark:text-white mb-1 font-mono"
+          >
+            {formatToolName(toolCall.name)}
+          </div>
+          <div className="flex items-center gap-2 text-sm text-red-700 dark:text-red-300">
+            <X className="size-3" />
+            {getErrorSummary(toolCall)}
+          </div>
+
+          {/* Input JSON-RPC */}
+          {toolCall.inputJsonRpc && (
+            <div className="mt-4">
+              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">Input:</div>
+              <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto border">
+                <code>{toolCall.inputJsonRpc}</code>
+              </pre>
+            </div>
+          )}
+
+          {/* Output JSON-RPC */}
+          {toolCall.outputJsonRpc && (
+            <div className="mt-4">
+              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">Output:</div>
+              <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto border">
+                <code>{toolCall.outputJsonRpc}</code>
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Completed State */}
-      {toolCall.result && toolCall.status !== 'running' && (
+      {toolCall.result && toolCall.status === 'completed' && (
         <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md px-4 py-3">
           <div 
             className="font-medium text-sm text-black dark:text-white mb-1 font-mono"
@@ -250,6 +353,26 @@ export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
             <Check className="size-3" />
             {getResultSummary(toolCall)}
           </div>
+
+          {/* Input JSON-RPC */}
+          {toolCall.inputJsonRpc && (
+            <div className="mt-4">
+              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">Input:</div>
+              <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto border">
+                <code>{toolCall.inputJsonRpc}</code>
+              </pre>
+            </div>
+          )}
+
+          {/* Output JSON-RPC */}
+          {toolCall.outputJsonRpc && (
+            <div className="mt-4">
+              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">Output:</div>
+              <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto border">
+                <code>{toolCall.outputJsonRpc}</code>
+              </pre>
+            </div>
+          )}
         </div>
       )}
     </div>

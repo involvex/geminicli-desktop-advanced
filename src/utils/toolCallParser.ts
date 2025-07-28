@@ -3,7 +3,9 @@ export interface ToolCall {
   name: string;
   parameters: Record<string, any>;
   result?: any;
-  status?: 'pending' | 'running' | 'completed' | 'error';
+  status?: 'pending' | 'running' | 'completed' | 'failed';
+  inputJsonRpc?: string;
+  outputJsonRpc?: string;
 }
 
 export interface ParsedContent {

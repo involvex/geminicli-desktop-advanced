@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Button } from "./components/ui/button";
 import { Alert, AlertDescription } from "./components/ui/alert";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "./components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "./components/ui/dialog";
 import { MessageContent } from "./components/MessageContent";
 import { ToolCallDisplay } from "./components/ToolCallDisplay";
 import { ThinkingBlock } from "./components/ThinkingBlock";
@@ -42,20 +42,58 @@ interface CliIO {
 interface ToolCallConfirmationRequest {
   requestId: number;
   sessionId: string;
+  toolCallId?: string | null;
   label: string;
   icon: string;
-  content: {
+  content?: {
     type: string;
     path?: string;
     oldText?: string;
     newText?: string;
-  };
+  } | null;
   confirmation: {
     type: string;
     rootCommand?: string;
     command?: string;
   };
   locations: any[];
+  inputJsonRpc?: string;
+}
+
+// Helper function to detect if a tool call result indicates an error
+function isErrorResult(content: any): boolean {
+  if (!content) return false;
+  
+  // Check for common error patterns
+  const errorIndicators = [
+    'is not recognized as an internal or external command',
+    'command not found',
+    'no such file or directory',
+    'permission denied',
+    'access denied',
+    'error:',
+    'failed:',
+    'exception:',
+  ];
+  
+  // If content has markdown field (like in the example)
+  if (content.markdown) {
+    const markdown = content.markdown.toLowerCase();
+    return errorIndicators.some(indicator => markdown.includes(indicator));
+  }
+  
+  // If content is a string
+  if (typeof content === 'string') {
+    const contentStr = content.toLowerCase();
+    return errorIndicators.some(indicator => contentStr.includes(indicator));
+  }
+  
+  // If content has an error field
+  if (content.error || content.stderr) {
+    return true;
+  }
+  
+  return false;
 }
 
 // Simple character-level diff function
@@ -158,6 +196,56 @@ function App() {
           conversationId
         };
         setCliIOLogs(prev => [...prev, newLog]);
+
+        // Check if this is a tool call related JSON-RPC message
+        try {
+          const jsonData = JSON.parse(event.payload.data);
+          
+          // If it's a requestToolCallConfirmation input, store it for when the tool call is created
+          if (event.payload.type === 'output' && jsonData.method === 'requestToolCallConfirmation') {
+            console.log('📥 Storing input JSON-RPC for tool call:', jsonData);
+            // Store the input JSON-RPC data temporarily - we'll associate it with the tool call when it's created
+            (window as any).pendingToolCallInput = event.payload.data;
+          }
+          
+          // If it's an updateToolCall input, store it for updating the tool call
+          if (event.payload.type === 'output' && jsonData.method === 'updateToolCall') {
+            console.log('📤 Storing output JSON-RPC for tool call:', jsonData);
+            // Update tool calls with output JSON-RPC data
+            const toolCallId = jsonData.params?.toolCallId;
+            if (toolCallId) {
+              setConversations(prev => prev.map(conv => {
+                if (conv.id === conversationId) {
+                  return {
+                    ...conv,
+                    messages: conv.messages.map(msg => {
+                      if (msg.toolCalls) {
+                        const updatedToolCalls = msg.toolCalls.map(tc => {
+                          if (tc.id === toolCallId.toString()) {
+                            return {
+                              ...tc,
+                              outputJsonRpc: event.payload.data
+                            };
+                          }
+                          return tc;
+                        });
+                        
+                        return {
+                          ...msg,
+                          toolCalls: updatedToolCalls
+                        };
+                      }
+                      return msg;
+                    })
+                  };
+                }
+                return conv;
+              }));
+            }
+          }
+        } catch (e) {
+          // Not JSON, ignore
+        }
       });
 
       // Listen for streaming text chunks
@@ -309,7 +397,7 @@ function App() {
 
       // Listen for tool call updates
       await listen<any>(`gemini-tool-call-update-${conversationId}`, (event) => {
-        console.log('Received tool call update for conversation:', conversationId, event.payload);
+        console.log('🔄 TOOL CALL UPDATE:', conversationId, event.payload);
         
         const updateData = event.payload;
         
@@ -320,17 +408,43 @@ function App() {
               ...conv,
               messages: conv.messages.map(msg => {
                 if (msg.toolCalls) {
+                  const updatedToolCalls = msg.toolCalls.map(tc => {
+                    // Match by ID, or if no exact match, match the first running tool call
+                    const shouldUpdate = tc.id === updateData.toolCallId.toString() || 
+                      (updateData.toolCallId === "unknown" && tc.status === 'running') ||
+                      (tc.status === 'running'); // Fallback: update any running tool call
+                    
+                    console.log('🔍 Tool call matching:', {
+                      tcId: tc.id,
+                      updateId: updateData.toolCallId.toString(),
+                      tcStatus: tc.status,
+                      shouldUpdate
+                    });
+                    
+                    if (shouldUpdate) {
+                      const newStatus = updateData.status === 'finished' ? 
+                        (isErrorResult(updateData.content) ? 'failed' : 'completed') : 
+                        updateData.status;
+                      
+                      console.log('🔧 Updating tool call:', {
+                        from: tc.status,
+                        to: newStatus,
+                        content: updateData.content
+                      });
+                      
+                      return {
+                        ...tc,
+                        status: newStatus,
+                        result: updateData.content
+                      };
+                    }
+                    
+                    return tc;
+                  });
+                  
                   return {
                     ...msg,
-                    toolCalls: msg.toolCalls.map(tc => 
-                      tc.id === updateData.toolCallId.toString()
-                        ? {
-                          ...tc,
-                          status: updateData.status === 'finished' ? 'completed' : updateData.status,
-                          result: updateData.content
-                        }
-                        : tc
-                    )
+                    toolCalls: updatedToolCalls
                   };
                 }
                 return msg;
@@ -369,7 +483,12 @@ function App() {
       // Listen for tool call confirmation requests
       await listen<ToolCallConfirmationRequest>(`gemini-tool-call-confirmation-${conversationId}`, (event) => {
         console.log('🔍 Tool call confirmation request for conversation:', conversationId, event.payload);
-        setConfirmationRequest(event.payload);
+        // Associate the pending input JSON-RPC with this confirmation request
+        const confirmationWithInput = {
+          ...event.payload,
+          inputJsonRpc: (window as any).pendingToolCallInput
+        };
+        setConfirmationRequest(confirmationWithInput);
       });
     } catch (error) {
       console.error('Failed to set up event listener for conversation:', conversationId, error);
@@ -502,26 +621,97 @@ function App() {
     }
   };
 
-  const handleConfirmToolCall = async (confirmed: boolean) => {
+  const handleConfirmToolCall = async (outcome: string) => {
     if (!confirmationRequest) return;
+
+    const toolCallId = confirmationRequest.toolCallId || confirmationRequest.requestId.toString();
+
+    console.log('🔄 Sending confirmation response:', {
+      sessionId: confirmationRequest.sessionId,
+      requestId: confirmationRequest.requestId,
+      toolCallId: toolCallId,
+      outcome,
+      originalRequest: confirmationRequest
+    });
 
     try {
       await invoke('send_tool_call_confirmation_response', {
         sessionId: confirmationRequest.sessionId,
         requestId: confirmationRequest.requestId,
-        confirmed
+        toolCallId: toolCallId,
+        outcome
       });
 
-      // If confirmed and it's a terminal command, execute it
-      if (confirmed && confirmationRequest.confirmation.type === 'execute' && confirmationRequest.confirmation.command) {
-        try {
-          const result = await invoke<string>('execute_confirmed_command', {
+      // If approved, create a tool call in the UI to show it's running
+      if (outcome === 'allow' || outcome.startsWith('alwaysAllow')) {
+        const toolCall: ToolCall = {
+          id: toolCallId,
+          name: confirmationRequest.confirmation.command ? 'execute_command' : 'unknown_tool',
+          parameters: {
             command: confirmationRequest.confirmation.command
+          },
+          status: 'running',
+          inputJsonRpc: confirmationRequest.inputJsonRpc || undefined
+        };
+        
+        console.log('✅ Creating tool call with ID:', toolCallId, 'for command:', confirmationRequest.confirmation.command);
+
+        // Add tool call to the current conversation
+        setConversations(prev => {
+          const updatedConversations = prev.map(conv => {
+            if (conv.id === confirmationRequest.sessionId) {
+              const lastMessage = conv.messages[conv.messages.length - 1];
+              
+              console.log('📝 Last message before adding tool call:', {
+                sender: lastMessage?.sender,
+                hasToolCalls: !!lastMessage?.toolCalls,
+                toolCallsCount: lastMessage?.toolCalls?.length || 0
+              });
+              
+              // If the last message is from assistant, add the tool call to it
+              if (lastMessage && lastMessage.sender === 'assistant') {
+                const updatedConv = {
+                  ...conv,
+                  messages: conv.messages.map((msg, index) =>
+                    index === conv.messages.length - 1
+                      ? { 
+                          ...msg, 
+                          toolCalls: [...(msg.toolCalls || []), toolCall] 
+                        }
+                      : msg
+                  ),
+                  lastUpdated: new Date()
+                };
+                
+                console.log('📝 Added tool call to existing message. New tool calls count:', 
+                  updatedConv.messages[updatedConv.messages.length - 1].toolCalls?.length);
+                
+                return updatedConv;
+              } else {
+                // Create new assistant message with the tool call
+                const newMessage: Message = {
+                  id: Date.now().toString(),
+                  content: '',
+                  sender: 'assistant',
+                  timestamp: new Date(),
+                  toolCalls: [toolCall]
+                };
+                
+                console.log('📝 Created new message with tool call:', newMessage);
+                
+                return {
+                  ...conv,
+                  messages: [...conv.messages, newMessage],
+                  lastUpdated: new Date()
+                };
+              }
+            }
+            return conv;
           });
-          console.log('✅ Command executed successfully:', result);
-        } catch (error) {
-          console.error('❌ Command execution failed:', error);
-        }
+          
+          console.log('📝 Updated conversations:', updatedConversations.find(c => c.id === confirmationRequest.sessionId)?.messages.slice(-1));
+          return updatedConversations;
+        });
       }
 
       setConfirmationRequest(null);
@@ -815,7 +1005,7 @@ function App() {
                     </div>
                   </div>
                 </div>
-              ) : (
+              ) : confirmationRequest.content ? (
                 <div>
                   <div className="text-sm text-muted-foreground">
                     The assistant wants to {confirmationRequest.content.type === 'diff' ? 'write to' : 'modify'} the following file:
@@ -827,9 +1017,13 @@ function App() {
                     </div>
                   </div>
                 </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">
+                  The assistant wants to perform an action.
+                </div>
               )}
 
-              {confirmationRequest.content.type === 'diff' && confirmationRequest.confirmation.type !== 'execute' && (
+              {confirmationRequest.content && confirmationRequest.content.type === 'diff' && confirmationRequest.confirmation.type !== 'execute' && (
                 <div className="space-y-3">
                   <div className="text-sm font-medium">Changes:</div>
                   
@@ -882,22 +1076,40 @@ function App() {
                 </div>
               )}
               
-              <div className="flex justify-end space-x-3 pt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => handleConfirmToolCall(false)}
-                  className="flex items-center gap-2"
-                >
-                  <X className="h-4 w-4" />
-                  Deny
-                </Button>
-                <Button
-                  onClick={() => handleConfirmToolCall(true)}
-                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
-                >
-                  <Check className="h-4 w-4" />
-                  Confirm
-                </Button>
+              <div className="flex flex-col gap-3 pt-4">
+                <div className="flex justify-end space-x-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => handleConfirmToolCall('reject')}
+                    className="flex items-center gap-2"
+                  >
+                    <X className="h-4 w-4" />
+                    Deny
+                  </Button>
+                  <Button
+                    onClick={() => handleConfirmToolCall('allow')}
+                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
+                  >
+                    <Check className="h-4 w-4" />
+                    Allow Once
+                  </Button>
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <Button
+                    variant="secondary"
+                    onClick={() => handleConfirmToolCall('alwaysAllow')}
+                    className="text-xs"
+                  >
+                    Always Allow (Session)
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => handleConfirmToolCall('alwaysAllowTool')}
+                    className="text-xs"
+                  >
+                    Always Allow Tool
+                  </Button>
+                </div>
               </div>
             </div>
           </DialogContent>

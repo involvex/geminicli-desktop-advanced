@@ -192,16 +192,18 @@ struct PushToolCallResult {
 #[derive(Debug, Serialize, Deserialize)]
 struct UpdateToolCallParams {
     #[serde(rename = "toolCallId")]
-    tool_call_id: u32,
+    tool_call_id: String,
     status: String,
     content: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct RequestToolCallConfirmationParams {
+    #[serde(default)]
+    id: Option<String>,
     label: String,
     icon: String,
-    content: ToolCallConfirmationContent,
+    content: Option<ToolCallConfirmationContent>,
     confirmation: ToolCallConfirmation,
     locations: Vec<ToolCallLocation>,
 }
@@ -230,7 +232,8 @@ struct ToolCallConfirmation {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct RequestToolCallConfirmationResult {
-    confirmed: bool,
+    id: String,
+    outcome: String,
 }
 
 
@@ -582,25 +585,26 @@ async fn handle_cli_request(
             }
         }
         "updateToolCall" => {
-            if let Ok(params) = serde_json::from_value::<UpdateToolCallParams>(request.params) {
-                // Send null response
-                send_response_to_cli(
-                    session_id,
-                    request.id,
-                    Some(serde_json::Value::Null),
-                    None,
-                    app_handle,
-                    state
-                ).await;
-                
-                // Emit update to frontend
-                let update_data = serde_json::json!({
-                    "toolCallId": params.tool_call_id,
-                    "status": params.status,
-                    "content": params.content
-                });
-                let _ = app_handle.emit(&format!("gemini-tool-call-update-{}", session_id), &update_data);
-            }
+            let params = serde_json::from_value::<UpdateToolCallParams>(request.params).unwrap();
+            // Send null response
+            send_response_to_cli(
+                session_id,
+                request.id,
+                Some(serde_json::Value::Null),
+                None,
+                app_handle,
+                state
+            ).await;
+            
+            // Emit update to frontend
+            let update_data = serde_json::json!({
+                "toolCallId": params.tool_call_id,
+                "status": params.status,
+                "content": params.content
+            });
+            println!("updateToolCall: {:?}", update_data);
+
+            let _ = app_handle.emit(&format!("gemini-tool-call-update-{}", session_id), &update_data);
         }
         "requestToolCallConfirmation" => {
             if let Ok(params) = serde_json::from_value::<RequestToolCallConfirmationParams>(request.params) {
@@ -610,16 +614,19 @@ async fn handle_cli_request(
                 let confirmation_data = serde_json::json!({
                     "requestId": request.id,
                     "sessionId": session_id,
+                    "toolCallId": params.id,
                     "label": params.label,
                     "icon": params.icon,
-                    "content": {
-                        "type": params.content.content_type,
-                        "path": params.content.path,
-                        "oldText": params.content.old_text,
-                        "newText": params.content.new_text
-                    },
+                    "content": params.content.as_ref().map(|content| serde_json::json!({
+                        "type": content.content_type,
+                        "path": content.path,
+                        "oldText": content.old_text,
+                        "newText": content.new_text
+                    })),
                     "confirmation": {
-                        "type": params.confirmation.confirmation_type
+                        "type": params.confirmation.confirmation_type,
+                        "rootCommand": params.confirmation.root_command,
+                        "command": params.confirmation.command
                     },
                     "locations": params.locations
                 });
@@ -829,17 +836,24 @@ async fn kill_process(conversation_id: String, state: State<'_, AppState>) -> Re
 async fn send_tool_call_confirmation_response(
     session_id: String,
     request_id: u32,
-    confirmed: bool,
+    tool_call_id: String,
+    outcome: String,
     app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    println!("📤 Sending tool call confirmation response: session={}, request_id={}, confirmed={}", session_id, request_id, confirmed);
+    println!("📤 Sending tool call confirmation response: session={}, request_id={}, tool_call_id={}, outcome={}", session_id, request_id, tool_call_id, outcome);
     
-    // Send response back to CLI
+    let response_data = RequestToolCallConfirmationResult { 
+        id: tool_call_id,
+        outcome 
+    };
+    println!("📤 Response data: {:?}", response_data);
+    
+    // Send response back to CLI using ACP protocol format
     send_response_to_cli(
         &session_id,
         request_id,
-        Some(serde_json::to_value(RequestToolCallConfirmationResult { confirmed }).unwrap()),
+        Some(serde_json::to_value(response_data).unwrap()),
         None,
         &app_handle,
         &state.processes
