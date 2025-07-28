@@ -1042,7 +1042,7 @@ function App() {
           <div className="sticky bottom-0 bg-white dark:bg-gray-900">
             {/* Input area */}
             <div className="px-6 pb-6">
-              <div className="max-w-4xl mx-auto">
+              <div className="mx-auto">
                 <form
                   className="flex gap-3 items-end"
                   onSubmit={handleSendMessage}
@@ -1057,7 +1057,7 @@ function App() {
                           : "Type @ to mention files..."
                       }
                       disabled={isCliInstalled === false}
-                      className="h-8"
+                      className="h-9 w-full"
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && !e.shiftKey) {
                           e.preventDefault();
