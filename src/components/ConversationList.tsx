@@ -43,7 +43,7 @@ export function ConversationList({
   const [selectedConversationForEnd, setSelectedConversationForEnd] = useState<{ id: string; title: string } | null>(null);
   const [workingDirectory, setWorkingDirectory] = useState<string>('');
   const [isValidDirectory, setIsValidDirectory] = useState<boolean | null>(null);
-  const [selectedModel, setSelectedModel] = useState<string>('gemini-2.5-pro');
+  const [selectedModel, setSelectedModel] = useState<string>('gemini-2.5-flash');
   
   const getProcessStatus = (conversationId: string) => {
     return processStatuses.find(status => status.conversation_id === conversationId);

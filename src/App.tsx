@@ -151,6 +151,7 @@ function App() {
   const [confirmationRequest, setConfirmationRequest] = useState<ToolCallConfirmationRequest | null>(null);
   const [workingDirectory, setWorkingDirectory] = useState<string>('');
   const [isWorkingDirectoryValid, setIsWorkingDirectoryValid] = useState<boolean>(false);
+  const [selectedModel, setSelectedModel] = useState<string>('gemini-2.5-flash');
   const currentConversation = conversations.find(c => c.id === activeConversation);
 
   useEffect(() => {
@@ -537,7 +538,10 @@ function App() {
           
           
           try {
-            const generatedTitle = await invoke<string>('generate_conversation_title', { message: userMessages });
+            const generatedTitle = await invoke<string>('generate_conversation_title', { 
+              message: userMessages,
+              model: selectedModel 
+            });
             
             setConversations(prev => prev.map(conv =>
               conv.id === activeConversation
@@ -581,7 +585,8 @@ function App() {
           sessionId: conversationId,
           message: messageText,
           conversationHistory: history,
-          workingDirectory: isWorkingDirectoryValid ? workingDirectory : null
+          workingDirectory: isWorkingDirectoryValid ? workingDirectory : null,
+          model: selectedModel
         });
         
         // Refresh process statuses after sending message
@@ -627,6 +632,10 @@ function App() {
   const handleWorkingDirectoryChange = (directory: string, isValid: boolean) => {
     setWorkingDirectory(directory);
     setIsWorkingDirectoryValid(isValid);
+  };
+
+  const handleModelChange = (model: string) => {
+    setSelectedModel(model);
   };
 
   const handleConfirmToolCall = async (outcome: string) => {
@@ -738,6 +747,7 @@ function App() {
         onConversationSelect={handleConversationSelect}
         onKillProcess={handleKillProcess}
         onWorkingDirectoryChange={handleWorkingDirectoryChange}
+        onModelChange={handleModelChange}
       />
       
       {/* Main Content Area */}

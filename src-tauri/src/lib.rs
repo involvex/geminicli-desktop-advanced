@@ -300,8 +300,7 @@ async fn initialize_session(
     // Spawn CLI process
     let mut child = if cfg!(target_os = "windows") {
         let mut cmd = Command::new("cmd");
-        let gemini_command = format!("gemini --model {} --experimental-acp", model);
-        cmd.args(&["/C", &gemini_command])
+        cmd.args(&["/C", "gemini", "--model", &model, "--experimental-acp"])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
