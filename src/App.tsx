@@ -12,7 +12,7 @@ import { GeminiLogo } from "./components/GeminiLogo";
 import { PiebaldLogo } from "./components/PiebaldLogo";
 import { MentionInput } from "./components/MentionInput";
 import { type ToolCall } from "./utils/toolCallParser";
-import { Send, ChevronDown, ImagePlus, Info, Check, X } from "lucide-react";
+import { Send, ImagePlus, Info, Check, X } from "lucide-react";
 import "./index.css";
 import { SplitrailLogo } from "./components/SplitrailLogo";
 
@@ -149,6 +149,8 @@ function App() {
   const [processStatuses, setProcessStatuses] = useState<any[]>([]);
   const [cliIOLogs, setCliIOLogs] = useState<CliIO[]>([]);
   const [confirmationRequest, setConfirmationRequest] = useState<ToolCallConfirmationRequest | null>(null);
+  const [workingDirectory, setWorkingDirectory] = useState<string>('');
+  const [isWorkingDirectoryValid, setIsWorkingDirectoryValid] = useState<boolean>(false);
   const currentConversation = conversations.find(c => c.id === activeConversation);
 
   useEffect(() => {
@@ -578,7 +580,8 @@ function App() {
         await invoke('send_message', {
           sessionId: conversationId,
           message: messageText,
-          conversationHistory: history
+          conversationHistory: history,
+          workingDirectory: isWorkingDirectoryValid ? workingDirectory : null
         });
         
         // Refresh process statuses after sending message
@@ -619,6 +622,11 @@ function App() {
     } catch (error) {
       console.error('Failed to kill process:', error);
     }
+  };
+
+  const handleWorkingDirectoryChange = (directory: string, isValid: boolean) => {
+    setWorkingDirectory(directory);
+    setIsWorkingDirectoryValid(isValid);
   };
 
   const handleConfirmToolCall = async (outcome: string) => {
@@ -729,6 +737,7 @@ function App() {
         processStatuses={processStatuses}
         onConversationSelect={handleConversationSelect}
         onKillProcess={handleKillProcess}
+        onWorkingDirectoryChange={handleWorkingDirectoryChange}
       />
       
       {/* Main Content Area */}
@@ -743,24 +752,9 @@ function App() {
               <span className="text-lg font-medium text-blue-600 pt-2">Desktop</span>
             </div>
 
-            {/* Center section - Buttons and Model Info - Aligned with message container */}
-            <div className="max-w-4xl w-full flex items-center justify-between">
-              {/* Left - Buttons */}
-              <div className="flex items-center gap-2">
-                <Button className="flex items-center gap-2 font-medium text-base bg-blue-600 hover:bg-blue-700 text-white">
-                  piebald
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-
-                <span className="text-gray-400 mx-1">/</span>
-
-                <Button className="flex items-center gap-2 font-medium text-base bg-blue-600 hover:bg-blue-700 text-white">
-                  Friendly Greeting
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              </div>
-
-              {/* Right - Model info */}
+            {/* Center section - Model Info - Aligned with message container */}
+            <div className="max-w-4xl w-full flex items-center justify-end">
+              {/* Model info */}
               <div className="text-gray-500 dark:text-gray-400 font-mono text-sm">
                 gemini-2.5-flash
               </div>
@@ -770,7 +764,6 @@ function App() {
             <div className="flex flex-1 flex-col items-end text-xs text-gray-400">
               <div className="flex items-center gap-1">
                 From the creators of <PiebaldLogo />
-                and <SplitrailLogo />
               </div>
               <div>Copyright 2025 Piebald LLC</div>
             </div>

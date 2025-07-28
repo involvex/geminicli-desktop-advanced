@@ -2,8 +2,9 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardHeader, CardContent } from './ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from './ui/dialog';
-import { X, MessageCircle, Clock } from 'lucide-react';
-import { useState } from 'react';
+import { Input } from './ui/input';
+import { X, MessageCircle, Clock, Check, X as XIcon, Folder } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 interface ProcessStatus {
   conversation_id: string;
@@ -25,6 +26,7 @@ interface ConversationListProps {
   processStatuses: ProcessStatus[];
   onConversationSelect: (conversationId: string) => void;
   onKillProcess: (conversationId: string) => void;
+  onWorkingDirectoryChange?: (directory: string, isValid: boolean) => void;
 }
 
 export function ConversationList({
@@ -33,12 +35,39 @@ export function ConversationList({
   processStatuses,
   onConversationSelect,
   onKillProcess,
+  onWorkingDirectoryChange,
 }: ConversationListProps) {
   const [selectedConversationForEnd, setSelectedConversationForEnd] = useState<{ id: string; title: string } | null>(null);
+  const [workingDirectory, setWorkingDirectory] = useState<string>('');
+  const [isValidDirectory, setIsValidDirectory] = useState<boolean | null>(null);
   
   const getProcessStatus = (conversationId: string) => {
     return processStatuses.find(status => status.conversation_id === conversationId);
   };
+
+  // Validate directory path using backend
+  useEffect(() => {
+    if (!workingDirectory.trim()) {
+      setIsValidDirectory(null);
+      onWorkingDirectoryChange?.('', false);
+      return;
+    }
+
+    const validateDirectory = async () => {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const isValid = await invoke<boolean>('validate_directory', { path: workingDirectory.trim() });
+        setIsValidDirectory(isValid);
+        onWorkingDirectoryChange?.(workingDirectory.trim(), isValid);
+      } catch (error) {
+        setIsValidDirectory(false);
+        onWorkingDirectoryChange?.(workingDirectory.trim(), false);
+      }
+    };
+
+    const timeoutId = setTimeout(validateDirectory, 300); // Debounce validation
+    return () => clearTimeout(timeoutId);
+  }, [workingDirectory]);
 
   const formatLastUpdated = (date: Date) => {
     const now = new Date();
@@ -64,6 +93,51 @@ export function ConversationList({
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           {conversations.length} conversation{conversations.length !== 1 ? 's' : ''}
         </p>
+        
+        {/* Working Directory Input */}
+        <div className="mt-4">
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+            Working Directory
+          </label>
+          <div className="relative">
+            <div className="absolute left-3 top-3 text-gray-400">
+              <Folder className="h-4 w-4" />
+            </div>
+            <Input
+              type="text"
+              placeholder="Enter working directory path..."
+              value={workingDirectory}
+              onChange={(e) => setWorkingDirectory(e.target.value)}
+              className="pl-10 pr-10 text-sm"
+            />
+            <div className="absolute right-3 top-3">
+              {isValidDirectory === null ? null : isValidDirectory ? (
+                <Check className="h-4 w-4 text-green-500" />
+              ) : (
+                <XIcon className="h-4 w-4 text-red-500" />
+              )}
+            </div>
+          </div>
+          
+          {/* Validation Status */}
+          {workingDirectory.trim() && (
+            <div className="mt-2 flex items-center gap-2 text-xs">
+              {isValidDirectory === null ? (
+                <span className="text-gray-500">Validating...</span>
+              ) : isValidDirectory ? (
+                <>
+                  <Check className="h-3 w-3 text-green-500" />
+                  <span className="text-green-600 dark:text-green-400">Valid directory path</span>
+                </>
+              ) : (
+                <>
+                  <XIcon className="h-3 w-3 text-red-500" />
+                  <span className="text-red-600 dark:text-red-400">Invalid directory path</span>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Conversation List */}

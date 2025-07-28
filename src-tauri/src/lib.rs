@@ -287,6 +287,7 @@ async fn start_session(
 // Initialize a new persistent session
 async fn initialize_session(
     session_id: String,
+    working_directory: Option<String>,
     app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<mpsc::UnboundedSender<String>, String> {
@@ -297,20 +298,34 @@ async fn initialize_session(
     
     // Spawn CLI process
     let mut child = if cfg!(target_os = "windows") {
-        Command::new("cmd")
-            .args(&["/C", "gemini --model gemini-2.5-flash --experimental-acp"])
+        let mut cmd = Command::new("cmd");
+        cmd.args(&["/C", "gemini --model gemini-2.5-flash --experimental-acp"])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
+            .stderr(Stdio::piped());
+        
+        // Set working directory if provided
+        if let Some(ref wd) = working_directory {
+            println!("🗂️ Setting working directory to: {}", wd);
+            cmd.current_dir(wd);
+        }
+        
+        cmd.spawn()
             .map_err(|e| format!("Failed to run gemini command via cmd: {}", e))?
     } else {
-        Command::new("sh")
-            .args(&["-c", "gemini --model gemini-2.5-flash --experimental-acp"])
+        let mut cmd = Command::new("sh");
+        cmd.args(&["-c", "gemini --model gemini-2.5-flash --experimental-acp"])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
+            .stderr(Stdio::piped());
+        
+        // Set working directory if provided
+        if let Some(ref wd) = working_directory {
+            println!("🗂️ Setting working directory to: {}", wd);
+            cmd.current_dir(wd);
+        }
+        
+        cmd.spawn()
             .map_err(|e| format!("Failed to run gemini command via shell: {}", e))?
     };
     
@@ -698,6 +713,7 @@ async fn send_message(
     session_id: String,
     message: String,
     conversation_history: String,
+    working_directory: Option<String>,
     app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
@@ -718,7 +734,7 @@ async fn send_message(
     } else {
         // Initialize new session
         println!("🚀 No existing session, initializing new one for: {}", session_id);
-        initialize_session(session_id.clone(), app_handle.clone(), state.clone()).await?
+        initialize_session(session_id.clone(), working_directory.clone(), app_handle.clone(), state.clone()).await?
     };
     
     // Build message chunks
@@ -971,6 +987,14 @@ async fn generate_conversation_title(message: String) -> Result<String, String> 
 }
 
 #[tauri::command]
+async fn validate_directory(path: String) -> Result<bool, String> {
+    use std::path::Path;
+    
+    let path_obj = Path::new(&path);
+    Ok(path_obj.exists() && path_obj.is_dir())
+}
+
+#[tauri::command]
 async fn debug_environment() -> Result<String, String> {
     let path = std::env::var("PATH").unwrap_or_else(|_| "PATH not found".to_string());
     let home = std::env::var("HOME").unwrap_or_else(|_| std::env::var("USERPROFILE").unwrap_or_else(|_| "HOME not found".to_string()));
@@ -1036,6 +1060,7 @@ pub fn run() {
             send_tool_call_confirmation_response,
             execute_confirmed_command,
             generate_conversation_title,
+            validate_directory,
             debug_environment
         ])
         .run(tauri::generate_context!())
