@@ -57,12 +57,12 @@ export function MessageContent({ content, sender: _ }: MessageContentProps) {
               const codeString = String(children).replace(/\n$/, "");
 
               return (
-                <div className="my-4 rounded-lg border bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
-                  <div className="bg-gray-50 dark:bg-slate-800 px-4 py-2 text-xs font-medium text-gray-600 dark:text-slate-300 border-b border-gray-200 dark:border-slate-700 flex justify-between items-center">
+                <div className="my-4 rounded-lg border bg-white dark:bg-neutral-900 shadow-sm overflow-hidden">
+                  <div className="bg-gray-50 dark:bg-neutral-800 px-4 py-2 text-xs font-medium text-gray-600 dark:text-neutral-300 border-b border-gray-200 dark:border-neutral-700 flex justify-between items-center">
                     <span>{language || "code"}</span>
                     <button
                       onClick={() => navigator.clipboard.writeText(codeString)}
-                      className="text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200 text-xs"
+                      className="text-gray-500 hover:text-gray-700 dark:text-neutral-400 dark:hover:text-neutral-200 text-xs"
                     >
                       Copy
                     </button>
@@ -97,7 +97,7 @@ export function MessageContent({ content, sender: _ }: MessageContentProps) {
 
             return (
               <code
-                className="bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-slate-200 px-1.5 py-0.5 rounded text-sm font-mono"
+                className="bg-gray-100 dark:bg-neutral-800 text-gray-800 dark:text-neutral-200 px-1.5 py-0.5 rounded text-sm font-mono"
                 {...props}
               >
                 {children}
@@ -117,7 +117,7 @@ export function MessageContent({ content, sender: _ }: MessageContentProps) {
           // Custom table styling
           table({ children }) {
             return (
-              <div className="overflow-hidden my-4 border border-gray-200 dark:border-slate-700 rounded-lg">
+              <div className="overflow-hidden my-4 border border-gray-200 dark:border-neutral-700 rounded-lg">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">{children}</table>
                 </div>
@@ -126,14 +126,14 @@ export function MessageContent({ content, sender: _ }: MessageContentProps) {
           },
           th({ children }) {
             return (
-              <th className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-4 py-3 text-left font-medium text-gray-900 dark:text-slate-100">
+              <th className="border-b border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 px-4 py-3 text-left font-medium text-gray-900 dark:text-neutral-100">
                 {children}
               </th>
             );
           },
           td({ children }) {
             return (
-              <td className="border-b border-gray-200 dark:border-slate-700 px-4 py-3 text-gray-700 dark:text-slate-300">
+              <td className="border-b border-gray-200 dark:border-neutral-700 px-4 py-3 text-gray-700 dark:text-neutral-300">
                 {children}
               </td>
             );

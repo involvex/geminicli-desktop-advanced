@@ -18,7 +18,15 @@ import { GeminiLogo } from "./components/GeminiLogo";
 import { PiebaldLogo } from "./components/PiebaldLogo";
 import { MentionInput } from "./components/MentionInput";
 import { type ToolCall } from "./utils/toolCallParser";
-import { Send, ImagePlus, Info, Check, X, AlertCircleIcon, AlertTriangle } from "lucide-react";
+import {
+  Send,
+  ImagePlus,
+  Info,
+  Check,
+  X,
+  AlertCircleIcon,
+  AlertTriangle,
+} from "lucide-react";
 import "./index.css";
 
 interface Message {
@@ -664,7 +672,8 @@ function App() {
     if (selectedModel === "gemini-2.5-flash-lite") {
       const templateMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: "Unfortunately, Gemini 2.5 Flash-Lite isn't usable, due to thinking issues.  See here for more details: [#1953](https://github.com/google-gemini/gemini-cli/issues/1953) and [#4548](https://github.com/google-gemini/gemini-cli/issues/4548).  Waiting on PR [#3033](https://github.com/google-gemini/gemini-cli/pull/3033)/[#4652](https://github.com/google-gemini/gemini-cli/pull/4652).",
+        content:
+          "Unfortunately, Gemini 2.5 Flash-Lite isn't usable, due to thinking issues. See here for more details: #1953 (https://github.com/google-gemini/gemini-cli/issues/1953) and #4548 (https://github.com/google-gemini/gemini-cli/issues/4548). Waiting on PR #3033 (https://github.com/google-gemini/gemini-cli/pull/3033)/#4652 (https://github.com/google-gemini/gemini-cli/pull/4652).",
         sender: "assistant",
         timestamp: new Date(),
       };
@@ -901,7 +910,7 @@ function App() {
       {/* Main Content Area */}
       <div className="flex flex-col flex-1 min-w-0">
         {/* Top Header */}
-        <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex-shrink-0">
+        <div className="border-b border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex-shrink-0">
           <div className="px-6 py-4">
             <div className="flex items-center w-full">
               {/* Left section - Gemini Desktop Logo */}
@@ -913,7 +922,7 @@ function App() {
               </div>
 
               {/* Right section - Piebald branding */}
-              <div className="flex flex-1 flex-col items-end text-xs text-gray-400">
+              <div className="flex flex-1 flex-col items-end text-xs text-neutral-400">
                 <p>From the creators of</p> <PiebaldLogo />
               </div>
             </div>
@@ -924,15 +933,16 @@ function App() {
         <div className="flex-1 flex flex-col bg-background min-h-0">
           {isCliInstalled === false && (
             <div className="p-4">
-              <Alert variant="destructive">
+              <Alert variant="destructive" className="bg-red-50 border-red-300 dark:bg-red-950 dark:border-red-700 text-red-300">
                 <AlertCircleIcon />
                 <AlertTitle>Gemini CLI not found</AlertTitle>
-                <AlertDescription className="text-destructive">
-                  <div className="flex flex-row">
-                    <div className="mr-1">
+                <AlertDescription className="dark:text-red-300">
+                  {/* <div className="flex flex-row"> */}
+                  <p>
+                    <span>
                       Please install the Gemini CLI and make sure it's available
-                      in your PATH. You can install it from
-                    </div>
+                      in your PATH. You can install it from{" "}
+                    </span>
                     <a
                       href="https://github.com/google-gemini/gemini-cli"
                       target="_blank"
@@ -942,18 +952,59 @@ function App() {
                       the official repository
                     </a>
                     .
-                  </div>
+                  </p>
                 </AlertDescription>
               </Alert>
             </div>
           )}
           {selectedModel === "gemini-2.5-flash-lite" && (
             <div className="p-4">
-              <Alert className="border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950/30">
-                <AlertTriangle className="!text-yellow-600 dark:text-yellow-400" />
-                <AlertTitle className="text-yellow-800 dark:text-yellow-200">Model unavailable</AlertTitle>
-                <AlertDescription className="text-yellow-700 dark:text-yellow-300">
-                  Still waitin'... This model currently has issues.
+              <Alert className="bg-yellow-50 border-yellow-300 dark:bg-yellow-950 dark:border-yellow-700">
+                <AlertTriangle className="!text-yellow-500 dark:!text-yellow-300" />
+                <AlertTitle className="text-yellow-800 dark:text-yellow-300">
+                  Model unavailable
+                </AlertTitle>
+                <AlertDescription className="text-yellow-800 dark:text-yellow-300">
+                  <p>
+                    Unfortunately, Gemini 2.5 Flash-Lite isn't usable, due to
+                    thinking issues. See here for more details:{" "}
+                    <a
+                      href="https://github.com/google-gemini/gemini-cli/issues/1953"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-4"
+                    >
+                      #1953
+                    </a>{" "}
+                    and{" "}
+                    <a
+                      href="https://github.com/google-gemini/gemini-cli/issues/4548"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-4"
+                    >
+                      #4548
+                    </a>
+                    . Waiting on PR{" "}
+                    <a
+                      href="https://github.com/google-gemini/gemini-cli/pull/3033"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-4"
+                    >
+                      #3033
+                    </a>
+                    /
+                    <a
+                      href="https://github.com/google-gemini/gemini-cli/pull/4652"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-4"
+                    >
+                      #4652
+                    </a>
+                    .
+                  </p>
                 </AlertDescription>
               </Alert>
             </div>
@@ -1075,9 +1126,9 @@ function App() {
             </div>
           )}
 
-          <div className="sticky bottom-0 bg-white dark:bg-gray-900">
+          <div className="sticky bottom-0 bg-white dark:bg-neutral-900 flex items-center border-t border-gray-200 dark:border-neutral-700">
             {/* Input area */}
-            <div className="px-6 pb-6">
+            <div className="px-6 py-2 w-full">
               <div className="mx-auto">
                 <form
                   className="flex gap-3 items-end"
@@ -1104,7 +1155,11 @@ function App() {
                   </div>
                   <Button
                     type="submit"
-                    disabled={isCliInstalled === false || !input.trim() || selectedModel === "gemini-2.5-flash-lite"}
+                    disabled={
+                      isCliInstalled === false ||
+                      !input.trim() ||
+                      selectedModel === "gemini-2.5-flash-lite"
+                    }
                     size="icon"
                     className="bg-blue-600 hover:bg-blue-700"
                   >

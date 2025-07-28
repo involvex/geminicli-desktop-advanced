@@ -124,9 +124,9 @@ export function ConversationList({
   };
 
   return (
-    <div className="w-80 bg-gray-50 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 h-full overflow-y-auto">
+    <div className="w-80 bg-neutral-50 dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-700 h-full overflow-y-auto">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+      <div className="p-4 border-b border-neutral-200 dark:border-neutral-700">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
           <MessageCircle className="h-5 w-5" />
           Conversations
