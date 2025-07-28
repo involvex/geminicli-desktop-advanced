@@ -288,6 +288,7 @@ async fn start_session(
 async fn initialize_session(
     session_id: String,
     working_directory: Option<String>,
+    model: String,
     app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<mpsc::UnboundedSender<String>, String> {
@@ -299,7 +300,8 @@ async fn initialize_session(
     // Spawn CLI process
     let mut child = if cfg!(target_os = "windows") {
         let mut cmd = Command::new("cmd");
-        cmd.args(&["/C", "gemini --model gemini-2.5-flash --experimental-acp"])
+        let gemini_command = format!("gemini --model {} --experimental-acp", model);
+        cmd.args(&["/C", &gemini_command])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -314,7 +316,8 @@ async fn initialize_session(
             .map_err(|e| format!("Failed to run gemini command via cmd: {}", e))?
     } else {
         let mut cmd = Command::new("sh");
-        cmd.args(&["-c", "gemini --model gemini-2.5-flash --experimental-acp"])
+        let gemini_command = format!("gemini --model {} --experimental-acp", model);
+        cmd.args(&["-c", &gemini_command])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -714,6 +717,7 @@ async fn send_message(
     message: String,
     conversation_history: String,
     working_directory: Option<String>,
+    model: Option<String>,
     app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
@@ -734,7 +738,8 @@ async fn send_message(
     } else {
         // Initialize new session
         println!("🚀 No existing session, initializing new one for: {}", session_id);
-        initialize_session(session_id.clone(), working_directory.clone(), app_handle.clone(), state.clone()).await?
+        let model_to_use = model.unwrap_or_else(|| "gemini-2.5-flash".to_string());
+        initialize_session(session_id.clone(), working_directory.clone(), model_to_use, app_handle.clone(), state.clone()).await?
     };
     
     // Build message chunks
@@ -915,18 +920,19 @@ async fn execute_confirmed_command(
 }
 
 #[tauri::command]
-async fn generate_conversation_title(message: String) -> Result<String, String> {
+async fn generate_conversation_title(message: String, model: Option<String>) -> Result<String, String> {
     
     let prompt = format!(
         "Generate a short, concise title (3-6 words) for a conversation that starts with this user message: \"{}\". Only return the title, nothing else.",
         message.chars().take(200).collect::<String>()
     );
     
-    // Run gemini with flash-lite model using simple direct execution
+    // Run gemini with specified model using simple direct execution
+    let model_to_use = model.unwrap_or_else(|| "gemini-2.5-flash".to_string());
     
     let mut child = if cfg!(target_os = "windows") {
         Command::new("cmd")
-            .args(&["/C", "gemini", "--model", "gemini-2.5-flash"])
+            .args(&["/C", "gemini", "--model", &model_to_use])
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
@@ -934,7 +940,7 @@ async fn generate_conversation_title(message: String) -> Result<String, String> 
             .map_err(|e| format!("Failed to spawn gemini for title generation: {}", e))?
     } else {
         Command::new("gemini")
-            .args(&["--model", "gemini-2.5-flash"])
+            .args(&["--model", &model_to_use])
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
