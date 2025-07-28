@@ -897,7 +897,7 @@ function App() {
 
         {/* Main Content */}
         <div className="flex-1 flex flex-col bg-background min-h-0">
-          {isCliInstalled === true && (
+          {isCliInstalled === false && (
             <div className="p-4">
               <Alert variant="destructive">
                 <AlertCircleIcon />
