@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "katex/dist/katex.min.css";
+@import "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
 

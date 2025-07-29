@@ -171,6 +171,53 @@ function App() {
     useState<boolean>(false);
   const [selectedModel, setSelectedModel] =
     useState<string>("gemini-2.5-flash");
+  // Streaming state - separate from completed messages
+  const [streamingContent, setStreamingContent] = useState<string>("");
+  const [streamingThinking, setStreamingThinking] = useState<string>("");
+  const [isStreaming, setIsStreaming] = useState<boolean>(false);
+  const [streamingConversationId, setStreamingConversationId] = useState<string | null>(null);
+  
+  // Finalize streaming message when streaming stops
+  useEffect(() => {
+    if (!isStreaming || !streamingConversationId) return;
+    
+    // Set a timeout to detect when streaming is complete (no new chunks for 1 second)
+    const timeoutId = setTimeout(() => {
+      console.log("🏁 Streaming timeout reached, finalizing message");
+      
+      // Create the final message
+      const finalMessage: Message = {
+        id: Date.now().toString(),
+        content: streamingContent,
+        sender: "assistant",
+        timestamp: new Date(),
+        thinking: streamingThinking || undefined,
+      };
+      
+      // Add to conversations
+      setConversations((prev) =>
+        prev.map((conv) => {
+          if (conv.id === streamingConversationId) {
+            return {
+              ...conv,
+              messages: [...conv.messages, finalMessage],
+              lastUpdated: new Date(),
+            };
+          }
+          return conv;
+        })
+      );
+      
+      // Reset streaming state
+      setIsStreaming(false);
+      setStreamingContent("");
+      setStreamingThinking("");
+      setStreamingConversationId(null);
+    }, 1000);
+    
+    return () => clearTimeout(timeoutId);
+  }, [streamingContent, streamingThinking, isStreaming, streamingConversationId]);
+  
   const currentConversation = conversations.find(
     (c) => c.id === activeConversation
   );
@@ -200,7 +247,13 @@ function App() {
   const fetchProcessStatuses = async () => {
     try {
       const statuses = await invoke<any[]>("get_process_statuses");
-      setProcessStatuses(statuses);
+      setProcessStatuses(prev => {
+        // Only update if statuses actually changed
+        if (JSON.stringify(prev) !== JSON.stringify(statuses)) {
+          return statuses;
+        }
+        return prev;
+      });
     } catch (error) {
       console.error("Failed to fetch process statuses:", error);
     }
@@ -290,40 +343,10 @@ function App() {
       await listen<string>(`gemini-output-${conversationId}`, (event) => {
         console.log("📝 TEXT CHUNK RECEIVED:", conversationId, event.payload);
 
-        // Add the chunk to the conversation (real-time streaming)
-        setConversations((prev) =>
-          prev.map((conv) => {
-            if (conv.id === conversationId) {
-              // Check if the last message is from assistant and append chunk to it
-              const lastMessage = conv.messages[conv.messages.length - 1];
-              if (lastMessage && lastMessage.sender === "assistant") {
-                return {
-                  ...conv,
-                  messages: conv.messages.map((msg, index) =>
-                    index === conv.messages.length - 1
-                      ? { ...msg, content: msg.content + event.payload }
-                      : msg
-                  ),
-                  lastUpdated: new Date(),
-                };
-              } else {
-                // Create new assistant message
-                const newMessage: Message = {
-                  id: Date.now().toString(),
-                  content: event.payload,
-                  sender: "assistant",
-                  timestamp: new Date(),
-                };
-                return {
-                  ...conv,
-                  messages: [...conv.messages, newMessage],
-                  lastUpdated: new Date(),
-                };
-              }
-            }
-            return conv;
-          })
-        );
+        // Update streaming state instead of directly modifying messages
+        setStreamingConversationId(conversationId);
+        setIsStreaming(true);
+        setStreamingContent((prev) => prev + event.payload);
       });
 
       // Listen for thinking chunks
@@ -334,43 +357,10 @@ function App() {
           event.payload
         );
 
-        // Add the thinking to the last assistant message
-        setConversations((prev) =>
-          prev.map((conv) => {
-            if (conv.id === conversationId) {
-              const lastMessage = conv.messages[conv.messages.length - 1];
-              if (lastMessage && lastMessage.sender === "assistant") {
-                return {
-                  ...conv,
-                  messages: conv.messages.map((msg, index) =>
-                    index === conv.messages.length - 1
-                      ? {
-                          ...msg,
-                          thinking: (msg.thinking || "") + event.payload,
-                        }
-                      : msg
-                  ),
-                  lastUpdated: new Date(),
-                };
-              } else {
-                // Create new assistant message with thinking
-                const newMessage: Message = {
-                  id: Date.now().toString(),
-                  content: "",
-                  sender: "assistant",
-                  timestamp: new Date(),
-                  thinking: event.payload,
-                };
-                return {
-                  ...conv,
-                  messages: [...conv.messages, newMessage],
-                  lastUpdated: new Date(),
-                };
-              }
-            }
-            return conv;
-          })
-        );
+        // Update streaming thinking state
+        setStreamingConversationId(conversationId);
+        setIsStreaming(true);
+        setStreamingThinking((prev) => prev + event.payload);
       });
 
       // Listen for tool call events
@@ -533,6 +523,14 @@ function App() {
           event.payload
         );
 
+        // Reset streaming state on error
+        if (streamingConversationId === conversationId) {
+          setIsStreaming(false);
+          setStreamingContent("");
+          setStreamingThinking("");
+          setStreamingConversationId(null);
+        }
+
         // Add error message to the conversation
         setConversations((prev) =>
           prev.map((conv) => {
@@ -671,6 +669,12 @@ function App() {
 
     const messageText = input;
     setInput("");
+    
+    // Reset any previous streaming state
+    setIsStreaming(false);
+    setStreamingContent("");
+    setStreamingThinking("");
+    setStreamingConversationId(null);
 
     // Check if user is trying to use the disabled model
     if (selectedModel === "gemini-2.5-flash-lite") {
@@ -1123,6 +1127,43 @@ function App() {
                     )}
                   </div>
                 ))}
+                
+                {/* Render streaming message separately */}
+                {isStreaming && streamingConversationId === activeConversation && (
+                  <div className="w-full">
+                    {/* Header with logo and timestamp */}
+                    <div className="flex items-center gap-2 mb-1 pb-2">
+                      <div>
+                        <GeminiLogo />
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date().toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+
+                    {/* Thinking Block */}
+                    {streamingThinking && (
+                      <ThinkingBlock thinking={streamingThinking} />
+                    )}
+
+                    {/* Streaming Message Content */}
+                    <div className="text-sm text-gray-900 dark:text-gray-100 mb-2">
+                      <MessageContent
+                        content={streamingContent}
+                        sender="assistant"
+                      />
+                      {streamingContent.length === 0 && (
+                        <div className="text-gray-400 italic text-xs">
+                          <span className="animate-pulse">●</span>{" "}
+                          Streaming...
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ) : (
