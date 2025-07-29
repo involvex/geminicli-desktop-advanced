@@ -206,7 +206,7 @@ export function ConversationList({
             </div>
             <Input
               type="text"
-              placeholder="Click or press Enter to select working directory..."
+              placeholder="Select working directory..."
               value={workingDirectory}
               readOnly
               onClick={handleDirectorySelect}
