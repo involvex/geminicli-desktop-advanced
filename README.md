@@ -22,11 +22,11 @@ pnpm tauri dev
 - Choose between models (Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.5 Flash-Lite)
 - Send messages to/from Gemini and receive responses
 - Handle tool call requests
-- Markdown support (#1)
+- Markdown support ([#1](https://github.com/Piebald-AI/gemini-desktop/issues/1))
 
 ### Planned
 
-- Automatic chat history saving (#2)
+- Automatic chat history saving ([#2](https://github.com/Piebald-AI/gemini-desktop/issues/1)).  Note: See related PRs [#4401](https://github.com/google-gemini/gemini-cli/pull/4401) and [#4609](https://github.com/google-gemini/gemini-cli/pull/4609) on the Gemini CLI repo.
 
 ## Contributing
 
