@@ -914,9 +914,9 @@ function App() {
           <div className="px-6 py-4">
             <div className="flex items-center w-full">
               {/* Left section - Gemini Desktop Logo */}
-              <div className="flex flex-1 items-center gap-0.5">
+              <div className="flex flex-1 items-center gap-1">
                 <GeminiLogo />
-                <span className="text-lg font-medium text-blue-600 pt-2">
+                <span className="text-lg font-medium text-primary">
                   Desktop
                 </span>
               </div>
@@ -1026,7 +1026,7 @@ function App() {
                       <div className="w-full">
                         {/* Header with logo and timestamp */}
                         <div className="flex items-center gap-2 mb-1 pb-2">
-                          <div className="pb-2">
+                          <div>
                             <GeminiLogo />
                           </div>
                           <span className="text-xs text-muted-foreground">
@@ -1161,7 +1161,6 @@ function App() {
                       selectedModel === "gemini-2.5-flash-lite"
                     }
                     size="icon"
-                    className="bg-blue-600 hover:bg-blue-700"
                   >
                     <Send />
                   </Button>
