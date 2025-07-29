@@ -33,6 +33,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
 
 interface ProcessStatus {
   conversation_id: string;
@@ -110,6 +111,22 @@ export function ConversationList({
     return () => clearTimeout(timeoutId);
   }, [workingDirectory]);
 
+  const handleDirectorySelect = async () => {
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: "Select Working Directory",
+      });
+      
+      if (selected) {
+        setWorkingDirectory(selected);
+      }
+    } catch (error) {
+      console.error("Error opening directory selector:", error);
+    }
+  };
+
   const formatLastUpdated = (date: Date) => {
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
@@ -182,15 +199,16 @@ export function ConversationList({
             Working Directory
           </label>
           <div className="relative">
-            <div className="absolute left-3 top-3 text-gray-400">
+            <div className="absolute left-3 top-2.5 text-gray-400">
               <Folder className="h-4 w-4" />
             </div>
             <Input
               type="text"
-              placeholder="Enter working directory path..."
+              placeholder="Click or press Enter to select working directory..."
               value={workingDirectory}
-              onChange={(e) => setWorkingDirectory(e.target.value)}
-              className="pl-10 pr-10 text-sm"
+              readOnly
+              onClick={handleDirectorySelect}
+              className="pl-10 pr-10 text-sm cursor-pointer"
             />
             <div className="absolute right-3 top-3">
               {isValidDirectory === null ? null : isValidDirectory ? (

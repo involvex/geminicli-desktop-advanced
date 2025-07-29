@@ -18,9 +18,22 @@
       }
     ],
     "security": {
-      "csp": null
-    }
+      "csp": null,
+      "capabilities": [
+        {
+          "identifier": "main-capability",
+          "description": "Capability for the main window",
+          "windows": ["main"],
+          "permissions": [
+            "dialog:allow-open",
+            "dialog:default"
+          ]
+        }
+      ]
+    },
+    "withGlobalTauri": false
   },
+  "plugins": {},
   "bundle": {
     "active": true,
     "targets": "all",
