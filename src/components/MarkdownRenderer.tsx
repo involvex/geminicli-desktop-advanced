@@ -38,36 +38,63 @@ export function MarkdownRenderer({ children }: { children: string }) {
         components={{
           // Headers
           h1: ({ node: _node, ...props }) => (
-            <h1 className="text-3xl font-bold mt-6 mb-4 text-foreground" {...props} />
+            <h1
+              className="text-3xl font-bold mt-6 mb-4 text-foreground"
+              {...props}
+            />
           ),
           h2: ({ node: _node, ...props }) => (
-            <h2 className="text-2xl font-bold mt-5 mb-3 text-foreground" {...props} />
+            <h2
+              className="text-2xl font-bold mt-5 mb-3 text-foreground"
+              {...props}
+            />
           ),
           h3: ({ node: _node, ...props }) => (
-            <h3 className="text-xl font-bold mt-4 mb-2 text-foreground" {...props} />
+            <h3
+              className="text-xl font-bold mt-4 mb-2 text-foreground"
+              {...props}
+            />
           ),
           h4: ({ node: _node, ...props }) => (
-            <h4 className="text-lg font-bold mt-3 mb-2 text-foreground" {...props} />
+            <h4
+              className="text-lg font-bold mt-3 mb-2 text-foreground"
+              {...props}
+            />
           ),
           h5: ({ node: _node, ...props }) => (
-            <h5 className="text-base font-bold mt-2 mb-1 text-foreground" {...props} />
+            <h5
+              className="text-base font-bold mt-2 mb-1 text-foreground"
+              {...props}
+            />
           ),
           h6: ({ node: _node, ...props }) => (
-            <h6 className="text-sm font-bold mt-2 mb-1 text-foreground" {...props} />
+            <h6
+              className="text-sm font-bold mt-2 mb-1 text-foreground"
+              {...props}
+            />
           ),
           // Lists
           ul: ({ node: _node, ...props }) => (
-            <ul className="list-disc list-inside my-4 space-y-1 text-foreground" {...props} />
+            <ul
+              className="list-disc list-inside my-4 space-y-1 text-foreground"
+              {...props}
+            />
           ),
           ol: ({ node: _node, ...props }) => (
-            <ol className="list-decimal list-inside my-4 space-y-1 text-foreground" {...props} />
+            <ol
+              className="list-decimal list-inside my-4 space-y-1 text-foreground"
+              {...props}
+            />
           ),
           li: ({ node: _node, ...props }) => (
             <li className="text-foreground" {...props} />
           ),
           // Blockquotes
           blockquote: ({ node: _node, ...props }) => (
-            <blockquote className="border-l-4 border-primary pl-4 py-2 my-4 bg-muted/50 rounded-r text-muted-foreground italic" {...props} />
+            <blockquote
+              className="border-l-4 border-primary pl-4 py-2 my-4 bg-muted/50 rounded-r text-muted-foreground italic"
+              {...props}
+            />
           ),
           // Horizontal rule
           hr: ({ node: _node, ...props }) => (
@@ -118,10 +145,16 @@ export function MarkdownRenderer({ children }: { children: string }) {
           tbody: ({ node: _node, ...props }) => <tbody {...props} />,
           tr: ({ node: _node, ...props }) => <tr {...props} />,
           th: ({ node: _node, ...props }) => (
-            <th className="border-b border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 px-4 py-3 text-left font-medium text-gray-900 dark:text-neutral-100" {...props} />
+            <th
+              className="border-b border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 px-4 py-3 text-left font-medium text-gray-900 dark:text-neutral-100"
+              {...props}
+            />
           ),
           td: ({ node: _node, ...props }) => (
-            <td className="border-b border-gray-200 dark:border-neutral-700 px-4 py-3 text-gray-700 dark:text-neutral-300 align-top text-wrap break-words" {...props} />
+            <td
+              className="border-b border-gray-200 dark:border-neutral-700 px-4 py-3 text-gray-700 dark:text-neutral-300 align-top text-wrap break-words"
+              {...props}
+            />
           ),
           pre: ({ node: _node, ...props }) => (
             <pre {...props} className="not-prose" />

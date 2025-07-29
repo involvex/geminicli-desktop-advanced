@@ -301,7 +301,7 @@ export function ConversationList({
                                       <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-4 w-4 p-0 ml-2 text-red-500 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-950/70"  
+                                        className="h-4 w-4 p-0 ml-2 text-red-500 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-950/70"
                                         onClick={(e) => {
                                           e.stopPropagation(); // Prevent conversation selection
                                           setSelectedConversationForEnd({

@@ -175,16 +175,18 @@ function App() {
   const [streamingContent, setStreamingContent] = useState<string>("");
   const [streamingThinking, setStreamingThinking] = useState<string>("");
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
-  const [streamingConversationId, setStreamingConversationId] = useState<string | null>(null);
-  
+  const [streamingConversationId, setStreamingConversationId] = useState<
+    string | null
+  >(null);
+
   // Finalize streaming message when streaming stops
   useEffect(() => {
     if (!isStreaming || !streamingConversationId) return;
-    
+
     // Set a timeout to detect when streaming is complete (no new chunks for 1 second)
     const timeoutId = setTimeout(() => {
       console.log("🏁 Streaming timeout reached, finalizing message");
-      
+
       // Create the final message
       const finalMessage: Message = {
         id: Date.now().toString(),
@@ -193,7 +195,7 @@ function App() {
         timestamp: new Date(),
         thinking: streamingThinking || undefined,
       };
-      
+
       // Add to conversations
       setConversations((prev) =>
         prev.map((conv) => {
@@ -207,17 +209,22 @@ function App() {
           return conv;
         })
       );
-      
+
       // Reset streaming state
       setIsStreaming(false);
       setStreamingContent("");
       setStreamingThinking("");
       setStreamingConversationId(null);
     }, 1000);
-    
+
     return () => clearTimeout(timeoutId);
-  }, [streamingContent, streamingThinking, isStreaming, streamingConversationId]);
-  
+  }, [
+    streamingContent,
+    streamingThinking,
+    isStreaming,
+    streamingConversationId,
+  ]);
+
   const currentConversation = conversations.find(
     (c) => c.id === activeConversation
   );
@@ -247,7 +254,7 @@ function App() {
   const fetchProcessStatuses = async () => {
     try {
       const statuses = await invoke<any[]>("get_process_statuses");
-      setProcessStatuses(prev => {
+      setProcessStatuses((prev) => {
         // Only update if statuses actually changed
         if (JSON.stringify(prev) !== JSON.stringify(statuses)) {
           return statuses;
@@ -260,10 +267,16 @@ function App() {
   };
 
   const setupEventListenerForConversation = async (conversationId: string) => {
-    console.log("🎯 Setting up event listeners for conversation:", conversationId);
+    console.log(
+      "🎯 Setting up event listeners for conversation:",
+      conversationId
+    );
     try {
       // Listen for CLI I/O logs
-      console.log("🎯 Registering cli-io listener for:", `cli-io-${conversationId}`);
+      console.log(
+        "🎯 Registering cli-io listener for:",
+        `cli-io-${conversationId}`
+      );
       await listen<{ type: "input" | "output"; data: string }>(
         `cli-io-${conversationId}`,
         (event) => {
@@ -339,7 +352,10 @@ function App() {
       );
 
       // Listen for streaming text chunks
-      console.log("🎯 Registering gemini-output listener for:", `gemini-output-${conversationId}`);
+      console.log(
+        "🎯 Registering gemini-output listener for:",
+        `gemini-output-${conversationId}`
+      );
       await listen<string>(`gemini-output-${conversationId}`, (event) => {
         console.log("📝 TEXT CHUNK RECEIVED:", conversationId, event.payload);
 
@@ -663,13 +679,16 @@ function App() {
       conversationId = newConversation.id;
 
       // Set up event listener for this conversation
-      console.log("🎯 Setting up event listeners for NEW conversation:", conversationId);
+      console.log(
+        "🎯 Setting up event listeners for NEW conversation:",
+        conversationId
+      );
       setupEventListenerForConversation(conversationId);
     }
 
     const messageText = input;
     setInput("");
-    
+
     // Reset any previous streaming state
     setIsStreaming(false);
     setStreamingContent("");
@@ -705,9 +724,12 @@ function App() {
     try {
       // Send message with conversation context (like claudia does)
       if (conversationId) {
-        console.log("🚀 Sending message to backend with conversationId:", conversationId);
+        console.log(
+          "🚀 Sending message to backend with conversationId:",
+          conversationId
+        );
         console.log("🚀 Message text:", messageText);
-        
+
         // Build conversation history for context - only include recent messages to avoid too long prompts
         const recentMessages = currentConversation?.messages.slice(-10) || []; // Last 10 messages
         const history = recentMessages
@@ -724,7 +746,7 @@ function App() {
           workingDirectory: isWorkingDirectoryValid ? workingDirectory : null,
           model: selectedModel,
         });
-        
+
         console.log("🚀 Backend invoke result:", result);
 
         // Refresh process statuses after sending message
@@ -947,7 +969,10 @@ function App() {
         <div className="flex-1 flex flex-col bg-background min-h-0">
           {isCliInstalled === false && (
             <div className="p-4">
-              <Alert variant="destructive" className="bg-red-50 border-red-300 dark:bg-red-950 dark:border-red-700 text-red-300">
+              <Alert
+                variant="destructive"
+                className="bg-red-50 border-red-300 dark:bg-red-950 dark:border-red-700 text-red-300"
+              >
                 <AlertCircleIcon />
                 <AlertTitle>Gemini CLI not found</AlertTitle>
                 <AlertDescription className="dark:text-red-300">
@@ -1127,43 +1152,44 @@ function App() {
                     )}
                   </div>
                 ))}
-                
+
                 {/* Render streaming message separately */}
-                {isStreaming && streamingConversationId === activeConversation && (
-                  <div className="w-full">
-                    {/* Header with logo and timestamp */}
-                    <div className="flex items-center gap-2 mb-1 pb-2">
-                      <div>
-                        <GeminiLogo />
-                      </div>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date().toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </div>
-
-                    {/* Thinking Block */}
-                    {streamingThinking && (
-                      <ThinkingBlock thinking={streamingThinking} />
-                    )}
-
-                    {/* Streaming Message Content */}
-                    <div className="text-sm text-gray-900 dark:text-gray-100 mb-2">
-                      <MessageContent
-                        content={streamingContent}
-                        sender="assistant"
-                      />
-                      {streamingContent.length === 0 && (
-                        <div className="text-gray-400 italic text-xs">
-                          <span className="animate-pulse">●</span>{" "}
-                          Streaming...
+                {isStreaming &&
+                  streamingConversationId === activeConversation && (
+                    <div className="w-full">
+                      {/* Header with logo and timestamp */}
+                      <div className="flex items-center gap-2 mb-1 pb-2">
+                        <div>
+                          <GeminiLogo />
                         </div>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date().toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+
+                      {/* Thinking Block */}
+                      {streamingThinking && (
+                        <ThinkingBlock thinking={streamingThinking} />
                       )}
+
+                      {/* Streaming Message Content */}
+                      <div className="text-sm text-gray-900 dark:text-gray-100 mb-2">
+                        <MessageContent
+                          content={streamingContent}
+                          sender="assistant"
+                        />
+                        {streamingContent.length === 0 && (
+                          <div className="text-gray-400 italic text-xs">
+                            <span className="animate-pulse">●</span>{" "}
+                            Streaming...
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
               </div>
             </div>
           ) : (
