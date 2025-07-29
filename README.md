@@ -17,6 +17,17 @@ pnpm install
 pnpm tauri dev
 ```
 
+## Features
+
+- Choose between models (Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.5 Flash-Lite)
+- Send messages to/from Gemini and receive responses
+- Handle tool call requests
+- Markdown support (#1)
+
+### Planned
+
+- Automatic chat history saving (#2)
+
 ## Contributing
 
 Contributions are welcome, although it's a bit raw still.
