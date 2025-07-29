@@ -27,10 +27,12 @@ import {
   AlertCircleIcon,
   AlertTriangle,
   Gem,
+  UserRound,
 } from "lucide-react";
 import "./index.css";
 import { GeminiIcon } from "./components/GeminiIcon";
 import { GeminiLogoCenter } from "./components/GeminiLogoCenter";
+import { UserAvatar } from "./components/UserAvatar";
 
 interface Message {
   id: string;
@@ -1003,9 +1005,7 @@ function App() {
               {/* Left section - Gemini Desktop Logo */}
               <div className="flex flex-1 items-center gap-1">
                 <GeminiLogo />
-                <span 
-                  className="text-lg font-medium bg-gradient-to-r from-[#3186ff] via-[#346bf1] to-[#4fa0ff] bg-clip-text text-transparent"
-                >
+                <span className="text-lg font-medium bg-gradient-to-r from-[#3186ff] via-[#346bf1] to-[#4fa0ff] bg-clip-text text-transparent">
                   Desktop
                 </span>
               </div>
@@ -1106,18 +1106,18 @@ function App() {
               ref={messagesContainerRef}
               className="flex-1 min-h-0 overflow-y-auto p-6 relative"
             >
-              <div className="space-y-4 pb-4 max-w-4xl mx-auto">
+              <div className="space-y-8 pb-4 max-w-4xl mx-auto">
                 {currentConversation.messages.map((message) => (
                   <div
                     key={message.id}
                     className={`w-full ${
-                      message.sender === "user" ? "flex justify-end" : ""
+                      message.sender === "user" ? "flex justify-start" : ""
                     }`}
                   >
                     {message.sender === "assistant" && (
                       <div className="w-full">
                         {/* Header with logo and timestamp */}
-                        <div className="flex items-center gap-2 mb-1 pb-2">
+                        <div className="flex items-center gap-2 mb-4">
                           <div>
                             <GeminiLogo />
                           </div>
@@ -1186,14 +1186,16 @@ function App() {
                     )}
 
                     {message.sender === "user" && (
-                      <div className="max-w-[70%]">
-                        <div className="bg-gray-100 dark:bg-gray-700 rounded-2xl px-4 py-2 text-sm text-gray-900 dark:text-gray-100 mb-1">
-                          <MessageContent
-                            content={message.content}
-                            sender={message.sender}
-                          />
-                        </div>
-                        <div className="flex justify-end">
+                      <div className="w-full">
+                        <div className="flex items-center gap-2 mb-4">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <div className="size-5.5 flex items-center justify-center overflow-hidden rounded-full" style={{background: 'radial-gradient(circle, #346bf1 0%, #3186ff 50%, #4fa0ff 100%)'}}>
+                                <UserRound className="size-4" />
+                              </div>
+                              User
+                            </div>
+                          </div>
                           <span className="text-xs text-muted-foreground">
                             {message.timestamp.toLocaleTimeString([], {
                               hour: "2-digit",
@@ -1201,7 +1203,41 @@ function App() {
                             })}
                           </span>
                         </div>
+
+                        {/* User message content */}
+                        <div className="text-sm text-gray-900 dark:text-gray-100 mb-2">
+                          <MessageContent
+                            content={message.content}
+                            sender={message.sender}
+                          />
+                          {message.content.length === 0 && (
+                            <div className="text-gray-400 italic text-xs">
+                              <span className="animate-pulse">●</span>{" "}
+                              Streaming...
+                            </div>
+                          )}
+                        </div>
                       </div>
+
+                      // <div className="max-w-[70%]">
+                      //   <div className="flex items-center gap-2 mb-4">
+                      //   <div className="bg-gray-100 dark:bg-gray-700 rounded-2xl px-4 py-2 text-sm text-gray-900 dark:text-gray-100 mb-1 flex flex-row items-center">
+                      //     {/* User message content */}
+                      //     <MessageContent
+                      //       content={message.content}
+                      //       sender={message.sender}
+                      //     />
+                      //     </div>
+                      //   </div>
+                      //   <div className="flex justify-end">
+                      //     <span className="text-xs text-muted-foreground">
+                      //       {message.timestamp.toLocaleTimeString([], {
+                      //         hour: "2-digit",
+                      //         minute: "2-digit",
+                      //       })}
+                      //     </span>
+                      //   </div>
+                      // </div>
                     )}
                   </div>
                 ))}
@@ -1211,7 +1247,7 @@ function App() {
                   streamingConversationId === activeConversation && (
                     <div className="w-full">
                       {/* Header with logo and timestamp */}
-                      <div className="flex items-center gap-2 mb-1 pb-2">
+                      <div className="flex items-center gap-2 mb-4">
                         <div>
                           <GeminiLogo />
                         </div>
@@ -1257,13 +1293,10 @@ function App() {
 
               <div className="flex flex-row items-center mb-4 gap-2">
                 <GeminiLogoCenter />
-                <span 
-                  className="text-4xl font-medium bg-gradient-to-r from-[#3186ff] via-[#346bf1] to-[#4fa0ff] bg-clip-text text-transparent"
-                >
+                <span className="text-4xl font-medium bg-gradient-to-r from-[#3186ff] via-[#346bf1] to-[#4fa0ff] bg-clip-text text-transparent">
                   Desktop
                 </span>
               </div>
-
 
               <p className="text-muted-foreground">
                 Start a new conversation to begin chatting with Gemini.
