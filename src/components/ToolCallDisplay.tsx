@@ -8,7 +8,7 @@ interface ToolCallDisplayProps {
 
 export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
   // Convert snake_case to PascalCase
-  const formatToolName = (name: string) => {
+  const formatToolName = (name: string): string => {
     return name
       .split("_")
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
@@ -165,11 +165,15 @@ export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
   //   );
   // };
 
-  const getResultSummary = (toolCall: ToolCall) => {
+  const getResultSummary = (toolCall: ToolCall): string | null => {
     if (!toolCall.result) return null;
 
     const name = toolCall.name.toLowerCase();
     const result = toolCall.result;
+
+    if (typeof result === "string") {
+      return result.substring(0, 50) + (result.length > 50 ? "..." : "");
+    }
 
     if (name === "list_files" && result.files) {
       return `Listed ${result.files.length} files.`;
@@ -180,31 +184,28 @@ export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
     if (result.message) {
       return result.message;
     }
-    if (typeof result === "string") {
-      return result.substring(0, 50) + (result.length > 50 ? "..." : "");
-    }
 
     return "Completed successfully.";
   };
 
-  const getErrorSummary = (toolCall: ToolCall) => {
+  const getErrorSummary = (toolCall: ToolCall): string => {
     if (!toolCall.result) return "Failed to execute.";
 
     const result = toolCall.result;
+
+    // If result is a string
+    if (typeof result === "string") {
+      const firstLine = result.trim().split("\n")[0];
+      return firstLine.length > 60
+        ? firstLine.substring(0, 60) + "..."
+        : firstLine;
+    }
 
     // If result has markdown field (like in the error example)
     if (result.markdown) {
       const error = result.markdown.trim();
       // Return first line of error, truncated if needed
       const firstLine = error.split("\n")[0];
-      return firstLine.length > 60
-        ? firstLine.substring(0, 60) + "..."
-        : firstLine;
-    }
-
-    // If result is a string
-    if (typeof result === "string") {
-      const firstLine = result.trim().split("\n")[0];
       return firstLine.length > 60
         ? firstLine.substring(0, 60) + "..."
         : firstLine;
@@ -220,7 +221,7 @@ export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
     return "Command failed.";
   };
 
-  const getRunningDescription = (toolCall: ToolCall) => {
+  const getRunningDescription = (toolCall: ToolCall): string => {
     const params = toolCall.parameters;
     const name = toolCall.name.toLowerCase();
 
@@ -239,6 +240,7 @@ export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
 
     return "Running...";
   };
+
 
   return (
     <div className="my-4 w-full">

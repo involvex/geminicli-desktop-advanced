@@ -6,10 +6,8 @@ interface MessageContentProps {
   sender: "user" | "assistant";
 }
 
-export const MessageContent = React.memo(
-  ({ content, sender: _ }: MessageContentProps) => {
-    return <MarkdownRenderer>{content}</MarkdownRenderer>;
-  }
-);
+export const MessageContent = React.memo(({ content }: MessageContentProps) => {
+  return <MarkdownRenderer>{content}</MarkdownRenderer>;
+});
 
 MessageContent.displayName = "MessageContent";

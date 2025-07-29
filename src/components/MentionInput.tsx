@@ -2,13 +2,17 @@ import React, { useState, useRef } from "react";
 import { Input } from "./ui/input";
 import { cn } from "@/lib/utils";
 
+interface Mention {
+  file: string;
+}
+
 interface MentionInputProps {
   value: string;
   onChange: (
-    event: any,
+    event: React.ChangeEvent<HTMLInputElement> | null,
     newValue: string,
     newPlainTextValue: string,
-    mentions: any[]
+    mentions: Mention[]
   ) => void;
   placeholder?: string;
   disabled?: boolean;

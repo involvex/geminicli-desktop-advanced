@@ -37,4 +37,5 @@ module_name_repetitions = "allow"
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
 cargo_common_metadata = "allow"
+multiple_crate_versions = "allow"
 

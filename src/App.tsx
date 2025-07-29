@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Button } from "./components/ui/button";
@@ -17,7 +17,7 @@ import { ConversationList } from "./components/ConversationList";
 import { GeminiLogo } from "./components/GeminiLogo";
 import { PiebaldLogo } from "./components/PiebaldLogo";
 import { MentionInput } from "./components/MentionInput";
-import { type ToolCall } from "./utils/toolCallParser";
+import { type ToolCall, type ToolCallResult } from "./utils/toolCallParser";
 import {
   Send,
   ImagePlus,
@@ -52,6 +52,12 @@ interface CliIO {
   conversationId: string;
 }
 
+interface Location {
+  path: string;
+  line?: number;
+  column?: number;
+}
+
 interface ToolCallConfirmationRequest {
   requestId: number;
   sessionId: string;
@@ -69,12 +75,39 @@ interface ToolCallConfirmationRequest {
     rootCommand?: string;
     command?: string;
   };
-  locations: any[];
+  locations: Location[];
   inputJsonRpc?: string;
 }
 
+interface ProcessStatus {
+  conversation_id: string;
+  pid: number | null;
+  created_at: number;
+  is_alive: boolean;
+}
+
+interface ToolCallEvent {
+  id: number;
+  name: string;
+  locations?: Location[];
+}
+
+interface ToolCallUpdateEvent {
+  toolCallId: string | number;
+  status: string;
+  content?: ToolCallResult;
+}
+
+type ErrorContent = ToolCallResult | string | null | undefined;
+
+declare global {
+  interface Window {
+    pendingToolCallInput?: string;
+  }
+}
+
 // Helper function to detect if a tool call result indicates an error
-function isErrorResult(content: any): boolean {
+function isErrorResult(content: ErrorContent): boolean {
   if (!content) return false;
 
   // Check for common error patterns
@@ -89,8 +122,8 @@ function isErrorResult(content: any): boolean {
     "exception:",
   ];
 
-  // If content has markdown field (like in the example)
-  if (content.markdown) {
+  // If content is a ToolCallResult with markdown field
+  if (typeof content === 'object' && content !== null && content.markdown) {
     const markdown = content.markdown.toLowerCase();
     return errorIndicators.some((indicator) => markdown.includes(indicator));
   }
@@ -102,7 +135,7 @@ function isErrorResult(content: any): boolean {
   }
 
   // If content has an error field
-  if (content.error || content.stderr) {
+  if (typeof content === 'object' && content !== null && (content.error || content.stderr)) {
     return true;
   }
 
@@ -162,7 +195,7 @@ function App() {
   const [input, setInput] = useState("");
   const [isCliInstalled, setIsCliInstalled] = useState<boolean | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const [processStatuses, setProcessStatuses] = useState<any[]>([]);
+  const [processStatuses, setProcessStatuses] = useState<ProcessStatus[]>([]);
   const [cliIOLogs, setCliIOLogs] = useState<CliIO[]>([]);
   const [confirmationRequest, setConfirmationRequest] =
     useState<ToolCallConfirmationRequest | null>(null);
@@ -253,7 +286,7 @@ function App() {
 
   const fetchProcessStatuses = async () => {
     try {
-      const statuses = await invoke<any[]>("get_process_statuses");
+      const statuses = await invoke<ProcessStatus[]>("get_process_statuses");
       setProcessStatuses((prev) => {
         // Only update if statuses actually changed
         if (JSON.stringify(prev) !== JSON.stringify(statuses)) {
@@ -299,7 +332,7 @@ function App() {
             ) {
               console.log("📥 Storing input JSON-RPC for tool call:", jsonData);
               // Store the input JSON-RPC data temporarily - we'll associate it with the tool call when it's created
-              (window as any).pendingToolCallInput = event.payload.data;
+              window.pendingToolCallInput = event.payload.data;
             }
 
             // If it's an updateToolCall input, store it for updating the tool call
@@ -345,7 +378,7 @@ function App() {
                 );
               }
             }
-          } catch (e) {
+          } catch {
             // Not JSON, ignore
           }
         }
@@ -380,88 +413,91 @@ function App() {
       });
 
       // Listen for tool call events
-      await listen<any>(`gemini-tool-call-${conversationId}`, (event) => {
-        console.log("🔧 TOOL CALL EVENT:", conversationId, event.payload);
+      await listen<ToolCallEvent>(
+        `gemini-tool-call-${conversationId}`,
+        (event) => {
+          console.log("🔧 TOOL CALL EVENT:", conversationId, event.payload);
 
-        // Debug: Log current conversation state
-        setConversations((prev) => {
-          const conv = prev.find((c) => c.id === conversationId);
-          if (conv) {
-            const lastMessage = conv.messages[conv.messages.length - 1];
-            console.log("🔧 Current last message:", {
-              sender: lastMessage?.sender,
-              contentLength: lastMessage?.content?.length || 0,
-              content: lastMessage?.content || "NO CONTENT",
-              hasToolCalls: !!lastMessage?.toolCalls?.length,
-            });
-          }
-          return prev;
-        });
-
-        const toolCallData = event.payload;
-        const toolCall: ToolCall = {
-          id: toolCallData.id.toString(),
-          name: toolCallData.name,
-          parameters: toolCallData.locations
-            ? { locations: toolCallData.locations }
-            : {},
-          status: "pending",
-        };
-
-        // Add tool call to the existing assistant message or create one if needed
-        setConversations((prev) =>
-          prev.map((conv) => {
-            if (conv.id === conversationId) {
+          // Debug: Log current conversation state
+          setConversations((prev) => {
+            const conv = prev.find((c) => c.id === conversationId);
+            if (conv) {
               const lastMessage = conv.messages[conv.messages.length - 1];
-
-              // If the last message is from assistant, add the tool call to it
-              if (lastMessage && lastMessage.sender === "assistant") {
-                console.log(
-                  "🔧 Adding tool call to existing assistant message:",
-                  toolCall
-                );
-
-                return {
-                  ...conv,
-                  messages: conv.messages.map((msg, index) =>
-                    index === conv.messages.length - 1
-                      ? {
-                          ...msg,
-                          toolCalls: [...(msg.toolCalls || []), toolCall],
-                        }
-                      : msg
-                  ),
-                  lastUpdated: new Date(),
-                };
-              } else {
-                // Create new assistant message if the last one isn't from assistant
-                const newMessage: Message = {
-                  id: Date.now().toString(),
-                  content: "",
-                  sender: "assistant",
-                  timestamp: new Date(),
-                  toolCalls: [toolCall],
-                };
-
-                console.log(
-                  "🔧 Creating new message for tool call:",
-                  newMessage
-                );
-
-                return {
-                  ...conv,
-                  messages: [...conv.messages, newMessage],
-                  lastUpdated: new Date(),
-                };
-              }
+              console.log("🔧 Current last message:", {
+                sender: lastMessage?.sender,
+                contentLength: lastMessage?.content?.length || 0,
+                content: lastMessage?.content || "NO CONTENT",
+                hasToolCalls: !!lastMessage?.toolCalls?.length,
+              });
             }
-            return conv;
-          })
-        );
-      });
+            return prev;
+          });
+
+          const toolCallData = event.payload;
+          const toolCall: ToolCall = {
+            id: toolCallData.id.toString(),
+            name: toolCallData.name,
+            parameters: toolCallData.locations
+              ? { locations: toolCallData.locations }
+              : {},
+            status: "pending",
+          };
+
+          // Add tool call to the existing assistant message or create one if needed
+          setConversations((prev) =>
+            prev.map((conv) => {
+              if (conv.id === conversationId) {
+                const lastMessage = conv.messages[conv.messages.length - 1];
+
+                // If the last message is from assistant, add the tool call to it
+                if (lastMessage && lastMessage.sender === "assistant") {
+                  console.log(
+                    "🔧 Adding tool call to existing assistant message:",
+                    toolCall
+                  );
+
+                  return {
+                    ...conv,
+                    messages: conv.messages.map((msg, index) =>
+                      index === conv.messages.length - 1
+                        ? {
+                            ...msg,
+                            toolCalls: [...(msg.toolCalls || []), toolCall],
+                          }
+                        : msg
+                    ),
+                    lastUpdated: new Date(),
+                  };
+                } else {
+                  // Create new assistant message if the last one isn't from assistant
+                  const newMessage: Message = {
+                    id: Date.now().toString(),
+                    content: "",
+                    sender: "assistant",
+                    timestamp: new Date(),
+                    toolCalls: [toolCall],
+                  };
+
+                  console.log(
+                    "🔧 Creating new message for tool call:",
+                    newMessage
+                  );
+
+                  return {
+                    ...conv,
+                    messages: [...conv.messages, newMessage],
+                    lastUpdated: new Date(),
+                  };
+                }
+              }
+              return conv;
+            })
+          );
+        }
+      );
 
       // Listen for tool call updates
-      await listen<any>(
+      await listen<ToolCallUpdateEvent>(
         `gemini-tool-call-update-${conversationId}`,
         (event) => {
           console.log("🔄 TOOL CALL UPDATE:", conversationId, event.payload);
@@ -492,12 +528,12 @@ function App() {
                         });
 
                         if (shouldUpdate) {
-                          const newStatus =
+                          const newStatus: "pending" | "running" | "completed" | "failed" =
                             updateData.status === "finished"
                               ? isErrorResult(updateData.content)
                                 ? "failed"
                                 : "completed"
-                              : updateData.status;
+                              : updateData.status as "pending" | "running" | "completed" | "failed";
 
                           console.log("🔧 Updating tool call:", {
                             from: tc.status,
@@ -580,7 +616,7 @@ function App() {
           // Associate the pending input JSON-RPC with this confirmation request
           const confirmationWithInput = {
             ...event.payload,
-            inputJsonRpc: (window as any).pendingToolCallInput,
+            inputJsonRpc: window.pendingToolCallInput,
           };
           setConfirmationRequest(confirmationWithInput);
         }
@@ -595,7 +631,7 @@ function App() {
   };
 
   const handleInputChange = (
-    _event: any,
+    _event: React.ChangeEvent<HTMLInputElement> | null,
     newValue: string,
     _newPlainTextValue: string,
     _mentions: any[]
@@ -662,10 +698,10 @@ function App() {
                   : conv
               )
             );
-          } catch (error) {}
-        } else {
+          } catch (error) {
+            console.error("Failed to generate conversation title:", error);
+          }
         }
-      } else {
       }
     } else {
       const newConversation: Conversation = {

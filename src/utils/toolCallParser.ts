@@ -1,8 +1,18 @@
+export type ToolCallResult = {
+  files?: Array<{name: string, type: string, length?: number}>;
+  matches?: Array<any>;
+  total?: number; 
+  message?: string;
+  markdown?: string;
+  error?: string;
+  stderr?: string;
+} | string;
+
 export interface ToolCall {
   id: string;
   name: string;
-  parameters: Record<string, any>;
-  result?: any;
+  parameters: Record<string, unknown>;
+  result?: ToolCallResult;
   status?: "pending" | "running" | "completed" | "failed";
   inputJsonRpc?: string;
   outputJsonRpc?: string;
@@ -49,7 +59,7 @@ export class ToolCallParser {
           const toolName = match[1];
           const parametersStr = match[2];
 
-          let parameters: Record<string, any> = {};
+          let parameters: Record<string, unknown> = {};
 
           // Try to parse parameters as JSON
           try {

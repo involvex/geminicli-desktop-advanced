@@ -38,10 +38,17 @@ interface ProcessStatus {
   is_alive: boolean;
 }
 
+interface Message {
+  id: string;
+  content: string;
+  sender: "user" | "assistant";
+  timestamp: Date;
+}
+
 interface Conversation {
   id: string;
   title: string;
-  messages: any[];
+  messages: Message[];
   lastUpdated: Date;
 }
 
@@ -97,7 +104,7 @@ export function ConversationList({
         });
         setIsValidDirectory(isValid);
         onWorkingDirectoryChange?.(workingDirectory.trim(), isValid);
-      } catch (error) {
+      } catch {
         setIsValidDirectory(false);
         onWorkingDirectoryChange?.(workingDirectory.trim(), false);
       }
@@ -105,7 +112,7 @@ export function ConversationList({
 
     const timeoutId = setTimeout(validateDirectory, 300); // Debounce validation
     return () => clearTimeout(timeoutId);
-  }, [workingDirectory]);
+  }, [workingDirectory, onWorkingDirectoryChange]);
 
   const handleDirectorySelect = async () => {
     try {

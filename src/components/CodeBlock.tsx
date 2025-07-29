@@ -69,8 +69,8 @@ const cssStringToObject = (cssString: string): React.CSSProperties => {
         }
       }
 
-      styleObject[processedProperty as keyof React.CSSProperties] =
-        processedValue as any;
+      (styleObject as Record<string, string | number>)[processedProperty] =
+        processedValue;
     }
   });
 
@@ -177,7 +177,7 @@ const CodeBlock = React.memo(
             theme: currentTheme,
             transformers: [
               {
-                pre: (node: any) => {
+                pre: (node: { properties?: { style?: string } }) => {
                   if (node.properties?.style) {
                     capturedPreStyle = node.properties?.style as string;
                   }
@@ -236,6 +236,7 @@ const CodeBlock = React.memo(
       darkTheme,
       resolvedTheme,
       code,
+      language,
     ]);
 
     // Memoize the style object to prevent unnecessary re-renders

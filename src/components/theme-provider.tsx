@@ -1,3 +1,4 @@
+import React from "react";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 
 type Theme = "dark" | "light" | "system";
