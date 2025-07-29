@@ -1,7 +1,7 @@
 export function GeminiLogo() {
   return (
     <svg
-      class="_logoImage_l9x19_152"
+      className="_logoImage_l9x19_152"
       width="80"
       height="18"
       viewBox="0 0 288 65"

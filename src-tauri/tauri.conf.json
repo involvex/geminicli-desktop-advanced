@@ -25,8 +25,12 @@
           "description": "Capability for the main window",
           "windows": ["main"],
           "permissions": [
+            "core:default",
+            "core:event:allow-listen",
+            "core:event:default",
             "dialog:allow-open",
-            "dialog:default"
+            "dialog:default",
+            "opener:default"
           ]
         }
       ]
