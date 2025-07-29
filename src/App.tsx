@@ -26,8 +26,11 @@ import {
   X,
   AlertCircleIcon,
   AlertTriangle,
+  Gem,
 } from "lucide-react";
 import "./index.css";
+import { GeminiIcon } from "./components/GeminiIcon";
+import { GeminiLogoCenter } from "./components/GeminiLogoCenter";
 
 interface Message {
   id: string;
@@ -123,7 +126,7 @@ function isErrorResult(content: ErrorContent): boolean {
   ];
 
   // If content is a ToolCallResult with markdown field
-  if (typeof content === 'object' && content !== null && content.markdown) {
+  if (typeof content === "object" && content !== null && content.markdown) {
     const markdown = content.markdown.toLowerCase();
     return errorIndicators.some((indicator) => markdown.includes(indicator));
   }
@@ -135,7 +138,11 @@ function isErrorResult(content: ErrorContent): boolean {
   }
 
   // If content has an error field
-  if (typeof content === 'object' && content !== null && (content.error || content.stderr)) {
+  if (
+    typeof content === "object" &&
+    content !== null &&
+    (content.error || content.stderr)
+  ) {
     return true;
   }
 
@@ -528,12 +535,20 @@ function App() {
                         });
 
                         if (shouldUpdate) {
-                          const newStatus: "pending" | "running" | "completed" | "failed" =
+                          const newStatus:
+                            | "pending"
+                            | "running"
+                            | "completed"
+                            | "failed" =
                             updateData.status === "finished"
                               ? isErrorResult(updateData.content)
                                 ? "failed"
                                 : "completed"
-                              : updateData.status as "pending" | "running" | "completed" | "failed";
+                              : (updateData.status as
+                                  | "pending"
+                                  | "running"
+                                  | "completed"
+                                  | "failed");
 
                           console.log("🔧 Updating tool call:", {
                             from: tc.status,
@@ -1230,9 +1245,22 @@ function App() {
             </div>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
-              <h1 className="text-3xl font-bold text-foreground mb-4">
-                Welcome to Gemini Desktop
-              </h1>
+              {/* <div className="flex flex-row items-center mb-4 gap-2">
+                <GeminiIcon />
+                <h1 className="text-3xl font-bold text-foreground">
+                  Welcome to Gemini Desktop
+                </h1>
+                <GeminiIcon />
+              </div> */}
+
+              <div className="flex flex-row items-center mb-4 gap-2">
+                <GeminiLogoCenter />
+                <span className="text-4xl font-medium text-primary">
+                  Desktop
+                </span>
+              </div>
+
+
               <p className="text-muted-foreground">
                 Start a new conversation to begin chatting with Gemini.
               </p>
