@@ -207,8 +207,10 @@ function App() {
   };
 
   const setupEventListenerForConversation = async (conversationId: string) => {
+    console.log("🎯 Setting up event listeners for conversation:", conversationId);
     try {
       // Listen for CLI I/O logs
+      console.log("🎯 Registering cli-io listener for:", `cli-io-${conversationId}`);
       await listen<{ type: "input" | "output"; data: string }>(
         `cli-io-${conversationId}`,
         (event) => {
@@ -284,8 +286,9 @@ function App() {
       );
 
       // Listen for streaming text chunks
+      console.log("🎯 Registering gemini-output listener for:", `gemini-output-${conversationId}`);
       await listen<string>(`gemini-output-${conversationId}`, (event) => {
-        console.log("📝 TEXT CHUNK:", conversationId, event.payload);
+        console.log("📝 TEXT CHUNK RECEIVED:", conversationId, event.payload);
 
         // Add the chunk to the conversation (real-time streaming)
         setConversations((prev) =>
@@ -662,6 +665,7 @@ function App() {
       conversationId = newConversation.id;
 
       // Set up event listener for this conversation
+      console.log("🎯 Setting up event listeners for NEW conversation:", conversationId);
       setupEventListenerForConversation(conversationId);
     }
 
@@ -697,6 +701,9 @@ function App() {
     try {
       // Send message with conversation context (like claudia does)
       if (conversationId) {
+        console.log("🚀 Sending message to backend with conversationId:", conversationId);
+        console.log("🚀 Message text:", messageText);
+        
         // Build conversation history for context - only include recent messages to avoid too long prompts
         const recentMessages = currentConversation?.messages.slice(-10) || []; // Last 10 messages
         const history = recentMessages
@@ -706,13 +713,15 @@ function App() {
           )
           .join("\n");
 
-        await invoke("send_message", {
+        const result = await invoke("send_message", {
           sessionId: conversationId,
           message: messageText,
           conversationHistory: history,
           workingDirectory: isWorkingDirectoryValid ? workingDirectory : null,
           model: selectedModel,
         });
+        
+        console.log("🚀 Backend invoke result:", result);
 
         // Refresh process statuses after sending message
         await fetchProcessStatuses();
@@ -745,6 +754,7 @@ function App() {
   };
 
   const handleConversationSelect = (conversationId: string) => {
+    console.log("🎯 Selecting existing conversation:", conversationId);
     setActiveConversation(conversationId);
     setupEventListenerForConversation(conversationId);
   };
