@@ -26,13 +26,10 @@ import {
   X,
   AlertCircleIcon,
   AlertTriangle,
-  Gem,
   UserRound,
 } from "lucide-react";
 import "./index.css";
-import { GeminiIcon } from "./components/GeminiIcon";
 import { GeminiLogoCenter } from "./components/GeminiLogoCenter";
-import { UserAvatar } from "./components/UserAvatar";
 
 interface Message {
   id: string;
@@ -257,7 +254,7 @@ function App() {
       setStreamingContent("");
       setStreamingThinking("");
       setStreamingConversationId(null);
-    }, 1000);
+    }, 3000);
 
     return () => clearTimeout(timeoutId);
   }, [
