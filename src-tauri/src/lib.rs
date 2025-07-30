@@ -1158,6 +1158,33 @@ async fn validate_directory(path: String) -> Result<bool, String> {
 }
 
 #[tauri::command]
+async fn is_home_directory(path: String) -> Result<bool, String> {
+    use std::path::Path;
+
+    let home = std::env::var("HOME").unwrap_or_else(|_err| {
+        std::env::var("USERPROFILE").unwrap_or_else(|_err| "".to_string())
+    });
+
+    if home.is_empty() {
+        return Ok(false);
+    }
+
+    let path_obj = Path::new(&path);
+    let home_obj = Path::new(&home);
+
+    // Canonicalize both paths to handle symbolic links and relative paths
+    match (path_obj.canonicalize(), home_obj.canonicalize()) {
+        (Ok(canonical_path), Ok(canonical_home)) => {
+            Ok(canonical_path == canonical_home)
+        }
+        _ => {
+            // Fallback to string comparison if canonicalization fails
+            Ok(path_obj == home_obj)
+        }
+    }
+}
+
+#[tauri::command]
 async fn debug_environment() -> Result<String, String> {
     let path = std::env::var("PATH").unwrap_or_else(|_err| "PATH not found".to_string());
     let home = std::env::var("HOME").unwrap_or_else(|_err| {
@@ -1251,6 +1278,7 @@ pub fn run() {
             execute_confirmed_command,
             generate_conversation_title,
             validate_directory,
+            is_home_directory,
             debug_environment
         ])
         .run(tauri::generate_context!())

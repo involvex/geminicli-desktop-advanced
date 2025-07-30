@@ -208,6 +208,8 @@ function App() {
   const [workingDirectory, setWorkingDirectory] = useState<string>("");
   const [isWorkingDirectoryValid, setIsWorkingDirectoryValid] =
     useState<boolean>(false);
+  const [isWorkingDirectoryHome, setIsWorkingDirectoryHome] =
+    useState<boolean>(false);
   const [selectedModel, setSelectedModel] =
     useState<string>("gemini-2.5-flash");
   // Streaming state - separate from completed messages
@@ -854,6 +856,10 @@ function App() {
     setIsWorkingDirectoryValid(isValid);
   };
 
+  const handleHomeDirectoryChange = (isHomeDirectory: boolean) => {
+    setIsWorkingDirectoryHome(isHomeDirectory);
+  };
+
   const handleModelChange = (model: string) => {
     setSelectedModel(model);
   };
@@ -988,6 +994,7 @@ function App() {
         onKillProcess={handleKillProcess}
         onWorkingDirectoryChange={handleWorkingDirectoryChange}
         onModelChange={handleModelChange}
+        onHomeDirectoryChange={handleHomeDirectoryChange}
       />
 
       {/* Main Content Area */}
@@ -1039,6 +1046,19 @@ function App() {
                     </a>
                     .
                   </p>
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
+          {isWorkingDirectoryHome && isWorkingDirectoryValid && (
+            <div className="p-4">
+              <Alert className="bg-yellow-50 border-yellow-300 dark:bg-yellow-950 dark:border-yellow-700">
+                <AlertTriangle className="!text-yellow-500 dark:!text-yellow-300" />
+                <AlertTitle className="text-yellow-800 dark:text-yellow-300">
+                  Using Gemini Desktop in your home directory
+                </AlertTitle>
+                <AlertDescription className="text-yellow-800 dark:text-yellow-300">
+                  You are running Gemini Desktop in your home directory. It is recommended to run in a project-specific directory.
                 </AlertDescription>
               </Alert>
             </div>

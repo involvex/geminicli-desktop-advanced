@@ -60,6 +60,7 @@ interface ConversationListProps {
   onKillProcess: (conversationId: string) => void;
   onWorkingDirectoryChange?: (directory: string, isValid: boolean) => void;
   onModelChange?: (model: string) => void;
+  onHomeDirectoryChange?: (isHomeDirectory: boolean) => void;
 }
 
 export function ConversationList({
@@ -70,6 +71,7 @@ export function ConversationList({
   onKillProcess,
   onWorkingDirectoryChange,
   onModelChange,
+  onHomeDirectoryChange,
 }: ConversationListProps) {
   const [selectedConversationForEnd, setSelectedConversationForEnd] = useState<{
     id: string;
@@ -79,6 +81,7 @@ export function ConversationList({
   const [isValidDirectory, setIsValidDirectory] = useState<boolean | null>(
     null
   );
+  const [isHomeDirectory, setIsHomeDirectory] = useState<boolean>(false);
   const [selectedModel, setSelectedModel] =
     useState<string>("gemini-2.5-flash");
 
@@ -92,27 +95,38 @@ export function ConversationList({
   useEffect(() => {
     if (!workingDirectory.trim()) {
       setIsValidDirectory(null);
+      setIsHomeDirectory(false);
       onWorkingDirectoryChange?.("", false);
+      onHomeDirectoryChange?.(false);
       return;
     }
 
     const validateDirectory = async () => {
       try {
         const { invoke } = await import("@tauri-apps/api/core");
-        const isValid = await invoke<boolean>("validate_directory", {
-          path: workingDirectory.trim(),
-        });
+        const [isValid, isHome] = await Promise.all([
+          invoke<boolean>("validate_directory", {
+            path: workingDirectory.trim(),
+          }),
+          invoke<boolean>("is_home_directory", {
+            path: workingDirectory.trim(),
+          }),
+        ]);
         setIsValidDirectory(isValid);
+        setIsHomeDirectory(isHome);
         onWorkingDirectoryChange?.(workingDirectory.trim(), isValid);
+        onHomeDirectoryChange?.(isHome);
       } catch {
         setIsValidDirectory(false);
+        setIsHomeDirectory(false);
         onWorkingDirectoryChange?.(workingDirectory.trim(), false);
+        onHomeDirectoryChange?.(false);
       }
     };
 
     const timeoutId = setTimeout(validateDirectory, 300); // Debounce validation
     return () => clearTimeout(timeoutId);
-  }, [workingDirectory, onWorkingDirectoryChange]);
+  }, [workingDirectory, onWorkingDirectoryChange, onHomeDirectoryChange]);
 
   const handleDirectorySelect = async () => {
     try {
@@ -243,6 +257,7 @@ export function ConversationList({
               )}
             </div>
           )}
+
         </div>
       </div>
 
