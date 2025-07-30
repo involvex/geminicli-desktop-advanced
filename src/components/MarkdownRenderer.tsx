@@ -77,13 +77,13 @@ export function MarkdownRenderer({ children }: { children: string }) {
           // Lists
           ul: (props) => (
             <ul
-              className="list-disc list-inside my-4 space-y-1 text-foreground"
+              className="list-disc list-outside pl-6 my-4 space-y-1 text-foreground"
               {...props}
             />
           ),
           ol: (props) => (
             <ol
-              className="list-decimal list-inside my-4 space-y-1 text-foreground"
+              className="list-decimal list-outside pl-6 my-4 space-y-1 text-foreground"
               {...props}
             />
           ),
