@@ -1,6 +1,6 @@
 export type ToolCallResult = {
   files?: Array<{name: string, type: string, length?: number}>;
-  matches?: Array<any>;
+  matches?: Array<unknown>;
   total?: number; 
   message?: string;
   markdown?: string;

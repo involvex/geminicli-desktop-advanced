@@ -648,7 +648,7 @@ function App() {
     _event: React.ChangeEvent<HTMLInputElement> | null,
     newValue: string,
     _newPlainTextValue: string,
-    _mentions: any[]
+    _mentions: unknown[]
   ) => {
     setInput(newValue);
   };
