@@ -218,51 +218,41 @@ function App() {
     string | null
   >(null);
 
-  // Finalize streaming message when streaming stops
-  useEffect(() => {
+  // Helper function to finalize the streaming message
+  const finalizeStreamingMessage = () => {
     if (!isStreaming || !streamingConversationId) return;
 
-    // Set a timeout to detect when streaming is complete (no new chunks for 1 second)
-    const timeoutId = setTimeout(() => {
-      console.log("🏁 Streaming timeout reached, finalizing message");
+    console.log("🏁 Finalizing streaming message");
 
-      // Create the final message
-      const finalMessage: Message = {
-        id: Date.now().toString(),
-        content: streamingContent,
-        sender: "assistant",
-        timestamp: new Date(),
-        thinking: streamingThinking || undefined,
+    // Create the final message
+    const finalMessage: Message = {
+      id: Date.now().toString(),
+      content: streamingContent,
+      sender: "assistant",
+      timestamp: new Date(),
+      thinking: streamingThinking || undefined,
+    };
+
+    // Add to conversations
+    setConversations((prev) =>
+      prev.map((conv) => {
+        if (conv.id === streamingConversationId) {
+          return {
+            ...conv,
+            messages: [...conv.messages, finalMessage],
+            lastUpdated: new Date(),
+          };
+        }
+        return conv;
+      })
+    );
+
+    // Reset streaming state
+    setIsStreaming(false);
+    setStreamingContent("");
+    setStreamingThinking("");
+    setStreamingConversationId(null);
       };
-
-      // Add to conversations
-      setConversations((prev) =>
-        prev.map((conv) => {
-          if (conv.id === streamingConversationId) {
-            return {
-              ...conv,
-              messages: [...conv.messages, finalMessage],
-              lastUpdated: new Date(),
-            };
-          }
-          return conv;
-        })
-      );
-
-      // Reset streaming state
-      setIsStreaming(false);
-      setStreamingContent("");
-      setStreamingThinking("");
-      setStreamingConversationId(null);
-    }, 3000);
-
-    return () => clearTimeout(timeoutId);
-  }, [
-    streamingContent,
-    streamingThinking,
-    isStreaming,
-    streamingConversationId,
-  ]);
 
   const currentConversation = conversations.find(
     (c) => c.id === activeConversation
@@ -596,7 +586,7 @@ function App() {
           setStreamingContent("");
           setStreamingThinking("");
           setStreamingConversationId(null);
-        }
+                  }
 
         // Add error message to the conversation
         setConversations((prev) =>
@@ -617,6 +607,12 @@ function App() {
             return conv;
           })
         );
+      });
+
+      // Listen for response completion
+      await listen<boolean>(`gemini-response-complete-${conversationId}`, (_event) => {
+        console.log("🏁 Response completed for conversation:", conversationId);
+        finalizeStreamingMessage();
       });
 
       // Listen for tool call confirmation requests
@@ -745,7 +741,7 @@ function App() {
     setStreamingContent("");
     setStreamingThinking("");
     setStreamingConversationId(null);
-
+    
     // Check if user is trying to use the disabled model
     if (selectedModel === "gemini-2.5-flash-lite") {
       const templateMessage: Message = {

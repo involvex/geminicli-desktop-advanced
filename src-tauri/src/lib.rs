@@ -609,6 +609,13 @@ async fn handle_session_io(
                                 println!("❌ CLI Error: {error:?}");
                                 let _ = app_handle.emit(&format!("gemini-error-{session_id}"), &format!("Gemini CLI Error: {error:?}"));
                             }
+                            // Check if this is a completion response (result: null)
+                            else if let Some(result) = &response.result {
+                                if result.is_null() {
+                                    println!("🏁 CLI response completed for session: {session_id}");
+                                    let _ = app_handle.emit(&format!("gemini-response-complete-{session_id}"), &true);
+                                }
+                            }
                         }
                     }
                     (Err(e), _) => {
