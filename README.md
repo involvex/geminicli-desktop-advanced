@@ -31,7 +31,7 @@ pnpm tauri dev
 
 ### Planned
 
-- Automatic chat history saving ([#2](https://github.com/Piebald-AI/gemini-desktop/issues/1)).  Note: See related PRs [#4401](https://github.com/google-gemini/gemini-cli/pull/4401) and [#4609](https://github.com/google-gemini/gemini-cli/pull/4609) on the Gemini CLI repo.
+- Automatic chat history saving ([#2](https://github.com/Piebald-AI/gemini-desktop/issues/2)).  Note: See related PRs [#4401](https://github.com/google-gemini/gemini-cli/pull/4401) and [#4609](https://github.com/google-gemini/gemini-cli/pull/4609) on the Gemini CLI repo.
 - MCP server management
 - Token/cost information
 - More advanced tool call support
