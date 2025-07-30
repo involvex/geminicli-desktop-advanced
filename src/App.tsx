@@ -316,6 +316,7 @@ function App() {
         "🎯 Registering cli-io listener for:",
         `cli-io-${conversationId}`
       );
+      
       await listen<{ type: "input" | "output"; data: string }>(
         `cli-io-${conversationId}`,
         (event) => {

@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "format": "pnpm format:frontend && pnpm format:tauri",
-    "format:frontend": "pnpm dlx prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\" && pnpm dlx eslint --fix \"src/**/*.{ts,tsx,js,jsx}\" --quiet",
+    "format:frontend": "pnpm dlx prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "format:tauri": "cd src-tauri && cargo fmt",
     "lint": "pnpm lint:frontend && pnpm lint:tauri",
     "lint:frontend": "pnpm dlx eslint \"src/**/*.{ts,tsx,js,jsx}\"",
