@@ -8,6 +8,9 @@ default:
 
 build-all: build build-web
 
+deps:
+    cd frontend ; pnpm install
+
 ### DESKTOP
 
 [group('desktop')]
