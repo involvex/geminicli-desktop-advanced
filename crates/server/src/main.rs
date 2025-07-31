@@ -4,12 +4,13 @@ use rocket::{
     http::{ContentType, Status},
     post, routes,
     serde::json::Json,
-    State,
+    State, Shutdown,
 };
 use rocket_ws::{WebSocket, Stream, Message};
 use std::path::PathBuf;
 use std::sync::{Arc, atomic::{AtomicU64, Ordering}};
-use tokio::sync::{Mutex, mpsc};
+use tokio::sync::{Mutex, mpsc as tokio_mpsc};
+use std::sync::mpsc;
 use serde::{Deserialize, Serialize};
 
 // Import backend functionality
@@ -27,21 +28,34 @@ static FRONTEND_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../frontend/dist
 /// Manages active WebSocket connections for event broadcasting
 #[derive(Clone)]
 pub struct WebSocketManager {
-    connections: Arc<Mutex<Vec<mpsc::UnboundedSender<String>>>>,
+    connections: Arc<Mutex<Vec<tokio_mpsc::UnboundedSender<String>>>>,
+    connection_counter: Arc<AtomicU64>,
 }
 
 impl WebSocketManager {
     pub fn new() -> Self {
         Self {
             connections: Arc::new(Mutex::new(Vec::new())),
+            connection_counter: Arc::new(AtomicU64::new(0)),
         }
     }
 
     /// Register a new WebSocket connection
-    pub async fn add_connection(&self, sender: mpsc::UnboundedSender<String>) {
+    pub async fn add_connection(&self, sender: tokio_mpsc::UnboundedSender<String>) -> u64 {
+        let connection_id = self.connection_counter.fetch_add(1, Ordering::SeqCst);
         let mut connections = self.connections.lock().await;
         connections.push(sender);
-        println!("📡 WebSocket connection added. Total connections: {}", connections.len());
+        println!("📡 WebSocket connection added (ID: {}). Total connections: {}", connection_id, connections.len());
+        connection_id
+    }
+
+    /// Remove a specific WebSocket connection
+    pub async fn remove_connection(&self, sender: &tokio_mpsc::UnboundedSender<String>) {
+        let mut connections = self.connections.lock().await;
+        if let Some(pos) = connections.iter().position(|conn| std::ptr::eq(conn, sender)) {
+            connections.remove(pos);
+            println!("📡 WebSocket connection removed. Total connections: {}", connections.len());
+        }
     }
 
     /// Broadcast an event message to all connected clients
@@ -72,6 +86,13 @@ impl WebSocketManager {
     pub async fn connection_count(&self) -> usize {
         self.connections.lock().await.len()
     }
+
+    /// Close all WebSocket connections gracefully
+    pub async fn close_all_connections(&self) {
+        let mut connections = self.connections.lock().await;
+        println!("📡 Closing {} WebSocket connections for graceful shutdown", connections.len());
+        connections.clear();
+    }
 }
 
 /// WebSocket event message format with sequence number for ordering
@@ -89,15 +110,33 @@ struct WebSocketEvent<T> {
 /// WebSocket-based event emitter that implements EventEmitter
 #[derive(Clone)]
 pub struct WebSocketsEventEmitter {
-    ws_manager: WebSocketManager,
     sequence_counter: Arc<AtomicU64>,
+    event_sender: mpsc::Sender<String>,
 }
 
 impl WebSocketsEventEmitter {
     pub fn new(ws_manager: WebSocketManager) -> Self {
+        // Create synchronous channel for ordered event processing
+        let (event_sender, event_receiver) = mpsc::channel::<String>();
+        
+        // Spawn async worker task to bridge sync channel to async WebSocket broadcast
+        let ws_manager_worker = ws_manager.clone();
+        std::thread::spawn(move || {
+            // Create async runtime for this worker thread
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async move {
+                // Process events in order from synchronous channel
+                while let Ok(message) = event_receiver.recv() {
+                    if let Err(e) = ws_manager_worker.broadcast(message).await {
+                        eprintln!("❌ Failed to broadcast WebSocket event: {}", e);
+                    }
+                }
+            });
+        });
+        
         Self { 
-            ws_manager,
             sequence_counter: Arc::new(AtomicU64::new(0)),
+            event_sender,
         }
     }
 }
@@ -118,13 +157,9 @@ impl EventEmitter for WebSocketsEventEmitter {
         let message = serde_json::to_string(&ws_event)
             .map_err(|e| backend::BackendError::SerializationError(e))?;
             
-        // Broadcast asynchronously (frontend can sort by sequence number if needed)
-        let ws_manager = self.ws_manager.clone();
-        tokio::spawn(async move {
-            if let Err(e) = ws_manager.broadcast(message).await {
-                eprintln!("❌ Failed to broadcast WebSocket event: {}", e);
-            }
-        });
+        // Send synchronously to ordered channel - this maintains perfect ordering
+        self.event_sender.send(message)
+            .map_err(|_| backend::BackendError::ChannelError)?;
         
         Ok(())
     }
@@ -212,33 +247,33 @@ fn index(path: PathBuf) -> Result<(ContentType, &'static [u8]), Status> {
 // =====================================
 
 #[get("/check-cli-installed")]
-async fn check_cli_installed(state: &State<AppState>) -> Json<Result<bool, String>> {
+async fn check_cli_installed(state: &State<AppState>) -> Result<Json<bool>, Status> {
     let backend = state.backend.lock().await;
     match backend.check_cli_installed().await {
-        Ok(result) => Json(Ok(result)),
-        Err(e) => Json(Err(e.to_string())),
+        Ok(result) => Ok(Json(result)),
+        Err(_) => Err(Status::InternalServerError),
     }
 }
 
 #[post("/start-session", data = "<request>")]
-async fn start_session(request: Json<StartSessionRequest>, state: &State<AppState>) -> Json<Result<(), String>> {
+async fn start_session(request: Json<StartSessionRequest>, state: &State<AppState>) -> Status {
     let _request = request; // Use the parameter to avoid warning
     // For compatibility with existing frontend, just check if CLI is installed
     let backend = state.backend.lock().await;
     match backend.check_cli_installed().await {
         Ok(available) => {
             if available {
-                Json(Ok(()))
+                Status::Ok
             } else {
-                Json(Err("Gemini CLI not available".to_string()))
+                Status::ServiceUnavailable
             }
         },
-        Err(e) => Json(Err(e.to_string())),
+        Err(_) => Status::InternalServerError,
     }
 }
 
 #[post("/send-message", data = "<request>")]
-async fn send_message(request: Json<SendMessageRequest>, state: &State<AppState>) -> Json<Result<(), String>> {
+async fn send_message(request: Json<SendMessageRequest>, state: &State<AppState>) -> Status {
     let req = request.into_inner();
     
     // Initialize session if working directory or model are provided
@@ -246,79 +281,79 @@ async fn send_message(request: Json<SendMessageRequest>, state: &State<AppState>
         let backend = state.backend.lock().await;
         match backend.initialize_session(req.session_id.clone(), None, model_name).await {
             Ok(_) => {},
-            Err(e) => return Json(Err(e.to_string())),
+            Err(_) => return Status::InternalServerError,
         }
     }
 
     let backend = state.backend.lock().await;
     match backend.send_message(req.session_id, req.message, req.conversation_history).await {
-        Ok(_) => Json(Ok(())),
-        Err(e) => Json(Err(e.to_string())),
+        Ok(_) => Status::Ok,
+        Err(_) => Status::InternalServerError,
     }
 }
 
 #[get("/process-statuses")]
-async fn get_process_statuses(state: &State<AppState>) -> Json<Result<Vec<ProcessStatus>, String>> {
+async fn get_process_statuses(state: &State<AppState>) -> Result<Json<Vec<ProcessStatus>>, Status> {
     let backend = state.backend.lock().await;
     match backend.get_process_statuses() {
-        Ok(statuses) => Json(Ok(statuses)),
-        Err(e) => Json(Err(e.to_string())),
+        Ok(statuses) => Ok(Json(statuses)),
+        Err(_) => Err(Status::InternalServerError),
     }
 }
 
 #[post("/kill-process", data = "<request>")]
-async fn kill_process(request: Json<KillProcessRequest>, state: &State<AppState>) -> Json<Result<(), String>> {
+async fn kill_process(request: Json<KillProcessRequest>, state: &State<AppState>) -> Status {
     let backend = state.backend.lock().await;
     match backend.kill_process(&request.conversation_id) {
-        Ok(_) => Json(Ok(())),
-        Err(e) => Json(Err(e.to_string())),
+        Ok(_) => Status::Ok,
+        Err(_) => Status::InternalServerError,
     }
 }
 
 #[post("/tool-confirmation", data = "<request>")]
-async fn send_tool_call_confirmation_response(request: Json<ToolConfirmationRequest>, state: &State<AppState>) -> Json<Result<(), String>> {
+async fn send_tool_call_confirmation_response(request: Json<ToolConfirmationRequest>, state: &State<AppState>) -> Status {
     let req = request.into_inner();
     let backend = state.backend.lock().await;
     match backend.handle_tool_confirmation(req.session_id, req.request_id, req.tool_call_id, req.outcome).await {
-        Ok(_) => Json(Ok(())),
-        Err(e) => Json(Err(e.to_string())),
+        Ok(_) => Status::Ok,
+        Err(_) => Status::InternalServerError,
     }
 }
 
 #[post("/execute-command", data = "<request>")]
-async fn execute_confirmed_command(request: Json<ExecuteCommandRequest>, state: &State<AppState>) -> Json<Result<String, String>> {
+async fn execute_confirmed_command(request: Json<ExecuteCommandRequest>, state: &State<AppState>) -> Result<Json<String>, Status> {
     let backend = state.backend.lock().await;
     match backend.execute_confirmed_command(request.command.clone()).await {
-        Ok(output) => Json(Ok(output)),
-        Err(e) => Json(Err(e.to_string())),
+        Ok(output) => Ok(Json(output)),
+        Err(_) => Err(Status::InternalServerError),
     }
 }
 
 #[post("/generate-title", data = "<request>")]
-async fn generate_conversation_title(request: Json<GenerateTitleRequest>, state: &State<AppState>) -> Json<Result<String, String>> {
+async fn generate_conversation_title(request: Json<GenerateTitleRequest>, state: &State<AppState>) -> Result<Json<String>, Status> {
     let req = request.into_inner();
     let backend = state.backend.lock().await;
     match backend.generate_conversation_title(req.message, req.model).await {
-        Ok(title) => Json(Ok(title)),
-        Err(e) => Json(Err(e.to_string())),
+        Ok(title) => Ok(Json(title)),
+        Err(_) => Err(Status::InternalServerError),
     }
 }
 
 #[post("/validate-directory", data = "<request>")]
-async fn validate_directory(request: Json<ValidateDirectoryRequest>, state: &State<AppState>) -> Json<Result<bool, String>> {
+async fn validate_directory(request: Json<ValidateDirectoryRequest>, state: &State<AppState>) -> Result<Json<bool>, Status> {
     let backend = state.backend.lock().await;
     match backend.validate_directory(request.path.clone()).await {
-        Ok(valid) => Json(Ok(valid)),
-        Err(e) => Json(Err(e.to_string())),
+        Ok(valid) => Ok(Json(valid)),
+        Err(_) => Err(Status::InternalServerError),
     }
 }
 
 #[post("/is-home-directory", data = "<request>")]
-async fn is_home_directory(request: Json<IsHomeDirectoryRequest>, state: &State<AppState>) -> Json<Result<bool, String>> {
+async fn is_home_directory(request: Json<IsHomeDirectoryRequest>, state: &State<AppState>) -> Result<Json<bool>, Status> {
     let backend = state.backend.lock().await;
     match backend.is_home_directory(request.path.clone()).await {
-        Ok(is_home) => Json(Ok(is_home)),
-        Err(e) => Json(Err(e.to_string())),
+        Ok(is_home) => Ok(Json(is_home)),
+        Err(_) => Err(Status::InternalServerError),
     }
 }
 
@@ -327,23 +362,38 @@ async fn is_home_directory(request: Json<IsHomeDirectoryRequest>, state: &State<
 // =====================================
 
 #[get("/ws")]
-fn websocket_handler(ws: WebSocket, state: &State<AppState>) -> Stream!['static] {
+fn websocket_handler(ws: WebSocket, state: &State<AppState>, mut shutdown: Shutdown) -> Stream!['static] {
     let ws_manager = state.ws_manager.clone();
     
     Stream! { ws =>
         // Create a channel for this WebSocket connection to receive backend events
-        let (tx, mut rx) = mpsc::unbounded_channel::<String>();
+        let (tx, mut rx) = tokio_mpsc::unbounded_channel::<String>();
         
         // Register this connection with the manager  
-        ws_manager.add_connection(tx).await;
-        println!("📡 New WebSocket connection established");
+        let connection_id = ws_manager.add_connection(tx.clone()).await;
+        println!("📡 New WebSocket connection established (ID: {})", connection_id);
         
-        // Simple event forwarding loop - just handle outgoing backend events for now
-        while let Some(backend_msg) = rx.recv().await {
-            yield Message::text(backend_msg);
+        // Event forwarding loop with graceful shutdown support
+        loop {
+            tokio::select! {
+                // Handle incoming backend messages
+                msg = rx.recv() => {
+                    match msg {
+                        Some(backend_msg) => yield Message::text(backend_msg),
+                        None => break, // Channel closed
+                    }
+                }
+                // Handle server shutdown
+                _ = &mut shutdown => {
+                    println!("📡 WebSocket connection (ID: {}) received shutdown signal", connection_id);
+                    break;
+                }
+            }
         }
         
-        println!("📡 WebSocket connection terminated");
+        // Clean up connection when the stream ends
+        ws_manager.remove_connection(&tx).await;
+        println!("📡 WebSocket connection terminated (ID: {})", connection_id);
     }
 }
 
@@ -366,8 +416,9 @@ fn rocket() -> _ {
             .merge(("address", "0.0.0.0")),
     )
     .manage(app_state)
-    .mount("/", routes![index, websocket_handler])
+    .mount("/", routes![index])
     .mount("/api", routes![
+        websocket_handler,
         check_cli_installed,
         start_session,
         send_message,

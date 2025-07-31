@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
+import { webApi } from "../lib/webApi";
 
 interface ProcessStatus {
   conversation_id: string;
@@ -56,7 +57,7 @@ interface ConversationListProps {
   conversations: Conversation[];
   activeConversation: string | null;
   processStatuses: ProcessStatus[];
-  onConversationSelect: (conversationId: string) => void;
+  onConversationSelect: (conversationId: string) => Promise<void>;
   onKillProcess: (conversationId: string) => void;
   onWorkingDirectoryChange?: (directory: string, isValid: boolean) => void;
   onModelChange?: (model: string) => void;
@@ -81,7 +82,6 @@ export function ConversationList({
   const [isValidDirectory, setIsValidDirectory] = useState<boolean | null>(
     null
   );
-  const [isHomeDirectory, setIsHomeDirectory] = useState<boolean>(false);
   const [selectedModel, setSelectedModel] =
     useState<string>("gemini-2.5-flash");
 
@@ -95,7 +95,6 @@ export function ConversationList({
   useEffect(() => {
     if (!workingDirectory.trim()) {
       setIsValidDirectory(null);
-      setIsHomeDirectory(false);
       onWorkingDirectoryChange?.("", false);
       onHomeDirectoryChange?.(false);
       return;
@@ -103,22 +102,30 @@ export function ConversationList({
 
     const validateDirectory = async () => {
       try {
-        const { invoke } = await import("@tauri-apps/api/core");
-        const [isValid, isHome] = await Promise.all([
-          invoke<boolean>("validate_directory", {
-            path: workingDirectory.trim(),
-          }),
-          invoke<boolean>("is_home_directory", {
-            path: workingDirectory.trim(),
-          }),
-        ]);
-        setIsValidDirectory(isValid);
-        setIsHomeDirectory(isHome);
-        onWorkingDirectoryChange?.(workingDirectory.trim(), isValid);
-        onHomeDirectoryChange?.(isHome);
+        if (__WEB__) {
+          const [isValid, isHome] = await Promise.all([
+            webApi.validate_directory(workingDirectory.trim()),
+            webApi.is_home_directory(workingDirectory.trim()),
+          ]);
+          setIsValidDirectory(isValid);
+          onWorkingDirectoryChange?.(workingDirectory.trim(), isValid);
+          onHomeDirectoryChange?.(isHome);
+        } else {
+          const { invoke } = await import("@tauri-apps/api/core");
+          const [isValid, isHome] = await Promise.all([
+            invoke<boolean>("validate_directory", {
+              path: workingDirectory.trim(),
+            }),
+            invoke<boolean>("is_home_directory", {
+              path: workingDirectory.trim(),
+            }),
+          ]);
+          setIsValidDirectory(isValid);
+          onWorkingDirectoryChange?.(workingDirectory.trim(), isValid);
+          onHomeDirectoryChange?.(isHome);
+        }
       } catch {
         setIsValidDirectory(false);
-        setIsHomeDirectory(false);
         onWorkingDirectoryChange?.(workingDirectory.trim(), false);
         onHomeDirectoryChange?.(false);
       }
@@ -220,11 +227,12 @@ export function ConversationList({
             </div>
             <Input
               type="text"
-              placeholder="Select working directory..."
+              placeholder={__WEB__ ? "Enter working directory path..." : "Select working directory..."}
               value={workingDirectory}
-              readOnly
-              onClick={handleDirectorySelect}
-              className="pl-10 pr-10 text-sm cursor-pointer"
+              readOnly={!__WEB__}
+              onChange={__WEB__ ? (e) => setWorkingDirectory(e.target.value) : undefined}
+              onClick={!__WEB__ ? handleDirectorySelect : undefined}
+              className={`pl-10 pr-10 text-sm ${!__WEB__ ? 'cursor-pointer' : ''}`}
             />
             <div className="absolute right-3 top-3">
               {isValidDirectory === null ? null : isValidDirectory ? (
@@ -285,7 +293,7 @@ export function ConversationList({
                       ? "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20"
                       : "hover:bg-gray-100 dark:hover:bg-gray-700"
                   }`}
-                  onClick={() => onConversationSelect(conversation.id)}
+                  onClick={async () => await onConversationSelect(conversation.id)}
                 >
                   <CardHeader className="p-3 pb-2 py-0">
                     <div className="flex items-start justify-between gap-2">

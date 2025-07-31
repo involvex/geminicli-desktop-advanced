@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { webApi, webListen, getWebSocketManager } from "./lib/webApi";
 import { Button } from "./components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "./components/ui/alert";
 import {
@@ -107,6 +108,46 @@ declare global {
     pendingToolCallInput?: string;
   }
 }
+
+// Abstraction layer for API calls
+const api = {
+  async invoke<T>(command: string, args?: any): Promise<T> {
+    if (__WEB__) {
+      switch (command) {
+        case "check_cli_installed":
+          return webApi.check_cli_installed() as Promise<T>;
+        case "send_message":
+          return webApi.send_message(args) as Promise<T>;
+        case "get_process_statuses":
+          return webApi.get_process_statuses() as Promise<T>;
+        case "kill_process":
+          return webApi.kill_process(args) as Promise<T>;
+        case "send_tool_call_confirmation_response":
+          return webApi.send_tool_call_confirmation_response(args) as Promise<T>;
+        case "execute_confirmed_command":
+          return webApi.execute_confirmed_command(args) as Promise<T>;
+        case "generate_conversation_title":
+          return webApi.generate_conversation_title(args) as Promise<T>;
+        case "validate_directory":
+          return webApi.validate_directory(args) as Promise<T>;
+        case "is_home_directory":
+          return webApi.is_home_directory(args) as Promise<T>;
+        default:
+          throw new Error(`Unknown command: ${command}`);
+      }
+    } else {
+      return invoke<T>(command, args);
+    }
+  },
+
+  async listen<T>(event: string, callback: (event: { payload: T }) => void): Promise<() => void> {
+    if (__WEB__) {
+      return webListen<T>(event, callback);
+    } else {
+      return listen<T>(event, callback);
+    }
+  }
+};
 
 // Helper function to detect if a tool call result indicates an error
 function isErrorResult(content: ErrorContent): boolean {
@@ -274,7 +315,7 @@ function App() {
 
   const checkCliInstallation = async () => {
     try {
-      const installed = await invoke<boolean>("check_cli_installed");
+      const installed = await api.invoke<boolean>("check_cli_installed");
       setIsCliInstalled(installed);
     } catch (error) {
       console.error("Failed to check CLI installation:", error);
@@ -284,7 +325,7 @@ function App() {
 
   const fetchProcessStatuses = async () => {
     try {
-      const statuses = await invoke<ProcessStatus[]>("get_process_statuses");
+      const statuses = await api.invoke<ProcessStatus[]>("get_process_statuses");
       setProcessStatuses((prev) => {
         // Only update if statuses actually changed
         if (JSON.stringify(prev) !== JSON.stringify(statuses)) {
@@ -297,11 +338,19 @@ function App() {
     }
   };
 
-  const setupEventListenerForConversation = async (conversationId: string) => {
+  const setupEventListenerForConversation = async (conversationId: string): Promise<void> => {
     console.log(
       "🎯 Setting up event listeners for conversation:",
       conversationId
     );
+    
+    // In web mode, ensure WebSocket connection is ready before registering listeners
+    if (__WEB__) {
+      const wsManager = getWebSocketManager();
+      await wsManager.waitForConnection();
+      console.log("🔌 WebSocket connection confirmed ready");
+    }
+    
     try {
       // Listen for CLI I/O logs
       console.log(
@@ -309,7 +358,7 @@ function App() {
         `cli-io-${conversationId}`
       );
       
-      await listen<{ type: "input" | "output"; data: string }>(
+      await api.listen<{ type: "input" | "output"; data: string }>(
         `cli-io-${conversationId}`,
         (event) => {
           const newLog: CliIO = {
@@ -388,7 +437,7 @@ function App() {
         "🎯 Registering gemini-output listener for:",
         `gemini-output-${conversationId}`
       );
-      await listen<string>(`gemini-output-${conversationId}`, (event) => {
+      await api.listen<string>(`gemini-output-${conversationId}`, (event) => {
         console.log("📝 TEXT CHUNK RECEIVED:", conversationId, event.payload);
 
         // Update streaming state instead of directly modifying messages
@@ -398,7 +447,7 @@ function App() {
       });
 
       // Listen for thinking chunks
-      await listen<string>(`gemini-thought-${conversationId}`, (event) => {
+      await api.listen<string>(`gemini-thought-${conversationId}`, (event) => {
         console.log(
           "Received gemini thought for conversation:",
           conversationId,
@@ -412,7 +461,7 @@ function App() {
       });
 
       // Listen for tool call events
-      await listen<ToolCallEvent>(
+      await api.listen<ToolCallEvent>(
         `gemini-tool-call-${conversationId}`,
         (event) => {
           console.log("🔧 TOOL CALL EVENT:", conversationId, event.payload);
@@ -496,7 +545,7 @@ function App() {
       );
 
       // Listen for tool call updates
-      await listen<ToolCallUpdateEvent>(
+      await api.listen<ToolCallUpdateEvent>(
         `gemini-tool-call-update-${conversationId}`,
         (event) => {
           console.log("🔄 TOOL CALL UPDATE:", conversationId, event.payload);
@@ -575,7 +624,7 @@ function App() {
       );
 
       // Also listen for errors
-      await listen<string>(`gemini-error-${conversationId}`, (event) => {
+      await api.listen<string>(`gemini-error-${conversationId}`, (event) => {
         console.error(
           "Received gemini error for conversation:",
           conversationId,
@@ -612,13 +661,13 @@ function App() {
       });
 
       // Listen for response completion
-      await listen<boolean>(`gemini-response-complete-${conversationId}`, (_event) => {
+      await api.listen<boolean>(`gemini-response-complete-${conversationId}`, (_event) => {
         console.log("🏁 Response completed for conversation:", conversationId);
         finalizeStreamingMessage();
       });
 
       // Listen for tool call confirmation requests
-      await listen<ToolCallConfirmationRequest>(
+      await api.listen<ToolCallConfirmationRequest>(
         `gemini-tool-call-confirmation-${conversationId}`,
         (event) => {
           console.log(
@@ -696,7 +745,7 @@ function App() {
             .join(" | ");
 
           try {
-            const generatedTitle = await invoke<string>(
+            const generatedTitle = await api.invoke<string>(
               "generate_conversation_title",
               {
                 message: userMessages,
@@ -732,7 +781,7 @@ function App() {
         "🎯 Setting up event listeners for NEW conversation:",
         conversationId
       );
-      setupEventListenerForConversation(conversationId);
+      await setupEventListenerForConversation(conversationId);
     }
 
     const messageText = input;
@@ -788,7 +837,7 @@ function App() {
           )
           .join("\n");
 
-        const result = await invoke("send_message", {
+        const result = await api.invoke("send_message", {
           sessionId: conversationId,
           message: messageText,
           conversationHistory: history,
@@ -828,15 +877,15 @@ function App() {
     }
   };
 
-  const handleConversationSelect = (conversationId: string) => {
+  const handleConversationSelect = async (conversationId: string) => {
     console.log("🎯 Selecting existing conversation:", conversationId);
     setActiveConversation(conversationId);
-    setupEventListenerForConversation(conversationId);
+    await setupEventListenerForConversation(conversationId);
   };
 
   const handleKillProcess = async (conversationId: string) => {
     try {
-      await invoke("kill_process", { conversationId });
+      await api.invoke("kill_process", { conversationId });
       // Refresh process statuses after killing
       await fetchProcessStatuses();
       console.log(
@@ -880,7 +929,7 @@ function App() {
     });
 
     try {
-      await invoke("send_tool_call_confirmation_response", {
+      await api.invoke("send_tool_call_confirmation_response", {
         sessionId: confirmationRequest.sessionId,
         requestId: confirmationRequest.requestId,
         toolCallId: toolCallId,

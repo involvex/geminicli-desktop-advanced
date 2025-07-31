@@ -7,7 +7,7 @@ import react from "@vitejs/plugin-react";
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vitejs.dev/config/
-export default defineConfig(({
+export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
@@ -17,6 +17,10 @@ export default defineConfig(({
   },
   build: {
     target: "esnext",
+  },
+  define: {
+    // eslint-disable-next-line no-undef
+    __WEB__: JSON.stringify(process.env.GEMINI_DESKTOP_WEB === "true"),
   },
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
@@ -34,9 +38,20 @@ export default defineConfig(({
           port: 1421,
         }
       : undefined,
+    proxy: {
+      "/api": {
+        target: "http://localhost:1858",
+        changeOrigin: true,
+      },
+      "/api/ws": {
+        target: "ws://localhost:1858",
+        changeOrigin: true,
+        ws: true,
+      },
+    },
     watch: {
       // 3. tell vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
   },
-}));
+});
