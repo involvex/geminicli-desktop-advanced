@@ -773,6 +773,15 @@ async fn handle_session_io_internal(
                     };
 
                     if let Some(mut stdin) = stdin_opt {
+                        // Emit CLI input event for EVERY message sent to CLI
+                        let _ = event_tx.send(InternalEvent::CliIo {
+                            session_id: session_id.clone(),
+                            payload: CliIoPayload {
+                                io_type: CliIoType::Input,
+                                data: message_json.clone(),
+                            },
+                        });
+
                         // Send the message
                         if let Err(e) = stdin.write_all(message_json.as_bytes()).await {
                             println!("❌ Failed to write message: {e}");
@@ -824,6 +833,15 @@ async fn handle_session_io_internal(
                             }
                             continue;
                         }
+
+                        // Emit CLI output event for EVERY message received from CLI
+                        let _ = event_tx.send(InternalEvent::CliIo {
+                            session_id: session_id.clone(),
+                            payload: CliIoPayload {
+                                io_type: CliIoType::Output,
+                                data: line.to_string(),
+                            },
+                        });
 
                         println!("📥 Session {session_id} received: {line}");
 
@@ -921,6 +939,7 @@ async fn handle_cli_request_internal(
                     Some(serde_json::to_value(PushToolCallResult { id: tool_id }).unwrap()),
                     None,
                     processes,
+                    event_tx,
                 )
                 .await;
 
@@ -949,6 +968,7 @@ async fn handle_cli_request_internal(
                 Some(serde_json::Value::Null),
                 None,
                 processes,
+                event_tx,
             )
             .await;
 
@@ -998,6 +1018,7 @@ async fn send_response_to_cli_internal(
     result: Option<serde_json::Value>,
     error: Option<JsonRpcError>,
     processes: &ProcessMap,
+    event_tx: &mpsc::UnboundedSender<InternalEvent>,
 ) {
     let response = JsonRpcResponse {
         jsonrpc: "2.0".to_string(),
@@ -1007,6 +1028,15 @@ async fn send_response_to_cli_internal(
     };
 
     let response_json = serde_json::to_string(&response).unwrap();
+
+    // Emit CLI input event for response we're sending back to CLI
+    let _ = event_tx.send(InternalEvent::CliIo {
+        session_id: session_id.to_string(),
+        payload: CliIoPayload {
+            io_type: CliIoType::Input,
+            data: response_json.clone(),
+        },
+    });
 
     // Get stdin and send response
     let stdin_opt = {
@@ -1262,13 +1292,21 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
             outcome,
         };
 
+        // NOTE: This function doesn't have access to event_tx, so CLI I/O won't be emitted here
+        // This is called from the public API, not from the internal session handler
         // Send response back to CLI using ACP protocol format
+        // TODO: Consider restructuring to emit CLI I/O events here too
+        let dummy_event_tx = {
+            let (tx, _rx) = mpsc::unbounded_channel();
+            tx
+        };
         send_response_to_cli_internal(
             &session_id,
             request_id,
             Some(serde_json::to_value(response_data)?),
             None,
             self.session_manager.get_processes(),
+            &dummy_event_tx,
         )
         .await;
 
