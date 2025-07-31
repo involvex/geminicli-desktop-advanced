@@ -86,7 +86,7 @@ const highlightCache = new Map<
 // Create highlighter instance - initialize immediately like original
 const highlighter = await createHighlighter({
   themes: Object.keys(bundledThemes),
-  langs: Object.keys(bundledLanguages),
+  langs: [], // Start with no languages - load on demand
 });
 
 const CodeBlock = React.memo(
@@ -159,6 +159,21 @@ const CodeBlock = React.memo(
               key !== cacheKey
           );
           conflictingKeys.forEach((key) => highlightCache.delete(key));
+
+          // Load language if not already loaded
+          if (
+            mappedLanguage !== "text" &&
+            !highlighter.getLoadedLanguages().includes(mappedLanguage)
+          ) {
+            try {
+              await highlighter.loadLanguage(mappedLanguage as BundledLanguage);
+            } catch {
+              // Ignore errors - Shiki will just not highlight (i.e. use the `text` language) for non-existent
+              // languages.
+            }
+
+            if (!isMounted) return;
+          }
 
           // Check if the language is valid before attempting to highlight
           const validLanguage =
