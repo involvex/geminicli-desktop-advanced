@@ -31,6 +31,7 @@ import {
 import { useState, useEffect } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { webApi } from "../lib/webApi";
+import { DirectorySelectionDialog } from "./DirectorySelectionDialog";
 
 interface ProcessStatus {
   conversation_id: string;
@@ -84,6 +85,7 @@ export function ConversationList({
   );
   const [selectedModel, setSelectedModel] =
     useState<string>("gemini-2.5-flash");
+  const [showDirectoryDialog, setShowDirectoryDialog] = useState(false);
 
   const getProcessStatus = (conversationId: string) => {
     return processStatuses.find(
@@ -149,6 +151,10 @@ export function ConversationList({
     } catch (error) {
       console.error("Error opening directory selector:", error);
     }
+  };
+
+  const handleDirectoryDialogSelect = (path: string) => {
+    setWorkingDirectory(path);
   };
 
   const formatLastUpdated = (date: Date) => {
@@ -221,18 +227,23 @@ export function ConversationList({
           <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
             Working Directory
           </label>
+
+          {/* Desktop version - Original input with native dialog */}
           <div className="relative">
             <div className="absolute left-3 top-2.5 text-gray-400">
               <Folder className="h-4 w-4" />
             </div>
             <Input
               type="text"
-              placeholder={__WEB__ ? "Enter working directory path..." : "Select working directory..."}
+              placeholder="Select working directory..."
               value={workingDirectory}
-              readOnly={!__WEB__}
-              onChange={__WEB__ ? (e) => setWorkingDirectory(e.target.value) : undefined}
-              onClick={!__WEB__ ? handleDirectorySelect : undefined}
-              className={`pl-10 pr-10 text-sm ${!__WEB__ ? 'cursor-pointer' : ''}`}
+              readOnly
+              onClick={
+                __WEB__
+                  ? () => setShowDirectoryDialog(true)
+                  : handleDirectorySelect
+              }
+              className="pl-10 pr-10 text-sm cursor-pointer"
             />
             <div className="absolute right-3 top-3">
               {isValidDirectory === null ? null : isValidDirectory ? (
@@ -265,7 +276,6 @@ export function ConversationList({
               )}
             </div>
           )}
-
         </div>
       </div>
 
@@ -293,7 +303,9 @@ export function ConversationList({
                       ? "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20"
                       : "hover:bg-gray-100 dark:hover:bg-gray-700"
                   }`}
-                  onClick={async () => await onConversationSelect(conversation.id)}
+                  onClick={async () =>
+                    await onConversationSelect(conversation.id)
+                  }
                 >
                   <CardHeader className="p-3 pb-2 py-0">
                     <div className="flex items-start justify-between gap-2">
@@ -412,6 +424,15 @@ export function ConversationList({
             })
         )}
       </div>
+
+      {/* Directory Selection Dialog (Web only) */}
+      {__WEB__ && (
+        <DirectorySelectionDialog
+          open={showDirectoryDialog}
+          onOpenChange={setShowDirectoryDialog}
+          onSelect={handleDirectoryDialogSelect}
+        />
+      )}
     </div>
   );
 }

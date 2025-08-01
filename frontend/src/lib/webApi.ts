@@ -47,6 +47,25 @@ interface IsHomeDirectoryRequest {
   path: string;
 }
 
+interface ListDirectoryRequest {
+  path: string;
+}
+
+interface GetParentDirectoryRequest {
+  path: string;
+}
+
+export interface DirEntry {
+  name: string;
+  is_directory: boolean;
+  full_path: string;
+  size?: number;
+  modified?: number; // Unix timestamp
+  is_symlink?: boolean;
+  symlink_target?: string;
+  volume_type?: "local_disk" | "removable_disk" | "network_drive" | "cd_drive" | "ram_disk" | "file_system";
+}
+
 interface ProcessStatus {
   conversation_id: string;
   pid: number | null;
@@ -135,6 +154,28 @@ export const webApi = {
   async is_home_directory(path: string): Promise<boolean> {
     const request: IsHomeDirectoryRequest = { path };
     const response = await apiClient.post<boolean>('/is-home-directory', request);
+    return response.data;
+  },
+
+  async get_home_directory(): Promise<string> {
+    const response = await apiClient.get<string>('/get-home-directory');
+    return response.data;
+  },
+
+  async get_parent_directory(path: string): Promise<string | null> {
+    const request: GetParentDirectoryRequest = { path };
+    const response = await apiClient.post<string | null>('/get-parent-directory', request);
+    return response.data;
+  },
+
+  async list_directory_contents(path: string): Promise<DirEntry[]> {
+    const request: ListDirectoryRequest = { path };
+    const response = await apiClient.post<DirEntry[]>('/list-directory', request);
+    return response.data;
+  },
+
+  async list_volumes(): Promise<DirEntry[]> {
+    const response = await apiClient.get<DirEntry[]>('/list-volumes');
     return response.data;
   },
 };

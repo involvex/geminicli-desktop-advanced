@@ -7,7 +7,7 @@ use tokio::sync::Mutex;
 // Import backend functionality
 use backend::{
     EventEmitter, GeminiBackend,
-    ProcessStatus
+    ProcessStatus, DirEntry
 };
 
 // =====================================
@@ -180,6 +180,30 @@ async fn is_home_directory(path: String, state: State<'_, AppState>) -> Result<b
 }
 
 #[tauri::command]
+async fn get_home_directory(state: State<'_, AppState>) -> Result<String, String> {
+    let backend = state.backend.lock().await;
+    backend.get_home_directory().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn get_parent_directory(path: String, state: State<'_, AppState>) -> Result<Option<String>, String> {
+    let backend = state.backend.lock().await;
+    backend.get_parent_directory(path).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn list_directory_contents(path: String, state: State<'_, AppState>) -> Result<Vec<DirEntry>, String> {
+    let backend = state.backend.lock().await;
+    backend.list_directory_contents(path).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn list_volumes(state: State<'_, AppState>) -> Result<Vec<DirEntry>, String> {
+    let backend = state.backend.lock().await;
+    backend.list_volumes().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 async fn debug_environment() -> Result<String, String> {
     let path = std::env::var("PATH").unwrap_or_else(|_| "PATH not found".to_string());
     let home = std::env::var("HOME").unwrap_or_else(|_| {
@@ -287,6 +311,10 @@ pub fn run() {
             generate_conversation_title,
             validate_directory,
             is_home_directory,
+            get_home_directory,
+            get_parent_directory,
+            list_directory_contents,
+            list_volumes,
             debug_environment
         ]);
 

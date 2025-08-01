@@ -6,6 +6,7 @@ use tokio::process::{Command, ChildStdin, ChildStdout};
 use tokio::sync::mpsc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader as AsyncBufReader};
 use std::process::Stdio;
+use std::path::Path;
 
 // =====================================
 // Internal Event Communication System
@@ -440,6 +441,31 @@ pub struct ProcessStatus {
     pub pid: Option<u32>,
     pub created_at: u64,
     pub is_alive: bool,
+}
+
+/// Volume/drive type for better icon selection
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum VolumeType {
+    LocalDisk,
+    RemovableDisk,
+    NetworkDrive,
+    CdDrive,
+    RamDisk,
+    FileSystem, // For Unix root filesystem
+}
+
+/// Directory entry for listing directory contents
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DirEntry {
+    pub name: String,
+    pub is_directory: bool,
+    pub full_path: String,
+    pub size: Option<u64>,
+    pub modified: Option<u64>, // Unix timestamp
+    pub is_symlink: bool,
+    pub symlink_target: Option<String>, // The target path if this is a symlink
+    pub volume_type: Option<VolumeType>, // Type of volume (for drives/volumes only)
 }
 
 impl From<&PersistentSession> for ProcessStatus {
@@ -1474,6 +1500,217 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
                 Ok(path_obj == home_obj)
             }
         }
+    }
+
+    /// Get the user's home directory path
+    pub async fn get_home_directory(&self) -> BackendResult<String> {
+        let home = std::env::var("HOME").unwrap_or_else(|_| {
+            std::env::var("USERPROFILE").unwrap_or_else(|_| "".to_string())
+        });
+
+        if home.is_empty() {
+            return Err(BackendError::SessionInitFailed("Could not determine home directory".to_string()));
+        }
+
+        Ok(home)
+    }
+
+    /// Get the parent directory of the given path
+    pub async fn get_parent_directory(&self, path: String) -> BackendResult<Option<String>> {
+        let path_obj = Path::new(&path);
+        match path_obj.parent() {
+            Some(parent) => Ok(Some(parent.to_string_lossy().to_string())),
+            None => {
+                // Handle filesystem roots differently per OS
+                #[cfg(target_os = "windows")]
+                {
+                    // On Windows, if we're at a drive root (C:\), return None to show volumes
+                    Ok(None)
+                }
+                #[cfg(not(target_os = "windows"))]
+                {
+                    // On Unix, if we're at root (/), stay at root instead of showing volumes
+                    if path == "/" {
+                        Ok(Some("/".to_string()))
+                    } else {
+                        Ok(None)
+                    }
+                }
+            }
+        }
+    }
+
+    /// List available volumes/drives on the system
+    pub async fn list_volumes(&self) -> BackendResult<Vec<DirEntry>> {
+        let mut volumes = Vec::new();
+        
+        #[cfg(target_os = "windows")]
+        {
+            use std::ffi::OsStr;
+            use std::os::windows::ffi::OsStrExt;
+            
+            // Use Windows API to get logical drives
+            let drives_bitmask = unsafe { windows_sys::Win32::Storage::FileSystem::GetLogicalDrives() };
+            
+            if drives_bitmask == 0 {
+                return Err(BackendError::SessionInitFailed("Failed to enumerate drives".to_string()));
+            }
+            
+            // Check each bit to see which drives exist
+            for i in 0..26 {
+                if (drives_bitmask & (1 << i)) != 0 {
+                    let drive_letter = (b'A' + i) as char;
+                    let drive_path = format!("{}:\\", drive_letter);
+                    
+                    // Get drive type to provide better information
+                    let drive_type = unsafe {
+                        let path_wide: Vec<u16> = OsStr::new(&drive_path)
+                            .encode_wide()
+                            .chain(std::iter::once(0))
+                            .collect();
+                        windows_sys::Win32::Storage::FileSystem::GetDriveTypeW(path_wide.as_ptr())
+                    };
+                    
+                    let (name, volume_type) = match drive_type {
+                        3 => (format!("Local Disk ({}:)", drive_letter), VolumeType::LocalDisk),      // DRIVE_FIXED
+                        2 => (format!("Removable Disk ({}:)", drive_letter), VolumeType::RemovableDisk),  // DRIVE_REMOVABLE  
+                        4 => (format!("Network Drive ({}:)", drive_letter), VolumeType::NetworkDrive),   // DRIVE_REMOTE
+                        5 => (format!("CD Drive ({}:)", drive_letter), VolumeType::CdDrive),        // DRIVE_CDROM
+                        6 => (format!("RAM Disk ({}:)", drive_letter), VolumeType::RamDisk),        // DRIVE_RAMDISK
+                        _ => (format!("{}:", drive_letter), VolumeType::LocalDisk),
+                    };
+                    
+                    volumes.push(DirEntry {
+                        name,
+                        is_directory: true,
+                        full_path: drive_path,
+                        size: None,
+                        modified: None,
+                        is_symlink: false,
+                        symlink_target: None,
+                        volume_type: Some(volume_type),
+                    });
+                }
+            }
+        }
+        
+        #[cfg(not(target_os = "windows"))]
+        {
+            // On Unix systems, we typically don't show a "volume" view like Windows
+            // If this function is called, just return the root filesystem
+            let root_path = Path::new("/");
+            if root_path.exists() && root_path.is_dir() {
+                volumes.push(DirEntry {
+                    name: "File System".to_string(),
+                    is_directory: true,
+                    full_path: "/".to_string(),
+                    size: None,
+                    modified: None,
+                    is_symlink: false,
+                    symlink_target: None,
+                    volume_type: Some(VolumeType::FileSystem),
+                });
+            }
+        }
+        
+        Ok(volumes)
+    }
+
+    /// List the contents of a directory
+    pub async fn list_directory_contents(&self, path: String) -> BackendResult<Vec<DirEntry>> {
+        let path_obj = Path::new(&path);
+        
+        if !path_obj.exists() {
+            return Err(BackendError::SessionInitFailed(format!("Directory does not exist: {}", path)));
+        }
+        
+        if !path_obj.is_dir() {
+            return Err(BackendError::SessionInitFailed(format!("Path is not a directory: {}", path)));
+        }
+
+        let mut entries = Vec::new();
+        let read_dir = std::fs::read_dir(path_obj)
+            .map_err(|e| BackendError::IoError(e))?;
+
+        for entry in read_dir {
+            let entry = entry.map_err(|e| BackendError::IoError(e))?;
+            let file_name = entry.file_name().to_string_lossy().to_string();
+            let full_path = entry.path().to_string_lossy().to_string();
+
+            // Always use symlink_metadata to avoid following symlinks
+            let symlink_metadata = entry.path().symlink_metadata().map_err(|e| BackendError::IoError(e))?;
+            let is_symlink = symlink_metadata.file_type().is_symlink();
+            
+            // Get symlink target if this is a symlink
+            let symlink_target = if is_symlink {
+                entry.path().read_link()
+                    .ok()
+                    .map(|target| target.to_string_lossy().to_string())
+            } else {
+                None
+            };
+
+            // For symlinks, try to get metadata of the target, but fallback to symlink metadata if target is inaccessible
+            let (is_directory, size, modified) = if is_symlink {
+                // Try to get target metadata, but don't fail if target is inaccessible
+                match entry.metadata() {
+                    Ok(target_metadata) => {
+                        let size = if target_metadata.is_file() {
+                            Some(target_metadata.len())
+                        } else {
+                            None
+                        };
+                        let modified = target_metadata.modified()
+                            .ok()
+                            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+                            .map(|duration| duration.as_secs());
+                        (target_metadata.is_dir(), size, modified)
+                    }
+                    Err(_) => {
+                        // Target is inaccessible, use symlink's own metadata
+                        let modified = symlink_metadata.modified()
+                            .ok()
+                            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+                            .map(|duration| duration.as_secs());
+                        (false, None, modified)
+                    }
+                }
+            } else {
+                // Not a symlink, use symlink_metadata (which is the same as metadata for non-symlinks)
+                let size = if symlink_metadata.is_file() {
+                    Some(symlink_metadata.len())
+                } else {
+                    None
+                };
+                let modified = symlink_metadata.modified()
+                    .ok()
+                    .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map(|duration| duration.as_secs());
+                (symlink_metadata.is_dir(), size, modified)
+            };
+
+            entries.push(DirEntry {
+                name: file_name,
+                is_directory,
+                full_path,
+                size,
+                modified,
+                is_symlink,
+                symlink_target,
+                volume_type: None, // Regular directory entries don't have volume types
+            });
+        }
+
+        // Sort entries: directories first, then files, both alphabetically
+        entries.sort_by(|a, b| {
+            match (a.is_directory, b.is_directory) {
+                (true, false) => std::cmp::Ordering::Less,
+                (false, true) => std::cmp::Ordering::Greater,
+                _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+            }
+        });
+
+        Ok(entries)
     }
 }
 
