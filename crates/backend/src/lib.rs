@@ -1,12 +1,12 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::path::Path;
+use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
-use tokio::process::{Command, ChildStdin, ChildStdout};
-use tokio::sync::mpsc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader as AsyncBufReader};
-use std::process::Stdio;
-use std::path::Path;
+use tokio::process::{ChildStdin, ChildStdout, Command};
+use tokio::sync::mpsc;
 
 // =====================================
 // Internal Event Communication System
@@ -15,14 +15,37 @@ use std::path::Path;
 /// Internal events that need to be forwarded to the frontend
 #[derive(Debug, Clone)]
 pub enum InternalEvent {
-    CliIo { session_id: String, payload: CliIoPayload },
-    GeminiOutput { session_id: String, payload: GeminiOutputPayload },
-    GeminiThought { session_id: String, payload: GeminiThoughtPayload },
-    ToolCall { session_id: String, payload: ToolCallEvent },
-    ToolCallUpdate { session_id: String, payload: ToolCallUpdate },
-    ToolCallConfirmation { session_id: String, payload: ToolCallConfirmationRequest },
-    Error { session_id: String, payload: ErrorPayload },
-    ResponseComplete { session_id: String, payload: ResponseCompletePayload },
+    CliIo {
+        session_id: String,
+        payload: CliIoPayload,
+    },
+    GeminiOutput {
+        session_id: String,
+        payload: GeminiOutputPayload,
+    },
+    GeminiThought {
+        session_id: String,
+        payload: GeminiThoughtPayload,
+    },
+    ToolCall {
+        session_id: String,
+        payload: ToolCallEvent,
+    },
+    ToolCallUpdate {
+        session_id: String,
+        payload: ToolCallUpdate,
+    },
+    ToolCallConfirmation {
+        session_id: String,
+        payload: ToolCallConfirmationRequest,
+    },
+    GeminiTurnFinished {
+        session_id: String,
+    },
+    Error {
+        session_id: String,
+        payload: ErrorPayload,
+    },
 }
 
 // =====================================
@@ -67,12 +90,6 @@ pub struct GeminiThoughtPayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ErrorPayload {
     pub error: String,
-}
-
-/// Response complete payload
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ResponseCompletePayload {
-    pub completed: bool,
 }
 
 /// Tool call event data
@@ -148,7 +165,7 @@ pub struct JsonRpcError {
 }
 
 // =====================================
-// Gemini CLI Protocol Types  
+// Gemini CLI Protocol Types
 // =====================================
 
 /// Parameters for sending user message to Gemini CLI
@@ -501,12 +518,9 @@ impl SessionManager {
             .processes
             .lock()
             .map_err(|_| BackendError::SessionInitFailed("Failed to lock processes".to_string()))?;
-        
-        let statuses = processes
-            .values()
-            .map(ProcessStatus::from)
-            .collect();
-        
+
+        let statuses = processes.values().map(ProcessStatus::from).collect();
+
         Ok(statuses)
     }
 
@@ -526,7 +540,11 @@ impl SessionManager {
                     let output = StdCommand::new("taskkill")
                         .args(["/PID", &pid.to_string(), "/F"])
                         .output()
-                        .map_err(|e| BackendError::CommandExecutionFailed(format!("Failed to kill process: {e}")))?;
+                        .map_err(|e| {
+                            BackendError::CommandExecutionFailed(format!(
+                                "Failed to kill process: {e}"
+                            ))
+                        })?;
 
                     if !output.status.success() {
                         return Err(BackendError::CommandExecutionFailed(format!(
@@ -543,7 +561,11 @@ impl SessionManager {
                     let output = StdCommand::new("kill")
                         .args(["-9", &pid.to_string()])
                         .output()
-                        .map_err(|e| BackendError::CommandExecutionFailed(format!("Failed to kill process: {e}")))?;
+                        .map_err(|e| {
+                            BackendError::CommandExecutionFailed(format!(
+                                "Failed to kill process: {e}"
+                            ))
+                        })?;
 
                     if !output.status.success() {
                         return Err(BackendError::CommandExecutionFailed(format!(
@@ -608,8 +630,9 @@ pub async fn initialize_session<E: EventEmitter + 'static>(
             cmd.current_dir(wd);
         }
 
-        cmd.spawn()
-            .map_err(|e| BackendError::SessionInitFailed(format!("Failed to run gemini command via cmd: {e}")))?
+        cmd.spawn().map_err(|e| {
+            BackendError::SessionInitFailed(format!("Failed to run gemini command via cmd: {e}"))
+        })?
     } else {
         let mut cmd = Command::new("sh");
         let gemini_command = format!("gemini --model {model} --experimental-acp");
@@ -624,13 +647,18 @@ pub async fn initialize_session<E: EventEmitter + 'static>(
             cmd.current_dir(wd);
         }
 
-        cmd.spawn()
-            .map_err(|e| BackendError::SessionInitFailed(format!("Failed to run gemini command via shell: {e}")))?
+        cmd.spawn().map_err(|e| {
+            BackendError::SessionInitFailed(format!("Failed to run gemini command via shell: {e}"))
+        })?
     };
 
     let pid = child.id();
-    let mut stdin = child.stdin.take().ok_or(BackendError::SessionInitFailed("Failed to get stdin".to_string()))?;
-    let stdout = child.stdout.take().ok_or(BackendError::SessionInitFailed("Failed to get stdout".to_string()))?;
+    let mut stdin = child.stdin.take().ok_or(BackendError::SessionInitFailed(
+        "Failed to get stdin".to_string(),
+    ))?;
+    let stdout = child.stdout.take().ok_or(BackendError::SessionInitFailed(
+        "Failed to get stdout".to_string(),
+    ))?;
 
     // Initialize the CLI session
     let init_request = JsonRpcRequest {
@@ -642,14 +670,17 @@ pub async fn initialize_session<E: EventEmitter + 'static>(
         }),
     };
 
-    let request_json = serde_json::to_string(&init_request)
-        .map_err(|e| BackendError::SessionInitFailed(format!("Failed to serialize init request: {e}")))?;
+    let request_json = serde_json::to_string(&init_request).map_err(|e| {
+        BackendError::SessionInitFailed(format!("Failed to serialize init request: {e}"))
+    })?;
 
     // Send initialization
     stdin
         .write_all(request_json.as_bytes())
         .await
-        .map_err(|e| BackendError::SessionInitFailed(format!("Failed to write init request: {e}")))?;
+        .map_err(|e| {
+            BackendError::SessionInitFailed(format!("Failed to write init request: {e}"))
+        })?;
     stdin
         .write_all(b"\n")
         .await
@@ -671,10 +702,9 @@ pub async fn initialize_session<E: EventEmitter + 'static>(
     // Read initialization response
     let mut reader = AsyncBufReader::new(stdout);
     let mut line = String::new();
-    reader
-        .read_line(&mut line)
-        .await
-        .map_err(|e| BackendError::SessionInitFailed(format!("Failed to read init response: {e}")))?;
+    reader.read_line(&mut line).await.map_err(|e| {
+        BackendError::SessionInitFailed(format!("Failed to read init response: {e}"))
+    })?;
 
     // Emit CLI output event
     let _ = emitter.emit(
@@ -689,12 +719,16 @@ pub async fn initialize_session<E: EventEmitter + 'static>(
     match serde_json::from_str::<JsonRpcResponse>(&line) {
         Ok(response) => {
             if let Some(error) = &response.error {
-                return Err(BackendError::SessionInitFailed(format!("Gemini CLI Error: {error:?}")));
+                return Err(BackendError::SessionInitFailed(format!(
+                    "Gemini CLI Error: {error:?}"
+                )));
             }
             println!("✅ Session initialized successfully for: {session_id}");
         }
         Err(e) => {
-            return Err(BackendError::SessionInitFailed(format!("Failed to parse init response: {e}")));
+            return Err(BackendError::SessionInitFailed(format!(
+                "Failed to parse init response: {e}"
+            )));
         }
     }
 
@@ -727,30 +761,55 @@ pub async fn initialize_session<E: EventEmitter + 'static>(
     let session_id_for_events = session_id.clone();
     tokio::spawn(async move {
         while let Some(internal_event) = event_rx.recv().await {
+            println!("internal_event: {internal_event:?}");
             match internal_event {
-                InternalEvent::CliIo { session_id, payload } => {
+                InternalEvent::CliIo {
+                    session_id,
+                    payload,
+                } => {
                     let _ = emitter.emit(&format!("cli-io-{session_id}"), payload);
                 }
-                InternalEvent::GeminiOutput { session_id, payload } => {
+                InternalEvent::GeminiOutput {
+                    session_id,
+                    payload,
+                } => {
                     let _ = emitter.emit(&format!("gemini-output-{session_id}"), payload.text);
                 }
-                InternalEvent::GeminiThought { session_id, payload } => {
+                InternalEvent::GeminiThought {
+                    session_id,
+                    payload,
+                } => {
                     let _ = emitter.emit(&format!("gemini-thought-{session_id}"), payload.thought);
                 }
-                InternalEvent::ToolCall { session_id, payload } => {
+                InternalEvent::ToolCall {
+                    session_id,
+                    payload,
+                } => {
                     let _ = emitter.emit(&format!("gemini-tool-call-{session_id}"), payload);
                 }
-                InternalEvent::ToolCallUpdate { session_id, payload } => {
+                InternalEvent::ToolCallUpdate {
+                    session_id,
+                    payload,
+                } => {
                     let _ = emitter.emit(&format!("gemini-tool-call-update-{session_id}"), payload);
                 }
-                InternalEvent::ToolCallConfirmation { session_id, payload } => {
-                    let _ = emitter.emit(&format!("gemini-tool-call-confirmation-{session_id}"), payload);
+                InternalEvent::ToolCallConfirmation {
+                    session_id,
+                    payload,
+                } => {
+                    let _ = emitter.emit(
+                        &format!("gemini-tool-call-confirmation-{session_id}"),
+                        payload,
+                    );
                 }
-                InternalEvent::Error { session_id, payload } => {
+                InternalEvent::GeminiTurnFinished { session_id } => {
+                    let _ = emitter.emit(&format!("gemini-turn-finished-{session_id}"), true);
+                }
+                InternalEvent::Error {
+                    session_id,
+                    payload,
+                } => {
                     let _ = emitter.emit(&format!("gemini-error-{session_id}"), payload.error);
-                }
-                InternalEvent::ResponseComplete { session_id, payload } => {
-                    let _ = emitter.emit(&format!("gemini-response-complete-{session_id}"), payload.completed);
                 }
             }
         }
@@ -784,6 +843,7 @@ async fn handle_session_io_internal(
     event_tx: mpsc::UnboundedSender<InternalEvent>,
 ) {
     let mut tool_call_id = 1001u32;
+    let mut pending_send_message_requests = HashSet::<u32>::new();
 
     loop {
         tokio::select! {
@@ -801,6 +861,13 @@ async fn handle_session_io_internal(
                     };
 
                     if let Some(mut stdin) = stdin_opt {
+                        // Check if this is a sendUserMessage request and track it
+                        if let Ok(json_request) = serde_json::from_str::<JsonRpcRequest>(&message_json) {
+                            if json_request.method == "sendUserMessage" {
+                                pending_send_message_requests.insert(json_request.id);
+                            }
+                        }
+
                         // Emit CLI input event for EVERY message sent to CLI
                         let _ = event_tx.send(InternalEvent::CliIo {
                             session_id: session_id.clone(),
@@ -837,7 +904,6 @@ async fn handle_session_io_internal(
                     }
                 } else {
                     // Channel closed
-                    println!("📄 Message channel closed for session: {session_id}");
                     break;
                 }
             }
@@ -850,15 +916,11 @@ async fn handle_session_io_internal(
             } => {
                 match line_result {
                     (Ok(0), _) => {
-                        println!("📄 CLI stdout closed for session: {session_id}");
                         break;
                     }
                     (Ok(_), line) => {
                         let line = line.trim();
                         if line.is_empty() || !line.starts_with('{') {
-                            if !line.is_empty() {
-                                println!("⏭️ Skipping non-JSON: {line}");
-                            }
                             continue;
                         }
 
@@ -871,7 +933,6 @@ async fn handle_session_io_internal(
                             },
                         });
 
-                        println!("📥 Session {session_id} received: {line}");
 
                         // Handle JSON-RPC requests from CLI
                         if let Ok(request) = serde_json::from_str::<JsonRpcRequest>(line) {
@@ -882,11 +943,13 @@ async fn handle_session_io_internal(
                             if let Some(error) = &response.error {
                                 println!("❌ CLI Error: {error:?}");
                             }
-                            // Check if this is a completion response (result: null)
-                            else if let Some(result) = &response.result {
-                                if result.is_null() {
-                                    println!("🏁 CLI response completed for session: {session_id}");
-                                }
+                            // Check if this is a completion response (result: null) for a sendUserMessage request
+                            else if response.result.is_none() && pending_send_message_requests.contains(&response.id) {
+                                    pending_send_message_requests.remove(&response.id);
+                                    let _ = event_tx.send(InternalEvent::GeminiTurnFinished {
+                                        session_id: session_id.clone(),
+                                    });
+
                             }
                         }
                     }
@@ -1010,7 +1073,10 @@ async fn handle_cli_request_internal(
                 session_id: session_id.to_string(),
                 payload: tool_call_update,
             });
-            println!("updateToolCall: tool_call_id={}, status={}", params.tool_call_id, params.status);
+            println!(
+                "updateToolCall: tool_call_id={}, status={}",
+                params.tool_call_id, params.status
+            );
         }
         "requestToolCallConfirmation" => {
             if let Ok(params) =
@@ -1099,22 +1165,22 @@ async fn send_response_to_cli_internal(
 pub enum BackendError {
     #[error("Session not found: {0}")]
     SessionNotFound(String),
-    
+
     #[error("Command not allowed for security reasons")]
     CommandNotAllowed,
-    
+
     #[error("Failed to execute command: {0}")]
     CommandExecutionFailed(String),
-    
+
     #[error("Failed to serialize/deserialize: {0}")]
     SerializationError(#[from] serde_json::Error),
-    
+
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
-    
+
     #[error("Session initialization failed: {0}")]
     SessionInitFailed(String),
-    
+
     #[error("Channel communication failed")]
     ChannelError,
 }
@@ -1129,82 +1195,99 @@ pub type BackendResult<T> = Result<T, BackendError>;
 pub struct GeminiBackend<E: EventEmitter> {
     emitter: E,
     session_manager: SessionManager,
+    next_request_id: Arc<Mutex<u32>>,
 }
 
 impl<E: EventEmitter + 'static> GeminiBackend<E> {
     /// Create a new GeminiBackend instance
     pub fn new(emitter: E) -> Self {
-        Self { 
+        Self {
             emitter,
             session_manager: SessionManager::new(),
+            next_request_id: Arc::new(Mutex::new(1000)),
         }
     }
-    
+
     // =====================================
     // Event Helper Methods
     // =====================================
-    
+
     /// Emit CLI I/O event
-    pub fn emit_cli_io(&self, session_id: &str, io_type: CliIoType, data: &str) -> BackendResult<()> {
+    pub fn emit_cli_io(
+        &self,
+        session_id: &str,
+        io_type: CliIoType,
+        data: &str,
+    ) -> BackendResult<()> {
         let payload = CliIoPayload {
             io_type,
             data: data.to_string(),
         };
         self.emitter.emit(&format!("cli-io-{session_id}"), payload)
     }
-    
+
     /// Emit Gemini output event
     pub fn emit_gemini_output(&self, session_id: &str, text: &str) -> BackendResult<()> {
         let payload = GeminiOutputPayload {
             text: text.to_string(),
         };
-        self.emitter.emit(&format!("gemini-output-{session_id}"), payload)
+        self.emitter
+            .emit(&format!("gemini-output-{session_id}"), payload)
     }
-    
+
     /// Emit Gemini thought event
     pub fn emit_gemini_thought(&self, session_id: &str, thought: &str) -> BackendResult<()> {
         let payload = GeminiThoughtPayload {
             thought: thought.to_string(),
         };
-        self.emitter.emit(&format!("gemini-thought-{session_id}"), payload)
+        self.emitter
+            .emit(&format!("gemini-thought-{session_id}"), payload)
     }
-    
+
     /// Emit tool call event
     pub fn emit_tool_call(&self, session_id: &str, tool_call: &ToolCallEvent) -> BackendResult<()> {
-        self.emitter.emit(&format!("gemini-tool-call-{session_id}"), tool_call.clone())
+        self.emitter
+            .emit(&format!("gemini-tool-call-{session_id}"), tool_call.clone())
     }
-    
+
     /// Emit tool call update event
-    pub fn emit_tool_call_update(&self, session_id: &str, update: &ToolCallUpdate) -> BackendResult<()> {
-        self.emitter.emit(&format!("gemini-tool-call-update-{session_id}"), update.clone())
+    pub fn emit_tool_call_update(
+        &self,
+        session_id: &str,
+        update: &ToolCallUpdate,
+    ) -> BackendResult<()> {
+        self.emitter.emit(
+            &format!("gemini-tool-call-update-{session_id}"),
+            update.clone(),
+        )
     }
-    
+
     /// Emit tool call confirmation event
-    pub fn emit_tool_call_confirmation(&self, session_id: &str, confirmation: &ToolCallConfirmationRequest) -> BackendResult<()> {
-        self.emitter.emit(&format!("gemini-tool-call-confirmation-{session_id}"), confirmation.clone())
+    pub fn emit_tool_call_confirmation(
+        &self,
+        session_id: &str,
+        confirmation: &ToolCallConfirmationRequest,
+    ) -> BackendResult<()> {
+        self.emitter.emit(
+            &format!("gemini-tool-call-confirmation-{session_id}"),
+            confirmation.clone(),
+        )
     }
-    
+
     /// Emit error event
     pub fn emit_error(&self, session_id: &str, error: &str) -> BackendResult<()> {
         let payload = ErrorPayload {
             error: error.to_string(),
         };
-        self.emitter.emit(&format!("gemini-error-{session_id}"), payload)
+        self.emitter
+            .emit(&format!("gemini-error-{session_id}"), payload)
     }
-    
-    /// Emit response complete event
-    pub fn emit_response_complete(&self, session_id: &str) -> BackendResult<()> {
-        let payload = ResponseCompletePayload {
-            completed: true,
-        };
-        self.emitter.emit(&format!("gemini-response-complete-{session_id}"), payload)
-    }
-    
+
     /// Emit command result event
     pub fn emit_command_result(&self, result: &CommandResult) -> BackendResult<()> {
         self.emitter.emit("command-result", result.clone())
     }
-    
+
     /// Check if Gemini CLI is installed and available
     pub async fn check_cli_installed(&self) -> BackendResult<bool> {
         // Test if gemini command is available via shell
@@ -1225,7 +1308,7 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
             Err(_) => Ok(false),
         }
     }
-    
+
     /// Initialize a new Gemini CLI session
     pub async fn initialize_session(
         &self,
@@ -1233,10 +1316,17 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         working_directory: Option<String>,
         model: String,
     ) -> BackendResult<()> {
-        initialize_session(session_id, working_directory, model, self.emitter.clone(), &self.session_manager).await?;
+        initialize_session(
+            session_id,
+            working_directory,
+            model,
+            self.emitter.clone(),
+            &self.session_manager,
+        )
+        .await?;
         Ok(())
     }
-    
+
     /// Send a message to an existing session
     pub async fn send_message(
         &self,
@@ -1249,10 +1339,12 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         // Check if session exists, if not initialize it
         let message_sender = {
             let processes = self.session_manager.get_processes();
-            let processes = processes
-                .lock()
-                .map_err(|_| BackendError::SessionInitFailed("Failed to lock processes".to_string()))?;
-            processes.get(&session_id).map_or_else(|| None, |session| session.message_sender.clone())
+            let processes = processes.lock().map_err(|_| {
+                BackendError::SessionInitFailed("Failed to lock processes".to_string())
+            })?;
+            processes
+                .get(&session_id)
+                .map_or_else(|| None, |session| session.message_sender.clone())
         };
 
         let message_sender = if let Some(sender) = message_sender {
@@ -1285,16 +1377,24 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         }
         let msg_params = SendUserMessageParams { chunks };
 
+        // Generate unique request ID
+        let request_id = {
+            let mut id_guard = self.next_request_id.lock().unwrap();
+            let id = *id_guard;
+            *id_guard += 1;
+            id
+        };
+
         let msg_request = JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
-            id: 2, // TODO: Use proper request ID tracking
+            id: request_id,
             method: "sendUserMessage".to_string(),
             params: serde_json::to_value(msg_params)?,
         };
 
-        let request_json = serde_json::to_string(&msg_request)
-            .map_err(|e| BackendError::SessionInitFailed(format!("Failed to serialize message request: {e}")))?
-;
+        let request_json = serde_json::to_string(&msg_request).map_err(|e| {
+            BackendError::SessionInitFailed(format!("Failed to serialize message request: {e}"))
+        })?;
 
         // Send the message through the channel
         message_sender
@@ -1304,7 +1404,7 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         println!("✅ Message sent to persistent session: {session_id}");
         Ok(())
     }
-    
+
     /// Handle tool call confirmation response
     pub async fn handle_tool_confirmation(
         &self,
@@ -1313,7 +1413,9 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         tool_call_id: String,
         outcome: String,
     ) -> BackendResult<()> {
-        println!("📤 Sending tool call confirmation response: session={session_id}, request_id={request_id}, tool_call_id={tool_call_id}, outcome={outcome}");
+        println!(
+            "📤 Sending tool call confirmation response: session={session_id}, request_id={request_id}, tool_call_id={tool_call_id}, outcome={outcome}"
+        );
 
         let response_data = RequestToolCallConfirmationResult {
             id: tool_call_id,
@@ -1340,7 +1442,7 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
 
         Ok(())
     }
-    
+
     /// Execute a confirmed command
     pub async fn execute_confirmed_command(&self, command: String) -> BackendResult<String> {
         println!("🖥️ Executing confirmed command: {command}");
@@ -1374,7 +1476,7 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
             }
         }
     }
-    
+
     /// Generate a conversation title
     pub async fn generate_conversation_title(
         &self,
@@ -1396,7 +1498,11 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::piped())
                 .spawn()
-                .map_err(|e| BackendError::SessionInitFailed(format!("Failed to spawn gemini for title generation: {e}")))?  
+                .map_err(|e| {
+                    BackendError::SessionInitFailed(format!(
+                        "Failed to spawn gemini for title generation: {e}"
+                    ))
+                })?
         } else {
             Command::new("gemini")
                 .args(["--model", &model_to_use])
@@ -1404,7 +1510,11 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::piped())
                 .spawn()
-                .map_err(|e| BackendError::SessionInitFailed(format!("Failed to spawn gemini for title generation: {e}")))?  
+                .map_err(|e| {
+                    BackendError::SessionInitFailed(format!(
+                        "Failed to spawn gemini for title generation: {e}"
+                    ))
+                })?
         };
 
         // Write prompt to stdin
@@ -1422,10 +1532,11 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         }
 
         // Wait for completion and get output
-        let output = child
-            .wait_with_output()
-            .await
-            .map_err(|e| BackendError::SessionInitFailed(format!("Failed to run gemini for title generation: {e}")))?;
+        let output = child.wait_with_output().await.map_err(|e| {
+            BackendError::SessionInitFailed(format!(
+                "Failed to run gemini for title generation: {e}"
+            ))
+        })?;
 
         if !output.status.success() {
             let error_msg = format!(
@@ -1457,31 +1568,30 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
 
         Ok(final_title)
     }
-    
+
     /// Get all process statuses
     pub fn get_process_statuses(&self) -> BackendResult<Vec<ProcessStatus>> {
         self.session_manager.get_process_statuses()
     }
-    
+
     /// Kill a process by conversation ID
     pub fn kill_process(&self, conversation_id: &str) -> BackendResult<()> {
         self.session_manager.kill_process(conversation_id)
     }
-    
+
     /// Validate if a directory exists and is accessible
     pub async fn validate_directory(&self, path: String) -> BackendResult<bool> {
         use std::path::Path;
         let path_obj = Path::new(&path);
         Ok(path_obj.exists() && path_obj.is_dir())
     }
-    
+
     /// Check if the given path is the user's home directory
     pub async fn is_home_directory(&self, path: String) -> BackendResult<bool> {
         use std::path::Path;
 
-        let home = std::env::var("HOME").unwrap_or_else(|_| {
-            std::env::var("USERPROFILE").unwrap_or_else(|_| "".to_string())
-        });
+        let home = std::env::var("HOME")
+            .unwrap_or_else(|_| std::env::var("USERPROFILE").unwrap_or_else(|_| "".to_string()));
 
         if home.is_empty() {
             return Ok(false);
@@ -1492,9 +1602,7 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
 
         // Canonicalize both paths to handle symbolic links and relative paths
         match (path_obj.canonicalize(), home_obj.canonicalize()) {
-            (Ok(canonical_path), Ok(canonical_home)) => {
-                Ok(canonical_path == canonical_home)
-            }
+            (Ok(canonical_path), Ok(canonical_home)) => Ok(canonical_path == canonical_home),
             _ => {
                 // Fallback to string comparison if canonicalization fails
                 Ok(path_obj == home_obj)

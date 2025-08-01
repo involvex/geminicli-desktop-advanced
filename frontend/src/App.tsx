@@ -11,7 +11,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "./components/ui/dialog";
-import { MessageBubble } from "./components/MessageBubble";
 import { MessageContent } from "./components/MessageContent";
 import { ThinkingBlock } from "./components/ThinkingBlock";
 import { ConversationList } from "./components/ConversationList";
@@ -27,24 +26,53 @@ import {
   X,
   AlertCircleIcon,
   AlertTriangle,
+  UserRound,
 } from "lucide-react";
 import "./index.css";
 import { GeminiLogoCenter } from "./components/GeminiLogoCenter";
+import { ToolCallDisplay } from "./components/ToolCallDisplay";
 
-interface Message {
-  id: string;
-  content: string;
-  sender: "user" | "assistant";
-  timestamp: Date;
-  toolCalls?: ToolCall[];
-  thinking?: string;
+interface ThinkingMessagePart {
+  type: "thinking";
+  thinking: string;
 }
+
+interface TextMessagePart {
+  type: "text";
+  text: string;
+}
+
+interface ToolCallMessagePart {
+  type: "toolCall";
+  toolCall: ToolCall;
+}
+
+type GeminiMessagePart =
+  | ThinkingMessagePart
+  | TextMessagePart
+  | ToolCallMessagePart;
+type UserMessagePart = TextMessagePart;
+
+type Message = {
+  id: string;
+  timestamp: Date;
+} & (
+  | {
+      sender: "user";
+      parts: UserMessagePart[];
+    }
+  | {
+      sender: "assistant";
+      parts: GeminiMessagePart[];
+    }
+);
 
 interface Conversation {
   id: string;
   title: string;
   messages: Message[];
   lastUpdated: Date;
+  isStreaming: boolean;
 }
 
 interface CliIO {
@@ -122,7 +150,9 @@ const api = {
         case "kill_process":
           return webApi.kill_process(args) as Promise<T>;
         case "send_tool_call_confirmation_response":
-          return webApi.send_tool_call_confirmation_response(args) as Promise<T>;
+          return webApi.send_tool_call_confirmation_response(
+            args
+          ) as Promise<T>;
         case "execute_confirmed_command":
           return webApi.execute_confirmed_command(args) as Promise<T>;
         case "generate_conversation_title":
@@ -139,13 +169,16 @@ const api = {
     }
   },
 
-  async listen<T>(event: string, callback: (event: { payload: T }) => void): Promise<() => void> {
+  async listen<T>(
+    event: string,
+    callback: (event: { payload: T }) => void
+  ): Promise<() => void> {
     if (__WEB__) {
       return webListen<T>(event, callback);
     } else {
       return listen<T>(event, callback);
     }
-  }
+  },
 };
 
 // Helper function to detect if a tool call result indicates an error
@@ -252,40 +285,6 @@ function App() {
     useState<boolean>(false);
   const [selectedModel, setSelectedModel] =
     useState<string>("gemini-2.5-flash");
-  // Streaming state - separate from completed messages
-  const [streamingContent, setStreamingContent] = useState<string>("");
-  const [streamingThinking, setStreamingThinking] = useState<string>("");
-  const [isStreaming, setIsStreaming] = useState<boolean>(false);
-  const [streamingConversationId, setStreamingConversationId] = useState<
-    string | null
-  >(null);
-
-  // Helper function to finalize the streaming message
-  const finalizeStreamingMessage = () => {
-    if (!isStreaming || !streamingConversationId) return;
-
-    console.log("🏁 Finalizing streaming message");
-
-    // Create the final message
-    const finalMessage: Message = {
-      id: Date.now().toString(),
-      content: streamingContent,
-      sender: "assistant",
-      timestamp: new Date(),
-      thinking: streamingThinking || undefined,
-    };
-
-    // Add to conversations
-    updateConversation(streamingConversationId, (conv) => {
-      conv.messages.push(finalMessage);
-    });
-
-    // Reset streaming state
-    setIsStreaming(false);
-    setStreamingContent("");
-    setStreamingThinking("");
-    setStreamingConversationId(null);
-      };
 
   const currentConversation = conversations.find(
     (c) => c.id === activeConversation
@@ -333,7 +332,9 @@ function App() {
 
   const fetchProcessStatuses = async () => {
     try {
-      const statuses = await api.invoke<ProcessStatus[]>("get_process_statuses");
+      const statuses = await api.invoke<ProcessStatus[]>(
+        "get_process_statuses"
+      );
       setProcessStatuses((prev) => {
         // Only update if statuses actually changed
         if (JSON.stringify(prev) !== JSON.stringify(statuses)) {
@@ -346,70 +347,49 @@ function App() {
     }
   };
 
-  const setupEventListenerForConversation = async (conversationId: string): Promise<void> => {
-    console.log(
-      "🎯 Setting up event listeners for conversation:",
-      conversationId
-    );
-    
+  const setupEventListenerForConversation = async (
+    conversationId: string
+  ): Promise<void> => {
     // In web mode, ensure WebSocket connection is ready before registering listeners
     if (__WEB__) {
       const wsManager = getWebSocketManager();
       await wsManager.waitForConnection();
-      console.log("🔌 WebSocket connection confirmed ready");
     }
-    
+
     try {
-      // Listen for CLI I/O logs
-      console.log(
-        "🎯 Registering cli-io listener for:",
-        `cli-io-${conversationId}`
-      );
-      
       await api.listen<{ type: "input" | "output"; data: string }>(
         `cli-io-${conversationId}`,
         (event) => {
-          const newLog: CliIO = {
-            timestamp: new Date(),
-            type: event.payload.type,
-            data: event.payload.data,
-            conversationId,
-          };
-          setCliIOLogs((prev) => [...prev, newLog]);
+          setCliIOLogs((prev) => [
+            ...prev,
+            {
+              timestamp: new Date(),
+              type: event.payload.type,
+              data: event.payload.data,
+              conversationId,
+            },
+          ]);
 
           // Check if this is a tool call related JSON-RPC message
           try {
             const jsonData = JSON.parse(event.payload.data);
 
-            // If it's a requestToolCallConfirmation input, store it for when the tool call is created
-            if (
-              event.payload.type === "output" &&
-              jsonData.method === "requestToolCallConfirmation"
-            ) {
-              console.log("📥 Storing input JSON-RPC for tool call:", jsonData);
-              // Store the input JSON-RPC data temporarily - we'll associate it with the tool call when it's created
-              window.pendingToolCallInput = event.payload.data;
-            }
+            if (event.payload.type === "output") {
+              // If it's a requestToolCallConfirmation input, store it for when the tool call is created
+              if (jsonData.method === "requestToolCallConfirmation") {
+                window.pendingToolCallInput = event.payload.data;
+              }
 
-            // If it's an updateToolCall input, store it for updating the tool call
-            if (
-              event.payload.type === "output" &&
-              jsonData.method === "updateToolCall"
-            ) {
-              console.log(
-                "📤 Storing output JSON-RPC for tool call:",
-                jsonData
-              );
-              // Update tool calls with output JSON-RPC data
-              const toolCallId = jsonData.params?.toolCallId;
-              if (toolCallId) {
+              // If it's an updateToolCall input, store it for updating the tool call
+              if (jsonData.method === "updateToolCall") {
                 updateConversation(conversationId, (conv) => {
                   for (const msg of conv.messages) {
-                    if (msg.toolCalls) {
-                      for (const tc of msg.toolCalls) {
-                        if (tc.id === toolCallId.toString()) {
-                          tc.outputJsonRpc = event.payload.data;
-                        }
+                    for (const msgPart of msg.parts) {
+                      if (
+                        msgPart.type == "toolCall" &&
+                        msgPart.toolCall.id == jsonData.params!.toolCallId
+                      ) {
+                        msgPart.toolCall.outputJsonRpc = event.payload.data;
                       }
                     }
                   }
@@ -422,125 +402,129 @@ function App() {
         }
       );
 
-      // Listen for streaming text chunks
-      console.log(
-        "🎯 Registering gemini-output listener for:",
-        `gemini-output-${conversationId}`
-      );
+      // Listen for streaming text chunks.
       await api.listen<string>(`gemini-output-${conversationId}`, (event) => {
-        console.log("📝 TEXT CHUNK RECEIVED:", conversationId, event.payload);
-
-        // Update streaming state instead of directly modifying messages
-        setStreamingConversationId(conversationId);
-        setIsStreaming(true);
-        setStreamingContent((prev) => prev + event.payload);
-      });
-
-      // Listen for thinking chunks
-      await api.listen<string>(`gemini-thought-${conversationId}`, (event) => {
-        console.log(
-          "Received gemini thought for conversation:",
-          conversationId,
-          event.payload
-        );
-
-        // Update streaming thinking state
-        setStreamingConversationId(conversationId);
-        setIsStreaming(true);
-        setStreamingThinking((prev) => prev + event.payload);
-      });
-
-      // Listen for tool call events
-      await api.listen<ToolCallEvent>(
-        `gemini-tool-call-${conversationId}`,
-        (event) => {
-          console.log("🔧 TOOL CALL EVENT:", conversationId, event.payload);
-
-          // Debug: Log current conversation state
-          const conv = conversations.find((c) => c.id === conversationId);
-          if (conv) {
-            const lastMessage = conv.messages[conv.messages.length - 1];
-            console.log("🔧 Current last message:", {
-              sender: lastMessage?.sender,
-              contentLength: lastMessage?.content?.length || 0,
-              content: lastMessage?.content || "NO CONTENT",
-              hasToolCalls: !!lastMessage?.toolCalls?.length,
+        updateConversation(conversationId, (conv, lastMsg) => {
+          conv.isStreaming = true;
+          if (lastMsg.sender == "assistant") {
+            // There's an existing AI message.
+            const lastPart = lastMsg.parts[lastMsg.parts.length - 1];
+            if (lastPart?.type == "text") {
+              lastPart.text += event.payload;
+            } else {
+              // Create a new text part.
+              lastMsg.parts.push({
+                type: "text",
+                text: event.payload,
+              });
+            }
+          } else {
+            conv.messages.push({
+              id: Date.now().toString(),
+              sender: "assistant",
+              timestamp: new Date(),
+              parts: [
+                {
+                  type: "text",
+                  text: event.payload,
+                },
+              ],
             });
           }
+        });
+      });
 
-          const toolCallData = event.payload;
-          const toolCall: ToolCall = {
-            id: toolCallData.id.toString(),
-            name: toolCallData.name,
-            parameters: toolCallData.locations
-              ? { locations: toolCallData.locations }
-              : {},
-            status: "pending",
-          };
-
-          // Add tool call to the existing assistant message or create one if needed
-          updateConversation(conversationId, (conv, lastMsg) => {
-            // If the last message is from assistant, add the tool call to it
-            if (lastMsg && lastMsg.sender === "assistant") {
-              console.log(
-                "🔧 Adding tool call to existing assistant message:",
-                toolCall
-              );
-              if (!lastMsg.toolCalls) lastMsg.toolCalls = [];
-              lastMsg.toolCalls.push(toolCall);
+      // Listen for thinking chunks.
+      await api.listen<string>(`gemini-thought-${conversationId}`, (event) => {
+        updateConversation(conversationId, (conv, lastMsg) => {
+          conv.isStreaming = true;
+          if (lastMsg.sender == "assistant") {
+            const lastPart = lastMsg.parts[lastMsg.parts.length - 1];
+            if (lastPart?.type == "thinking") {
+              lastPart.thinking += event.payload;
             } else {
-              // Create new assistant message if the last one isn't from assistant
-              const newMessage: Message = {
+              // Create a new text part.
+              lastMsg.parts.push({
+                type: "thinking",
+                thinking: event.payload,
+              });
+            }
+          } else {
+            conv.messages.push({
+              id: Date.now().toString(),
+              sender: "assistant",
+              timestamp: new Date(),
+              parts: [
+                {
+                  type: "thinking",
+                  thinking: event.payload,
+                },
+              ],
+            });
+          }
+        });
+      });
+
+      // Listen for new tool calls being sent.
+      await api.listen<ToolCallEvent>(
+        `gemini-tool-call-${conversationId}`,
+        ({ payload: { id, name, locations } }) => {
+          updateConversation(conversationId, (conv, lastMsg) => {
+            const newToolCall: ToolCall = {
+              id: id.toString(),
+              name,
+              parameters: locations ? { locations } : {},
+              status: "pending",
+            };
+
+            // Add tool call to the existing assistant message or create one if needed
+            if (lastMsg.sender == "assistant") {
+              lastMsg.parts.push({
+                type: "toolCall",
+                toolCall: newToolCall,
+              });
+            } else {
+              conv.messages.push({
                 id: Date.now().toString(),
-                content: "",
                 sender: "assistant",
                 timestamp: new Date(),
-                toolCalls: [toolCall],
-              };
-
-              console.log(
-                "🔧 Creating new message for tool call:",
-                newMessage
-              );
-              conv.messages.push(newMessage);
+                parts: [
+                  {
+                    type: "toolCall",
+                    toolCall: newToolCall,
+                  },
+                ],
+              });
             }
           });
         }
       );
 
-      // Listen for tool call updates
+      // Listen for updates to existing tool calls.
       await api.listen<ToolCallUpdateEvent>(
         `gemini-tool-call-update-${conversationId}`,
-        (event) => {
-          console.log("🔄 TOOL CALL UPDATE:", conversationId, event.payload);
-
-          const updateData = event.payload;
-
-          // Update the tool call status
+        ({ payload: { toolCallId, status, content } }) => {
           updateConversation(conversationId, (conv) => {
             for (const msg of conv.messages) {
-              if (msg.toolCalls) {
-                for (const tc of msg.toolCalls) {
-                  // Match by ID, or if no exact match, match the first running tool call
-                  const shouldUpdate =
-                    tc.id === updateData.toolCallId.toString() ||
-                    (updateData.toolCallId === "unknown" && tc.status === "running") ||
-                    tc.status === "running"; // Fallback: update any running tool call
-
-                  if (shouldUpdate) {
-                    const newStatus = updateData.status === "finished"
-                      ? isErrorResult(updateData.content) ? "failed" : "completed"
-                      : updateData.status as "pending" | "running" | "completed" | "failed";
-
-                    console.log("🔧 Updating tool call:", {
-                      from: tc.status,
-                      to: newStatus,
-                      content: updateData.content,
-                    });
-
-                    tc.status = newStatus;
-                    tc.result = updateData.content;
+              for (const msgPart of msg.parts) {
+                if (
+                  msgPart.type == "toolCall" &&
+                  msgPart.toolCall.id == toolCallId
+                ) {
+                  // Split "finished" into "failed" or "completed".
+                  if (status === "finished") {
+                    msgPart.toolCall.status = isErrorResult(content)
+                      ? "failed"
+                      : "completed";
+                    // Store the result content
+                    if (content) {
+                      msgPart.toolCall.result = content;
+                    }
+                  } else {
+                    // Use the status directly.
+                    msgPart.toolCall.status = status as ToolCall["status"];
                   }
+                  return;
                 }
               }
             }
@@ -550,52 +534,40 @@ function App() {
 
       // Also listen for errors
       await api.listen<string>(`gemini-error-${conversationId}`, (event) => {
-        console.error(
-          "Received gemini error for conversation:",
-          conversationId,
-          event.payload
-        );
-
-        // Reset streaming state on error
-        if (streamingConversationId === conversationId) {
-          setIsStreaming(false);
-          setStreamingContent("");
-          setStreamingThinking("");
-          setStreamingConversationId(null);
-                  }
-
-        // Add error message to the conversation
         updateConversation(conversationId, (conv) => {
+          conv.isStreaming = false;
           conv.messages.push({
             id: Date.now().toString(),
-            content: `❌ **Error**: ${event.payload}`,
+            parts: [
+              {
+                type: "text",
+                text: `❌ **Error**: ${event.payload}`,
+              },
+            ],
             sender: "assistant",
             timestamp: new Date(),
           });
         });
       });
 
-      // Listen for response completion
-      await api.listen<boolean>(`gemini-response-complete-${conversationId}`, (_event) => {
-        console.log("🏁 Response completed for conversation:", conversationId);
-        finalizeStreamingMessage();
-      });
-
       // Listen for tool call confirmation requests
       await api.listen<ToolCallConfirmationRequest>(
         `gemini-tool-call-confirmation-${conversationId}`,
         (event) => {
-          console.log(
-            "🔍 Tool call confirmation request for conversation:",
-            conversationId,
-            event.payload
-          );
-          // Associate the pending input JSON-RPC with this confirmation request
-          const confirmationWithInput = {
+          setConfirmationRequest({
             ...event.payload,
             inputJsonRpc: window.pendingToolCallInput,
-          };
-          setConfirmationRequest(confirmationWithInput);
+          });
+        }
+      );
+
+      // Listen for turn finished events to stop streaming indicator
+      await api.listen<boolean>(
+        `gemini-turn-finished-${conversationId}`,
+        () => {
+          updateConversation(conversationId, (conv) => {
+            conv.isStreaming = false;
+          });
         }
       );
     } catch (error) {
@@ -622,33 +594,38 @@ function App() {
 
     const newMessage: Message = {
       id: Date.now().toString(),
-      content: input,
+      parts: [
+        {
+          type: "text",
+          text: input,
+        },
+      ],
       sender: "user",
       timestamp: new Date(),
     };
 
-    let conversationId = activeConversation;
-
+    let convId: string;
     if (activeConversation) {
+      convId = activeConversation;
+
       updateConversation(activeConversation, (conv) => {
         conv.messages.push(newMessage);
       });
-      conversationId = activeConversation;
 
       // Check if this is the 3rd user message and generate title
       const currentConv = conversations.find(
         (c) => c.id === activeConversation
       );
       if (currentConv) {
-        const userMessageCount = [...currentConv.messages, newMessage].filter(
+        const userMessageCount = currentConv.messages.filter(
           (msg) => msg.sender === "user"
         ).length;
 
         if (userMessageCount === 3) {
           // Generate title using all 3 user messages
-          const userMessages = [...currentConv.messages, newMessage]
+          const userMessages = currentConv.messages
             .filter((msg) => msg.sender === "user")
-            .map((msg) => msg.content)
+            .map((msg) => msg.parts[0].text)
             .join(" | ");
 
           try {
@@ -659,7 +636,6 @@ function App() {
                 model: selectedModel,
               }
             );
-
             updateConversation(activeConversation, (conv) => {
               conv.title = generatedTitle;
             });
@@ -669,105 +645,80 @@ function App() {
         }
       }
     } else {
+      // Create a new conversation with this message.
       const newConversation: Conversation = {
         id: Date.now().toString(),
         title: input.slice(0, 50),
         messages: [newMessage],
         lastUpdated: new Date(),
+        isStreaming: true,
       };
       setConversations((prev) => [...prev, newConversation]);
       setActiveConversation(newConversation.id);
-      conversationId = newConversation.id;
+      convId = newConversation.id;
 
-      // Set up event listener for this conversation
-      console.log(
-        "🎯 Setting up event listeners for NEW conversation:",
-        conversationId
-      );
-      await setupEventListenerForConversation(conversationId);
+      setupEventListenerForConversation(newConversation.id);
     }
 
     const messageText = input;
     setInput("");
 
-    // Reset any previous streaming state
-    setIsStreaming(false);
-    setStreamingContent("");
-    setStreamingThinking("");
-    setStreamingConversationId(null);
-    
-    // Check if user is trying to use the disabled model
+    // Check if user is trying to use the disabled model.
     if (selectedModel === "gemini-2.5-flash-lite") {
-      const templateMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        content:
-          "Unfortunately, Gemini 2.5 Flash-Lite isn't usable, due to thinking issues. See here for more details: #1953 (https://github.com/google-gemini/gemini-cli/issues/1953) and #4548 (https://github.com/google-gemini/gemini-cli/issues/4548). Waiting on PR #3033 (https://github.com/google-gemini/gemini-cli/pull/3033)/#4652 (https://github.com/google-gemini/gemini-cli/pull/4652).",
-        sender: "assistant",
-        timestamp: new Date(),
-      };
-
-      if (conversationId) {
-        updateConversation(conversationId, (conv) => {
-          conv.messages.push(templateMessage);
+      updateConversation(convId, (conv) => {
+        conv.messages.push({
+          id: (Date.now() + 1).toString(),
+          parts: [
+            {
+              type: "text",
+              text: "Unfortunately, Gemini 2.5 Flash-Lite isn't usable due to thinking issues. See issues #1953](https://github.com/google-gemini/gemini-cli/issues/1953) and [#4548](https://github.com/google-gemini/gemini-cli/issues/4548) on the Gemini CLI repository for more details.  PRs [#3033](https://github.com/google-gemini/gemini-cli/pull/3033) and [#4652](https://github.com/google-gemini/gemini-cli/pull/4652) resolve this issue.",
+            },
+          ],
+          sender: "assistant",
+          timestamp: new Date(),
         });
-      }
+      });
       return;
     }
 
     try {
-      // Send message with conversation context (like claudia does)
-      if (conversationId) {
-        console.log(
-          "🚀 Sending message to backend with conversationId:",
-          conversationId
-        );
-        console.log("🚀 Message text:", messageText);
+      // Build conversation history for context - only include recent messages to avoid too long prompts.
+      // TODO 08/01/2025: Fix this conversation history stuff.
+      const recentMessages = currentConversation?.messages.slice(-10) || []; // Last 10 messages
+      const history = recentMessages
+        .map(
+          (msg) =>
+            `${msg.sender === "user" ? "User" : "Assistant"}: ${msg.content}`
+        )
+        .join("\n");
 
-        // Build conversation history for context - only include recent messages to avoid too long prompts
-        const recentMessages = currentConversation?.messages.slice(-10) || []; // Last 10 messages
-        const history = recentMessages
-          .map(
-            (msg) =>
-              `${msg.sender === "user" ? "User" : "Assistant"}: ${msg.content}`
-          )
-          .join("\n");
+      await api.invoke("send_message", {
+        sessionId: convId,
+        message: messageText,
+        conversationHistory: history,
+        workingDirectory: isWorkingDirectoryValid ? workingDirectory : null,
+        model: selectedModel,
+      });
 
-        const result = await api.invoke("send_message", {
-          sessionId: conversationId,
-          message: messageText,
-          conversationHistory: history,
-          workingDirectory: isWorkingDirectoryValid ? workingDirectory : null,
-          model: selectedModel,
-        });
-
-        console.log("🚀 Backend invoke result:", result);
-
-        // Refresh process statuses after sending message
-        await fetchProcessStatuses();
-      }
+      // Refresh process statuses after sending message
+      await fetchProcessStatuses();
     } catch (error) {
       console.error("Failed to send message:", error);
 
-      // Add error message to conversation
-      if (conversationId) {
-        const errorMessage: Message = {
+      updateConversation(convId, (conv) => {
+        conv.messages.push({
           id: (Date.now() + 1).toString(),
-          content: `Error: ${error}`,
+          parts: [{ type: "text", text: `❌ **Error:** ${error}` }],
           sender: "assistant",
           timestamp: new Date(),
-        };
-
-        updateConversation(conversationId, (conv) => {
-          conv.messages.push(errorMessage);
         });
-      }
+      });
     }
   };
 
-  const handleConversationSelect = async (conversationId: string) => {
-    console.log("🎯 Selecting existing conversation:", conversationId);
+  const handleConversationSelect = (conversationId: string) => {
     setActiveConversation(conversationId);
-    await setupEventListenerForConversation(conversationId);
+    setupEventListenerForConversation(conversationId);
   };
 
   const handleKillProcess = async (conversationId: string) => {
@@ -775,10 +726,6 @@ function App() {
       await api.invoke("kill_process", { conversationId });
       // Refresh process statuses after killing
       await fetchProcessStatuses();
-      console.log(
-        "Successfully killed process for conversation:",
-        conversationId
-      );
     } catch (error) {
       console.error("Failed to kill process:", error);
     }
@@ -807,14 +754,6 @@ function App() {
       confirmationRequest.toolCallId ||
       confirmationRequest.requestId.toString();
 
-    console.log("🔄 Sending confirmation response:", {
-      sessionId: confirmationRequest.sessionId,
-      requestId: confirmationRequest.requestId,
-      toolCallId: toolCallId,
-      outcome,
-      originalRequest: confirmationRequest,
-    });
-
     try {
       await api.invoke("send_tool_call_confirmation_response", {
         sessionId: confirmationRequest.sessionId,
@@ -837,37 +776,16 @@ function App() {
           inputJsonRpc: confirmationRequest.inputJsonRpc || undefined,
         };
 
-        console.log(
-          "✅ Creating tool call with ID:",
-          toolCallId,
-          "for command:",
-          confirmationRequest.confirmation.command
-        );
-
-        // Add tool call to the current conversation
-        updateConversation(confirmationRequest.sessionId, (conv, lastMsg) => {
-          console.log("📝 Last message before adding tool call:", {
-            sender: lastMsg?.sender,
-            hasToolCalls: !!lastMsg?.toolCalls,
-            toolCallsCount: lastMsg?.toolCalls?.length || 0,
-          });
-
-          // If the last message is from assistant, add the tool call to it
-          if (lastMsg && lastMsg.sender === "assistant") {
-            if (!lastMsg.toolCalls) lastMsg.toolCalls = [];
-            lastMsg.toolCalls.push(toolCall);
-            console.log("📝 Added tool call to existing message. New tool calls count:", lastMsg.toolCalls.length);
+        updateConversation(activeConversation!, (conv, lastMsg) => {
+          if (lastMsg.sender == "assistant") {
+            lastMsg.parts.push({ type: "toolCall", toolCall });
           } else {
-            // Create new assistant message with the tool call
-            const newMessage: Message = {
+            conv.messages.push({
               id: Date.now().toString(),
-              content: "",
               sender: "assistant",
               timestamp: new Date(),
-              toolCalls: [toolCall],
-            };
-            console.log("📝 Created new message with tool call:", newMessage);
-            conv.messages.push(newMessage);
+              parts: [{ type: "toolCall", toolCall }],
+            });
           }
         });
       }
@@ -953,7 +871,8 @@ function App() {
                   Using Gemini Desktop in your home directory
                 </AlertTitle>
                 <AlertDescription className="text-yellow-800 dark:text-yellow-300">
-                  You are running Gemini Desktop in your home directory. It is recommended to run in a project-specific directory.
+                  You are running Gemini Desktop in your home directory. It is
+                  recommended to run in a project-specific directory.
                 </AlertDescription>
               </Alert>
             </div>
@@ -1017,63 +936,99 @@ function App() {
             >
               <div className="space-y-8 pb-4 max-w-4xl mx-auto">
                 {currentConversation.messages.map((message, index) => (
-                  <MessageBubble 
-                    key={message.id} 
-                    message={message}
-                    isStreaming={false}
-                    isLastMessage={index === currentConversation.messages.length - 1}
-                  />
-                ))}
-
-                {/* Render streaming message separately */}
-                {isStreaming &&
-                  streamingConversationId === activeConversation && (
+                  <div
+                    key={message.id}
+                    className={`w-full ${
+                      message.sender === "user" ? "flex justify-start" : ""
+                    }`}
+                  >
                     <div className="w-full">
                       {/* Header with logo and timestamp */}
                       <div className="flex items-center gap-2 mb-4">
-                        <div>
-                          <GeminiLogo />
-                        </div>
+                        {message.sender === "assistant" ? (
+                          <div>
+                            <GeminiLogo />
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="size-5.5 flex items-center justify-center overflow-hidden rounded-full"
+                                style={{
+                                  background:
+                                    "radial-gradient(circle, #346bf1 0%, #3186ff 50%, #4fa0ff 100%)",
+                                }}
+                              >
+                                <UserRound className="size-4" />
+                              </div>
+                              User
+                            </div>
+                          </div>
+                        )}
                         <span className="text-xs text-muted-foreground">
-                          {new Date().toLocaleTimeString([], {
+                          {message.timestamp.toLocaleTimeString([], {
                             hour: "2-digit",
                             minute: "2-digit",
                           })}
                         </span>
                       </div>
 
-                      {/* Thinking Block */}
-                      {streamingThinking && (
-                        <ThinkingBlock thinking={streamingThinking} />
+                      {message.parts.map((msgPart) =>
+                        msgPart.type === "thinking" ? (
+                          <ThinkingBlock thinking={msgPart.thinking} />
+                        ) : msgPart.type === "text" ? (
+                          /* Message Content */
+                          <div className="text-sm text-gray-900 dark:text-gray-100 mb-2">
+                            <MessageContent
+                              content={msgPart.text}
+                              sender={message.sender}
+                            />
+                          </div>
+                        ) : msgPart.type === "toolCall" ? (
+                          <ToolCallDisplay toolCall={msgPart.toolCall} />
+                        ) : null
                       )}
 
-                      {/* Streaming Message Content */}
-                      <div className="text-sm text-gray-900 dark:text-gray-100 mb-2">
-                        <MessageContent
-                          content={streamingContent}
-                          sender="assistant"
-                        />
-                        {streamingContent.length === 0 && (
+                      {currentConversation.isStreaming &&
+                        index === currentConversation.messages.length - 1 && (
                           <div className="text-gray-400 italic text-xs">
                             <span className="animate-pulse">●</span>{" "}
-                            Streaming...
+                            Generating...
                           </div>
                         )}
+
+                      {/* Info button for raw JSON */}
+                      <div className="mt-2 flex justify-start">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            >
+                              <Info className="h-3 w-3 mr-1" />
+                              Raw JSON
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                            <DialogHeader>
+                              <DialogTitle>Message Raw JSON</DialogTitle>
+                            </DialogHeader>
+                            <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
+                              <pre className="text-xs whitespace-pre-wrap break-all font-mono">
+                                {JSON.stringify(message, null, 2)}
+                              </pre>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
                       </div>
                     </div>
-                  )}
+                  </div>
+                ))}
               </div>
             </div>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
-              {/* <div className="flex flex-row items-center mb-4 gap-2">
-                <GeminiIcon />
-                <h1 className="text-3xl font-bold text-foreground">
-                  Welcome to Gemini Desktop
-                </h1>
-                <GeminiIcon />
-              </div> */}
-
               <div className="flex flex-row items-center mb-4 gap-2">
                 <GeminiLogoCenter />
                 <span className="text-4xl font-medium bg-gradient-to-r from-[#3186ff] via-[#346bf1] to-[#4fa0ff] bg-clip-text text-transparent">
