@@ -87,6 +87,7 @@ pub struct ToolCallEvent {
 
 /// Tool call update data
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ToolCallUpdate {
     #[serde(rename = "toolCallId")]
     pub tool_call_id: u32,
@@ -96,6 +97,7 @@ pub struct ToolCallUpdate {
 
 /// Tool call confirmation request
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ToolCallConfirmationRequest {
     pub request_id: u32,
     pub session_id: String,

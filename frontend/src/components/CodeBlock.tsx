@@ -83,8 +83,8 @@ const highlightCache = new Map<
   { content: React.ReactElement; preStyle: string }
 >();
 
-// Create highlighter instance - initialize immediately like original
-const highlighter = await createHighlighter({
+// Create highlighter instance - initialize as promise
+const highlighterPromise = createHighlighter({
   themes: Object.keys(bundledThemes),
   langs: [], // Start with no languages - load on demand
 });
@@ -152,6 +152,9 @@ const CodeBlock = React.memo(
 
       const highlightCode = async () => {
         try {
+          // Wait for highlighter to be ready
+          const highlighter = await highlighterPromise;
+          
           // Clear conflicting cache entries to prevent bloat
           const conflictingKeys = Array.from(highlightCache.keys()).filter(
             (key) =>

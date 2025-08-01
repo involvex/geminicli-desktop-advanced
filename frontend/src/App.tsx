@@ -11,8 +11,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "./components/ui/dialog";
+import { MessageBubble } from "./components/MessageBubble";
 import { MessageContent } from "./components/MessageContent";
-import { ToolCallDisplay } from "./components/ToolCallDisplay";
 import { ThinkingBlock } from "./components/ThinkingBlock";
 import { ConversationList } from "./components/ConversationList";
 import { GeminiLogo } from "./components/GeminiLogo";
@@ -27,7 +27,6 @@ import {
   X,
   AlertCircleIcon,
   AlertTriangle,
-  UserRound,
 } from "lucide-react";
 import "./index.css";
 import { GeminiLogoCenter } from "./components/GeminiLogoCenter";
@@ -277,18 +276,9 @@ function App() {
     };
 
     // Add to conversations
-    setConversations((prev) =>
-      prev.map((conv) => {
-        if (conv.id === streamingConversationId) {
-          return {
-            ...conv,
-            messages: [...conv.messages, finalMessage],
-            lastUpdated: new Date(),
-          };
-        }
-        return conv;
-      })
-    );
+    updateConversation(streamingConversationId, (conv) => {
+      conv.messages.push(finalMessage);
+    });
 
     // Reset streaming state
     setIsStreaming(false);
@@ -300,6 +290,24 @@ function App() {
   const currentConversation = conversations.find(
     (c) => c.id === activeConversation
   );
+
+  const updateConversation = (
+    conversationId: string,
+    updateFn: (conv: Conversation, lastMsg: Message) => void
+  ) => {
+    setConversations((prev) => {
+      const clone: Conversation[] = structuredClone(prev);
+      const curConv = clone.find((c) => c.id === conversationId);
+      if (!curConv) {
+        console.error(`Conversation with ID ${conversationId} not found.`);
+        return prev;
+      }
+      const lastMsg = curConv.messages[curConv.messages.length - 1];
+      updateFn(curConv, lastMsg);
+      curConv.lastUpdated = new Date();
+      return clone;
+    });
+  };
 
   useEffect(() => {
     checkCliInstallation();
@@ -395,35 +403,17 @@ function App() {
               // Update tool calls with output JSON-RPC data
               const toolCallId = jsonData.params?.toolCallId;
               if (toolCallId) {
-                setConversations((prev) =>
-                  prev.map((conv) => {
-                    if (conv.id === conversationId) {
-                      return {
-                        ...conv,
-                        messages: conv.messages.map((msg) => {
-                          if (msg.toolCalls) {
-                            const updatedToolCalls = msg.toolCalls.map((tc) => {
-                              if (tc.id === toolCallId.toString()) {
-                                return {
-                                  ...tc,
-                                  outputJsonRpc: event.payload.data,
-                                };
-                              }
-                              return tc;
-                            });
-
-                            return {
-                              ...msg,
-                              toolCalls: updatedToolCalls,
-                            };
-                          }
-                          return msg;
-                        }),
-                      };
+                updateConversation(conversationId, (conv) => {
+                  for (const msg of conv.messages) {
+                    if (msg.toolCalls) {
+                      for (const tc of msg.toolCalls) {
+                        if (tc.id === toolCallId.toString()) {
+                          tc.outputJsonRpc = event.payload.data;
+                        }
+                      }
                     }
-                    return conv;
-                  })
-                );
+                  }
+                });
               }
             }
           } catch {
@@ -467,19 +457,16 @@ function App() {
           console.log("🔧 TOOL CALL EVENT:", conversationId, event.payload);
 
           // Debug: Log current conversation state
-          setConversations((prev) => {
-            const conv = prev.find((c) => c.id === conversationId);
-            if (conv) {
-              const lastMessage = conv.messages[conv.messages.length - 1];
-              console.log("🔧 Current last message:", {
-                sender: lastMessage?.sender,
-                contentLength: lastMessage?.content?.length || 0,
-                content: lastMessage?.content || "NO CONTENT",
-                hasToolCalls: !!lastMessage?.toolCalls?.length,
-              });
-            }
-            return prev;
-          });
+          const conv = conversations.find((c) => c.id === conversationId);
+          if (conv) {
+            const lastMessage = conv.messages[conv.messages.length - 1];
+            console.log("🔧 Current last message:", {
+              sender: lastMessage?.sender,
+              contentLength: lastMessage?.content?.length || 0,
+              content: lastMessage?.content || "NO CONTENT",
+              hasToolCalls: !!lastMessage?.toolCalls?.length,
+            });
+          }
 
           const toolCallData = event.payload;
           const toolCall: ToolCall = {
@@ -492,55 +479,32 @@ function App() {
           };
 
           // Add tool call to the existing assistant message or create one if needed
-          setConversations((prev) =>
-            prev.map((conv) => {
-              if (conv.id === conversationId) {
-                const lastMessage = conv.messages[conv.messages.length - 1];
+          updateConversation(conversationId, (conv, lastMsg) => {
+            // If the last message is from assistant, add the tool call to it
+            if (lastMsg && lastMsg.sender === "assistant") {
+              console.log(
+                "🔧 Adding tool call to existing assistant message:",
+                toolCall
+              );
+              if (!lastMsg.toolCalls) lastMsg.toolCalls = [];
+              lastMsg.toolCalls.push(toolCall);
+            } else {
+              // Create new assistant message if the last one isn't from assistant
+              const newMessage: Message = {
+                id: Date.now().toString(),
+                content: "",
+                sender: "assistant",
+                timestamp: new Date(),
+                toolCalls: [toolCall],
+              };
 
-                // If the last message is from assistant, add the tool call to it
-                if (lastMessage && lastMessage.sender === "assistant") {
-                  console.log(
-                    "🔧 Adding tool call to existing assistant message:",
-                    toolCall
-                  );
-
-                  return {
-                    ...conv,
-                    messages: conv.messages.map((msg, index) =>
-                      index === conv.messages.length - 1
-                        ? {
-                            ...msg,
-                            toolCalls: [...(msg.toolCalls || []), toolCall],
-                          }
-                        : msg
-                    ),
-                    lastUpdated: new Date(),
-                  };
-                } else {
-                  // Create new assistant message if the last one isn't from assistant
-                  const newMessage: Message = {
-                    id: Date.now().toString(),
-                    content: "",
-                    sender: "assistant",
-                    timestamp: new Date(),
-                    toolCalls: [toolCall],
-                  };
-
-                  console.log(
-                    "🔧 Creating new message for tool call:",
-                    newMessage
-                  );
-
-                  return {
-                    ...conv,
-                    messages: [...conv.messages, newMessage],
-                    lastUpdated: new Date(),
-                  };
-                }
-              }
-              return conv;
-            })
-          );
+              console.log(
+                "🔧 Creating new message for tool call:",
+                newMessage
+              );
+              conv.messages.push(newMessage);
+            }
+          });
         }
       );
 
@@ -553,73 +517,34 @@ function App() {
           const updateData = event.payload;
 
           // Update the tool call status
-          setConversations((prev) =>
-            prev.map((conv) => {
-              if (conv.id === conversationId) {
-                return {
-                  ...conv,
-                  messages: conv.messages.map((msg) => {
-                    if (msg.toolCalls) {
-                      const updatedToolCalls = msg.toolCalls.map((tc) => {
-                        // Match by ID, or if no exact match, match the first running tool call
-                        const shouldUpdate =
-                          tc.id === updateData.toolCallId.toString() ||
-                          (updateData.toolCallId === "unknown" &&
-                            tc.status === "running") ||
-                          tc.status === "running"; // Fallback: update any running tool call
+          updateConversation(conversationId, (conv) => {
+            for (const msg of conv.messages) {
+              if (msg.toolCalls) {
+                for (const tc of msg.toolCalls) {
+                  // Match by ID, or if no exact match, match the first running tool call
+                  const shouldUpdate =
+                    tc.id === updateData.toolCallId.toString() ||
+                    (updateData.toolCallId === "unknown" && tc.status === "running") ||
+                    tc.status === "running"; // Fallback: update any running tool call
 
-                        console.log("🔍 Tool call matching:", {
-                          tcId: tc.id,
-                          updateId: updateData.toolCallId.toString(),
-                          tcStatus: tc.status,
-                          shouldUpdate,
-                        });
+                  if (shouldUpdate) {
+                    const newStatus = updateData.status === "finished"
+                      ? isErrorResult(updateData.content) ? "failed" : "completed"
+                      : updateData.status as "pending" | "running" | "completed" | "failed";
 
-                        if (shouldUpdate) {
-                          const newStatus:
-                            | "pending"
-                            | "running"
-                            | "completed"
-                            | "failed" =
-                            updateData.status === "finished"
-                              ? isErrorResult(updateData.content)
-                                ? "failed"
-                                : "completed"
-                              : (updateData.status as
-                                  | "pending"
-                                  | "running"
-                                  | "completed"
-                                  | "failed");
+                    console.log("🔧 Updating tool call:", {
+                      from: tc.status,
+                      to: newStatus,
+                      content: updateData.content,
+                    });
 
-                          console.log("🔧 Updating tool call:", {
-                            from: tc.status,
-                            to: newStatus,
-                            content: updateData.content,
-                          });
-
-                          return {
-                            ...tc,
-                            status: newStatus,
-                            result: updateData.content,
-                          };
-                        }
-
-                        return tc;
-                      });
-
-                      return {
-                        ...msg,
-                        toolCalls: updatedToolCalls,
-                      };
-                    }
-                    return msg;
-                  }),
-                  lastUpdated: new Date(),
-                };
+                    tc.status = newStatus;
+                    tc.result = updateData.content;
+                  }
+                }
               }
-              return conv;
-            })
-          );
+            }
+          });
         }
       );
 
@@ -640,24 +565,14 @@ function App() {
                   }
 
         // Add error message to the conversation
-        setConversations((prev) =>
-          prev.map((conv) => {
-            if (conv.id === conversationId) {
-              const errorMessage: Message = {
-                id: Date.now().toString(),
-                content: `❌ **Error**: ${event.payload}`,
-                sender: "assistant",
-                timestamp: new Date(),
-              };
-              return {
-                ...conv,
-                messages: [...conv.messages, errorMessage],
-                lastUpdated: new Date(),
-              };
-            }
-            return conv;
-          })
-        );
+        updateConversation(conversationId, (conv) => {
+          conv.messages.push({
+            id: Date.now().toString(),
+            content: `❌ **Error**: ${event.payload}`,
+            sender: "assistant",
+            timestamp: new Date(),
+          });
+        });
       });
 
       // Listen for response completion
@@ -715,17 +630,9 @@ function App() {
     let conversationId = activeConversation;
 
     if (activeConversation) {
-      setConversations((prev) =>
-        prev.map((conv) =>
-          conv.id === activeConversation
-            ? {
-                ...conv,
-                messages: [...conv.messages, newMessage],
-                lastUpdated: new Date(),
-              }
-            : conv
-        )
-      );
+      updateConversation(activeConversation, (conv) => {
+        conv.messages.push(newMessage);
+      });
       conversationId = activeConversation;
 
       // Check if this is the 3rd user message and generate title
@@ -753,13 +660,9 @@ function App() {
               }
             );
 
-            setConversations((prev) =>
-              prev.map((conv) =>
-                conv.id === activeConversation
-                  ? { ...conv, title: generatedTitle }
-                  : conv
-              )
-            );
+            updateConversation(activeConversation, (conv) => {
+              conv.title = generatedTitle;
+            });
           } catch (error) {
             console.error("Failed to generate conversation title:", error);
           }
@@ -804,17 +707,9 @@ function App() {
       };
 
       if (conversationId) {
-        setConversations((prev) =>
-          prev.map((conv) =>
-            conv.id === conversationId
-              ? {
-                  ...conv,
-                  messages: [...conv.messages, templateMessage],
-                  lastUpdated: new Date(),
-                }
-              : conv
-          )
-        );
+        updateConversation(conversationId, (conv) => {
+          conv.messages.push(templateMessage);
+        });
       }
       return;
     }
@@ -862,17 +757,9 @@ function App() {
           timestamp: new Date(),
         };
 
-        setConversations((prev) =>
-          prev.map((conv) =>
-            conv.id === conversationId
-              ? {
-                  ...conv,
-                  messages: [...conv.messages, errorMessage],
-                  lastUpdated: new Date(),
-                }
-              : conv
-          )
-        );
+        updateConversation(conversationId, (conv) => {
+          conv.messages.push(errorMessage);
+        });
       }
     }
   };
@@ -958,71 +845,30 @@ function App() {
         );
 
         // Add tool call to the current conversation
-        setConversations((prev) => {
-          const updatedConversations = prev.map((conv) => {
-            if (conv.id === confirmationRequest.sessionId) {
-              const lastMessage = conv.messages[conv.messages.length - 1];
-
-              console.log("📝 Last message before adding tool call:", {
-                sender: lastMessage?.sender,
-                hasToolCalls: !!lastMessage?.toolCalls,
-                toolCallsCount: lastMessage?.toolCalls?.length || 0,
-              });
-
-              // If the last message is from assistant, add the tool call to it
-              if (lastMessage && lastMessage.sender === "assistant") {
-                const updatedConv = {
-                  ...conv,
-                  messages: conv.messages.map((msg, index) =>
-                    index === conv.messages.length - 1
-                      ? {
-                          ...msg,
-                          toolCalls: [...(msg.toolCalls || []), toolCall],
-                        }
-                      : msg
-                  ),
-                  lastUpdated: new Date(),
-                };
-
-                console.log(
-                  "📝 Added tool call to existing message. New tool calls count:",
-                  updatedConv.messages[updatedConv.messages.length - 1]
-                    .toolCalls?.length
-                );
-
-                return updatedConv;
-              } else {
-                // Create new assistant message with the tool call
-                const newMessage: Message = {
-                  id: Date.now().toString(),
-                  content: "",
-                  sender: "assistant",
-                  timestamp: new Date(),
-                  toolCalls: [toolCall],
-                };
-
-                console.log(
-                  "📝 Created new message with tool call:",
-                  newMessage
-                );
-
-                return {
-                  ...conv,
-                  messages: [...conv.messages, newMessage],
-                  lastUpdated: new Date(),
-                };
-              }
-            }
-            return conv;
+        updateConversation(confirmationRequest.sessionId, (conv, lastMsg) => {
+          console.log("📝 Last message before adding tool call:", {
+            sender: lastMsg?.sender,
+            hasToolCalls: !!lastMsg?.toolCalls,
+            toolCallsCount: lastMsg?.toolCalls?.length || 0,
           });
 
-          console.log(
-            "📝 Updated conversations:",
-            updatedConversations
-              .find((c) => c.id === confirmationRequest.sessionId)
-              ?.messages.slice(-1)
-          );
-          return updatedConversations;
+          // If the last message is from assistant, add the tool call to it
+          if (lastMsg && lastMsg.sender === "assistant") {
+            if (!lastMsg.toolCalls) lastMsg.toolCalls = [];
+            lastMsg.toolCalls.push(toolCall);
+            console.log("📝 Added tool call to existing message. New tool calls count:", lastMsg.toolCalls.length);
+          } else {
+            // Create new assistant message with the tool call
+            const newMessage: Message = {
+              id: Date.now().toString(),
+              content: "",
+              sender: "assistant",
+              timestamp: new Date(),
+              toolCalls: [toolCall],
+            };
+            console.log("📝 Created new message with tool call:", newMessage);
+            conv.messages.push(newMessage);
+          }
         });
       }
 
@@ -1170,139 +1016,13 @@ function App() {
               className="flex-1 min-h-0 overflow-y-auto p-6 relative"
             >
               <div className="space-y-8 pb-4 max-w-4xl mx-auto">
-                {currentConversation.messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`w-full ${
-                      message.sender === "user" ? "flex justify-start" : ""
-                    }`}
-                  >
-                    {message.sender === "assistant" && (
-                      <div className="w-full">
-                        {/* Header with logo and timestamp */}
-                        <div className="flex items-center gap-2 mb-4">
-                          <div>
-                            <GeminiLogo />
-                          </div>
-                          <span className="text-xs text-muted-foreground">
-                            {message.timestamp.toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                        </div>
-
-                        {/* Thinking Block */}
-                        {message.thinking && (
-                          <ThinkingBlock thinking={message.thinking} />
-                        )}
-
-                        {/* Message Content */}
-                        <div className="text-sm text-gray-900 dark:text-gray-100 mb-2">
-                          <MessageContent
-                            content={message.content}
-                            sender={message.sender}
-                          />
-                          {message.content.length === 0 && (
-                            <div className="text-gray-400 italic text-xs">
-                              <span className="animate-pulse">●</span>{" "}
-                              Streaming...
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Render tool calls if present */}
-                        {message.toolCalls &&
-                          message.toolCalls.map((toolCall) => (
-                            <ToolCallDisplay
-                              key={toolCall.id}
-                              toolCall={toolCall}
-                            />
-                          ))}
-
-                        {/* Info button for raw JSON */}
-                        <div className="mt-2 flex justify-start">
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-                              >
-                                <Info className="h-3 w-3 mr-1" />
-                                Raw JSON
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                              <DialogHeader>
-                                <DialogTitle>Message Raw JSON</DialogTitle>
-                              </DialogHeader>
-                              <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
-                                <pre className="text-xs whitespace-pre-wrap break-all font-mono">
-                                  {JSON.stringify(message, null, 2)}
-                                </pre>
-                              </div>
-                            </DialogContent>
-                          </Dialog>
-                        </div>
-                      </div>
-                    )}
-
-                    {message.sender === "user" && (
-                      <div className="w-full">
-                        <div className="flex items-center gap-2 mb-4">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <div className="size-5.5 flex items-center justify-center overflow-hidden rounded-full" style={{background: 'radial-gradient(circle, #346bf1 0%, #3186ff 50%, #4fa0ff 100%)'}}>
-                                <UserRound className="size-4" />
-                              </div>
-                              User
-                            </div>
-                          </div>
-                          <span className="text-xs text-muted-foreground">
-                            {message.timestamp.toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                        </div>
-
-                        {/* User message content */}
-                        <div className="text-sm text-gray-900 dark:text-gray-100 mb-2">
-                          <MessageContent
-                            content={message.content}
-                            sender={message.sender}
-                          />
-                          {message.content.length === 0 && (
-                            <div className="text-gray-400 italic text-xs">
-                              <span className="animate-pulse">●</span>{" "}
-                              Streaming...
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      // <div className="max-w-[70%]">
-                      //   <div className="flex items-center gap-2 mb-4">
-                      //   <div className="bg-gray-100 dark:bg-gray-700 rounded-2xl px-4 py-2 text-sm text-gray-900 dark:text-gray-100 mb-1 flex flex-row items-center">
-                      //     {/* User message content */}
-                      //     <MessageContent
-                      //       content={message.content}
-                      //       sender={message.sender}
-                      //     />
-                      //     </div>
-                      //   </div>
-                      //   <div className="flex justify-end">
-                      //     <span className="text-xs text-muted-foreground">
-                      //       {message.timestamp.toLocaleTimeString([], {
-                      //         hour: "2-digit",
-                      //         minute: "2-digit",
-                      //       })}
-                      //     </span>
-                      //   </div>
-                      // </div>
-                    )}
-                  </div>
+                {currentConversation.messages.map((message, index) => (
+                  <MessageBubble 
+                    key={message.id} 
+                    message={message}
+                    isStreaming={false}
+                    isLastMessage={index === currentConversation.messages.length - 1}
+                  />
                 ))}
 
                 {/* Render streaming message separately */}
