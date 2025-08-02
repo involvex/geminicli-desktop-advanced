@@ -386,8 +386,8 @@ function App() {
                   for (const msg of conv.messages) {
                     for (const msgPart of msg.parts) {
                       if (
-                        msgPart.type == "toolCall" &&
-                        msgPart.toolCall.id == jsonData.params!.toolCallId
+                        msgPart.type === "toolCall" &&
+                        msgPart.toolCall.id === jsonData.params!.toolCallId
                       ) {
                         msgPart.toolCall.outputJsonRpc = event.payload.data;
                       }
@@ -406,10 +406,10 @@ function App() {
       await api.listen<string>(`gemini-output-${conversationId}`, (event) => {
         updateConversation(conversationId, (conv, lastMsg) => {
           conv.isStreaming = true;
-          if (lastMsg.sender == "assistant") {
+          if (lastMsg.sender === "assistant") {
             // There's an existing AI message.
             const lastPart = lastMsg.parts[lastMsg.parts.length - 1];
-            if (lastPart?.type == "text") {
+            if (lastPart?.type === "text") {
               lastPart.text += event.payload;
             } else {
               // Create a new text part.
@@ -438,9 +438,9 @@ function App() {
       await api.listen<string>(`gemini-thought-${conversationId}`, (event) => {
         updateConversation(conversationId, (conv, lastMsg) => {
           conv.isStreaming = true;
-          if (lastMsg.sender == "assistant") {
+          if (lastMsg.sender === "assistant") {
             const lastPart = lastMsg.parts[lastMsg.parts.length - 1];
-            if (lastPart?.type == "thinking") {
+            if (lastPart?.type === "thinking") {
               lastPart.thinking += event.payload;
             } else {
               // Create a new text part.
@@ -478,7 +478,7 @@ function App() {
             };
 
             // Add tool call to the existing assistant message or create one if needed
-            if (lastMsg.sender == "assistant") {
+            if (lastMsg.sender === "assistant") {
               lastMsg.parts.push({
                 type: "toolCall",
                 toolCall: newToolCall,
@@ -508,8 +508,8 @@ function App() {
             for (const msg of conv.messages) {
               for (const msgPart of msg.parts) {
                 if (
-                  msgPart.type == "toolCall" &&
-                  msgPart.toolCall.id == toolCallId
+                  msgPart.type === "toolCall" &&
+                  msgPart.toolCall.id === toolCallId
                 ) {
                   // Split "finished" into "failed" or "completed".
                   if (status === "finished") {
@@ -671,7 +671,7 @@ function App() {
           parts: [
             {
               type: "text",
-              text: "Unfortunately, Gemini 2.5 Flash-Lite isn't usable due to thinking issues. See issues #1953](https://github.com/google-gemini/gemini-cli/issues/1953) and [#4548](https://github.com/google-gemini/gemini-cli/issues/4548) on the Gemini CLI repository for more details.  PRs [#3033](https://github.com/google-gemini/gemini-cli/pull/3033) and [#4652](https://github.com/google-gemini/gemini-cli/pull/4652) resolve this issue.",
+              text: "Unfortunately, Gemini 2.5 Flash-Lite isn't usable due to thinking issues. See issues [#1953](https://github.com/google-gemini/gemini-cli/issues/1953) and [#4548](https://github.com/google-gemini/gemini-cli/issues/4548) on the Gemini CLI repository for more details.  PRs [#3033](https://github.com/google-gemini/gemini-cli/pull/3033) and [#4652](https://github.com/google-gemini/gemini-cli/pull/4652) resolve this issue.",
             },
           ],
           sender: "assistant",
@@ -688,7 +688,9 @@ function App() {
       const history = recentMessages
         .map(
           (msg) =>
-            `${msg.sender === "user" ? "User" : "Assistant"}: ${msg.content}`
+            `${msg.sender === "user" ? "User" : "Assistant"}: ${
+              msg.parts[0]?.type === "text" ? msg.parts[0].text : ""
+            }`
         )
         .join("\n");
 
@@ -777,7 +779,7 @@ function App() {
         };
 
         updateConversation(activeConversation!, (conv, lastMsg) => {
-          if (lastMsg.sender == "assistant") {
+          if (lastMsg.sender === "assistant") {
             lastMsg.parts.push({ type: "toolCall", toolCall });
           } else {
             conv.messages.push({
