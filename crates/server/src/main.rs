@@ -205,7 +205,7 @@ struct SendMessageRequest {
     session_id: String,
     message: String,
     conversation_history: String,
-    working_directory: Option<String>,
+    working_directory: String,
     model: Option<String>,
 }
 
@@ -303,11 +303,11 @@ async fn start_session(request: Json<StartSessionRequest>, state: &State<AppStat
 async fn send_message(request: Json<SendMessageRequest>, state: &State<AppState>) -> Status {
     let req = request.into_inner();
 
-    // Initialize session if working directory or model are provided
-    if let (Some(wd), Some(model_name)) = (req.working_directory, req.model) {
+    // Initialize session if model is provided
+    if let Some(model_name) = req.model {
         let backend = state.backend.lock().await;
         match backend
-            .initialize_session(req.session_id.clone(), Some(wd), model_name)
+            .initialize_session(req.session_id.clone(), req.working_directory.clone(), model_name)
             .await
         {
             Ok(_) => {}

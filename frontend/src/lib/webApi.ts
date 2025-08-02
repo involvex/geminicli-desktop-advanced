@@ -15,7 +15,7 @@ interface SendMessageRequest {
   session_id: string;
   message: string;
   conversation_history: string;
-  working_directory?: string;
+  working_directory: string;
   model?: string;
 }
 
@@ -89,7 +89,7 @@ export const webApi = {
     sessionId: string;
     message: string;
     conversationHistory: string;
-    workingDirectory?: string;
+    workingDirectory: string;
     model?: string;
   }): Promise<void> {
     const request: SendMessageRequest = {

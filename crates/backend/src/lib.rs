@@ -7,6 +7,10 @@ use thiserror::Error;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader as AsyncBufReader};
 use tokio::process::{ChildStdin, ChildStdout, Command};
 use tokio::sync::mpsc;
+use sha2::{Sha256, Digest};
+use std::fs::{self, File, OpenOptions};
+use std::io::{BufWriter, Write};
+use chrono::{Utc, SecondsFormat};
 
 // =====================================
 // Internal Event Communication System
@@ -270,6 +274,141 @@ pub struct ToolCallConfirmation {
 }
 
 // =====================================
+// RPC Logging System
+// =====================================
+
+/// Trait for logging RPC messages
+pub trait RpcLogger: Send + Sync {
+    /// Log an RPC message with timestamp
+    fn log_rpc(&self, message: &str) -> Result<(), std::io::Error>;
+}
+
+/// Generates SHA256 hash of a project directory path
+pub struct ProjectHasher;
+
+impl ProjectHasher {
+    /// Generate SHA256 hash of the canonical path
+    pub fn hash_path(path: &str) -> BackendResult<String> {
+        let canonical_path = std::path::Path::new(path)
+            .canonicalize()
+            .map_err(|e| BackendError::IoError(e))?;
+        
+        let mut hasher = Sha256::new();
+        hasher.update(canonical_path.to_string_lossy().as_bytes());
+        let hash = format!("{:x}", hasher.finalize());
+        Ok(hash)
+    }
+}
+
+/// File-based RPC logger implementation
+pub struct FileRpcLogger {
+    writer: Arc<Mutex<BufWriter<File>>>,
+    file_path: std::path::PathBuf,
+}
+
+impl FileRpcLogger {
+    /// Create a new file-based RPC logger
+    pub fn new(working_directory: Option<&str>) -> BackendResult<Self> {
+        // Determine project directory
+        let project_dir = working_directory
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| {
+                std::env::current_dir()
+                    .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                    .to_string_lossy()
+                    .to_string()
+            });
+
+        // Generate project hash
+        let project_hash = ProjectHasher::hash_path(&project_dir)?;
+
+        // Create log directory structure
+        let home_dir = std::env::var("HOME").unwrap_or_else(|_| {
+            std::env::var("USERPROFILE").unwrap_or_else(|_| ".".to_string())
+        });
+        
+        let log_dir = std::path::Path::new(&home_dir)
+            .join(".gemini-desktop")
+            .join("projects")
+            .join(&project_hash);
+
+        fs::create_dir_all(&log_dir).map_err(|e| BackendError::IoError(e))?;
+
+        // Create log file with timestamp
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis();
+        
+        let log_filename = format!("rpc-log-{}.log", timestamp);
+        let file_path = log_dir.join(log_filename);
+
+        // Open file for writing
+        let file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&file_path)
+            .map_err(|e| BackendError::IoError(e))?;
+
+        let writer = Arc::new(Mutex::new(BufWriter::new(file)));
+
+        Ok(Self { writer, file_path })
+    }
+
+    /// Clean up old log files (older than 30 days)
+    pub fn cleanup_old_logs(&self) -> Result<(), std::io::Error> {
+        let parent_dir = self.file_path.parent().unwrap();
+        let cutoff_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() - (30 * 24 * 60 * 60); // 30 days
+
+        if let Ok(entries) = fs::read_dir(parent_dir) {
+            for entry in entries.flatten() {
+                if let Some(filename) = entry.file_name().to_str() {
+                    if filename.starts_with("rpc-log-") && filename.ends_with(".log") {
+                        if let Ok(metadata) = entry.metadata() {
+                            if let Ok(modified) = metadata.modified() {
+                                if let Ok(modified_secs) = modified.duration_since(std::time::UNIX_EPOCH) {
+                                    if modified_secs.as_secs() < cutoff_time {
+                                        let _ = fs::remove_file(entry.path());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl RpcLogger for FileRpcLogger {
+    fn log_rpc(&self, message: &str) -> Result<(), std::io::Error> {
+        let timestamp = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+        let log_line = format!("[{}] {}\n", timestamp, message);
+
+        if let Ok(mut writer) = self.writer.lock() {
+            writer.write_all(log_line.as_bytes())?;
+            writer.flush()?;
+        }
+
+        Ok(())
+    }
+}
+
+/// Dummy RPC logger that does nothing (fallback)
+pub struct NoOpRpcLogger;
+
+impl RpcLogger for NoOpRpcLogger {
+    fn log_rpc(&self, _message: &str) -> Result<(), std::io::Error> {
+        Ok(())
+    }
+}
+
+// =====================================
 // Security Functions
 // =====================================
 
@@ -449,6 +588,7 @@ pub struct PersistentSession {
     pub is_alive: bool,
     pub stdin: Option<ChildStdin>,
     pub message_sender: Option<mpsc::UnboundedSender<String>>,
+    pub rpc_logger: Arc<dyn RpcLogger>,
 }
 
 /// Public process status (serializable for external use)
@@ -606,51 +746,66 @@ impl Default for SessionManager {
 /// Initialize a new persistent session with the Gemini CLI
 pub async fn initialize_session<E: EventEmitter + 'static>(
     session_id: String,
-    working_directory: Option<String>,
+    working_directory: String,
     model: String,
     emitter: E,
     session_manager: &SessionManager,
-) -> BackendResult<mpsc::UnboundedSender<String>> {
+) -> BackendResult<(mpsc::UnboundedSender<String>, Arc<dyn RpcLogger>)> {
     println!("🚀 Initializing persistent Gemini session for: {session_id}");
+
+    // Create RPC logger for this specific project/working directory
+    let rpc_logger: Arc<dyn RpcLogger> = match FileRpcLogger::new(Some(&working_directory)) {
+        Ok(logger) => {
+            println!("📝 RPC logging enabled for session: {session_id}");
+            // Clean up old logs
+            let _ = logger.cleanup_old_logs();
+            Arc::new(logger)
+        }
+        Err(e) => {
+            println!("⚠️  Failed to create RPC logger for session {session_id}: {e}");
+            // Fallback to no-op logger if file logger creation fails
+            Arc::new(NoOpRpcLogger)
+        }
+    };
 
     // Create message channel for sending messages to this session
     let (message_tx, message_rx) = mpsc::unbounded_channel::<String>();
 
-    // Spawn CLI process
-    let mut child = if cfg!(target_os = "windows") {
-        let mut cmd = Command::new("cmd");
-        cmd.args(["/C", "gemini", "--model", &model, "--experimental-acp"])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-
-        // Set working directory if provided
-        if let Some(ref wd) = working_directory {
-            println!("🗂️ Setting working directory to: {wd}");
-            cmd.current_dir(wd);
+    // Build the command with OS-specific launcher
+    let mut cmd = {
+        #[cfg(target_os = "windows")]
+        {
+            let mut c = Command::new("cmd");
+            c.args(["/C", "gemini", "--model", &model, "--experimental-acp"]);
+            c
         }
-
-        cmd.spawn().map_err(|e| {
-            BackendError::SessionInitFailed(format!("Failed to run gemini command via cmd: {e}"))
-        })?
-    } else {
-        let mut cmd = Command::new("sh");
-        let gemini_command = format!("gemini --model {model} --experimental-acp");
-        cmd.args(["-c", &gemini_command])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-
-        // Set working directory if provided
-        if let Some(ref wd) = working_directory {
-            println!("🗂️ Setting working directory to: {wd}");
-            cmd.current_dir(wd);
+        #[cfg(not(target_os = "windows"))]
+        {
+            let mut c = Command::new("sh");
+            let gemini_command = format!("gemini --model {model} --experimental-acp");
+            c.args(["-c", &gemini_command]);
+            c
         }
-
-        cmd.spawn().map_err(|e| {
-            BackendError::SessionInitFailed(format!("Failed to run gemini command via shell: {e}"))
-        })?
     };
+
+    // Pipe stdio on the Command (before spawn)
+    cmd.stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    // Set working directory on Command
+    if !working_directory.is_empty() {
+        println!("🗂️ Setting working directory to: {working_directory}");
+        cmd.current_dir(&working_directory);
+    }
+
+    // Now spawn to obtain a Child
+    let mut child = cmd.spawn().map_err(|e| {
+        #[cfg(target_os = "windows")]
+        { BackendError::SessionInitFailed(format!("Failed to run gemini command via cmd: {e}")) }
+        #[cfg(not(target_os = "windows"))]
+        { BackendError::SessionInitFailed(format!("Failed to run gemini command via shell: {e}")) }
+    })?;
 
     let pid = child.id();
     let mut stdin = child.stdin.take().ok_or(BackendError::SessionInitFailed(
@@ -673,6 +828,9 @@ pub async fn initialize_session<E: EventEmitter + 'static>(
     let request_json = serde_json::to_string(&init_request).map_err(|e| {
         BackendError::SessionInitFailed(format!("Failed to serialize init request: {e}"))
     })?;
+
+    // Log the RPC message
+    let _ = rpc_logger.log_rpc(&request_json);
 
     // Send initialization
     stdin
@@ -705,6 +863,9 @@ pub async fn initialize_session<E: EventEmitter + 'static>(
     reader.read_line(&mut line).await.map_err(|e| {
         BackendError::SessionInitFailed(format!("Failed to read init response: {e}"))
     })?;
+
+    // Log the RPC response
+    let _ = rpc_logger.log_rpc(line.trim());
 
     // Emit CLI output event
     let _ = emitter.emit(
@@ -750,6 +911,7 @@ pub async fn initialize_session<E: EventEmitter + 'static>(
                 is_alive: true,
                 stdin: Some(stdin),
                 message_sender: Some(message_tx.clone()),
+                rpc_logger: rpc_logger.clone(),
             },
         );
     }
@@ -831,7 +993,7 @@ pub async fn initialize_session<E: EventEmitter + 'static>(
         .await;
     });
 
-    Ok(message_tx)
+    Ok((message_tx, rpc_logger))
 }
 
 /// Internal I/O handler with event communication channel
@@ -865,6 +1027,13 @@ async fn handle_session_io_internal(
                         if let Ok(json_request) = serde_json::from_str::<JsonRpcRequest>(&message_json) {
                             if json_request.method == "sendUserMessage" {
                                 pending_send_message_requests.insert(json_request.id);
+                            }
+                        }
+
+                        // Log the RPC message being sent
+                        if let Ok(processes_guard) = processes.lock() {
+                            if let Some(session) = processes_guard.get(&session_id) {
+                                let _ = session.rpc_logger.log_rpc(&message_json);
                             }
                         }
 
@@ -922,6 +1091,13 @@ async fn handle_session_io_internal(
                         let line = line.trim();
                         if line.is_empty() || !line.starts_with('{') {
                             continue;
+                        }
+
+                        // Log the RPC message received
+                        if let Ok(processes_guard) = processes.lock() {
+                            if let Some(session) = processes_guard.get(&session_id) {
+                                let _ = session.rpc_logger.log_rpc(line);
+                            }
                         }
 
                         // Emit CLI output event for EVERY message received from CLI
@@ -1123,6 +1299,13 @@ async fn send_response_to_cli_internal(
 
     let response_json = serde_json::to_string(&response).unwrap();
 
+    // Log the RPC response being sent
+    if let Ok(processes_guard) = processes.lock() {
+        if let Some(session) = processes_guard.get(session_id) {
+            let _ = session.rpc_logger.log_rpc(&response_json);
+        }
+    }
+
     // Emit CLI input event for response we're sending back to CLI
     let _ = event_tx.send(InternalEvent::CliIo {
         session_id: session_id.to_string(),
@@ -1313,10 +1496,10 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
     pub async fn initialize_session(
         &self,
         session_id: String,
-        working_directory: Option<String>,
+        working_directory: String,
         model: String,
     ) -> BackendResult<()> {
-        initialize_session(
+        let (_message_tx, _rpc_logger) = initialize_session(
             session_id,
             working_directory,
             model,
@@ -1350,17 +1533,10 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         let message_sender = if let Some(sender) = message_sender {
             sender
         } else {
-            // Initialize new session
-            println!("🚀 No existing session, initializing new one for: {session_id}");
-            let model_to_use = "gemini-2.5-flash".to_string();
-            initialize_session(
-                session_id.clone(),
-                None,
-                model_to_use,
-                self.emitter.clone(),
-                &self.session_manager,
-            )
-            .await?
+            // Initialize new session - ERROR: we need working directory!
+            return Err(BackendError::SessionInitFailed(
+                "Cannot initialize session without working directory for RPC logging".to_string()
+            ));
         };
 
         // Build message chunks
@@ -1422,10 +1598,6 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
             outcome,
         };
 
-        // NOTE: This function doesn't have access to event_tx, so CLI I/O won't be emitted here
-        // This is called from the public API, not from the internal session handler
-        // Send response back to CLI using ACP protocol format
-        // TODO: Consider restructuring to emit CLI I/O events here too
         let dummy_event_tx = {
             let (tx, _rx) = mpsc::unbounded_channel();
             tx

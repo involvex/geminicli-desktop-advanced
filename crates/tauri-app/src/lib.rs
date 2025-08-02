@@ -70,15 +70,15 @@ async fn send_message(
     session_id: String,
     message: String,
     conversation_history: String,
-    working_directory: Option<String>,
+    working_directory: String, // Now required!
     model: Option<String>,
     _app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    // Initialize session if working directory or model are provided
-    if let (Some(_wd), Some(model_name)) = (working_directory, model) {
+    // Initialize session if model is provided
+    if let Some(model_name) = model {
         let backend = state.backend.lock().await;
-        backend.initialize_session(session_id.clone(), None, model_name)
+        backend.initialize_session(session_id.clone(), working_directory.clone(), model_name)
             .await
             .map_err(|e| e.to_string())?;
     }
