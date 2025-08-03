@@ -1551,103 +1551,125 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         }
     }
 
-    /// Return recent chats by scanning persisted RPC logs under ~/.gemini-desktop/projects.
+    /// Return the last 3 chats globally by scanning all rpc-log-*.log files under ~/.gemini-desktop/projects.
+    /// Each log file is treated as a distinct chat entry (no grouping by project).
     pub async fn get_recent_chats(&self) -> BackendResult<Vec<RecentChat>> {
         use std::ffi::OsStr;
         use std::time::{SystemTime, UNIX_EPOCH};
 
+        // Resolve projects root
         let home = std::env::var("HOME").unwrap_or_else(|_| {
             std::env::var("USERPROFILE").unwrap_or_else(|_| "".to_string())
         });
         if home.is_empty() {
-            return Err(BackendError::SessionInitFailed("Could not determine home directory".to_string()));
+            return Err(BackendError::SessionInitFailed(
+                "Could not determine home directory".to_string(),
+            ));
         }
         let projects_dir = std::path::Path::new(&home).join(".gemini-desktop").join("projects");
         if !projects_dir.exists() || !projects_dir.is_dir() {
             return Ok(vec![]);
         }
 
+        // Collect one RecentChat per log file across all project hash folders
         let mut chats: Vec<RecentChat> = Vec::new();
-        let entries = match std::fs::read_dir(&projects_dir) {
+
+        let projects_iter = match std::fs::read_dir(&projects_dir) {
             Ok(e) => e,
             Err(e) => return Err(BackendError::IoError(e)),
         };
 
-        for entry in entries {
-            let entry = match entry {
+        for proj_dir_entry in projects_iter {
+            let proj_dir_entry = match proj_dir_entry {
                 Ok(e) => e,
-                Err(_) => continue, // Skip unreadable entries but continue processing
+                Err(_) => continue,
             };
-            let path = entry.path();
-            if !path.is_dir() {
+            let proj_path = proj_dir_entry.path();
+            if !proj_path.is_dir() {
                 continue;
             }
-            let project_hash = match path.file_name().and_then(OsStr::to_str) {
+
+            let project_hash = match proj_path.file_name().and_then(OsStr::to_str) {
                 Some(s) => s.to_string(),
                 None => continue,
             };
 
-            let mut log_files: Vec<std::path::PathBuf> = Vec::new();
-            if let Ok(logs) = std::fs::read_dir(&path) {
-                for log_entry in logs {
-                    let log_entry = match log_entry {
-                        Ok(e) => e,
-                        Err(_) => continue, // Skip unreadable log entries
-                    };
-                    let lp = log_entry.path();
-                    if let Some(name) = lp.file_name().and_then(OsStr::to_str) {
-                        if name.starts_with("rpc-log-") && name.ends_with(".log") {
-                            log_files.push(lp);
-                        }
-                    }
-                }
-            }
-            if log_files.is_empty() {
-                continue;
-            }
-
-            let mut earliest: Option<SystemTime> = None;
-            for lf in &log_files {
-                if let Ok(md) = std::fs::metadata(lf) {
-                    if let Ok(modified) = md.modified() {
-                        earliest = Some(match earliest {
-                            Some(curr) => if modified < curr { modified } else { curr },
-                            None => modified,
-                        });
-                    }
-                }
-            }
-
-            log_files.sort();
-            let candidate = log_files.last().cloned();
-
-            let (message_count, first_user_text) = Self::extract_chat_data(candidate);
-
-            let started_time = earliest.unwrap_or_else(|| SystemTime::now());
-            let started_secs = started_time.duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
-            let started_iso = chrono::DateTime::<chrono::Utc>::from(UNIX_EPOCH + std::time::Duration::from_secs(started_secs))
-                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
-
-            let title = if let Some(t) = first_user_text.clone() {
-                let t = t.trim();
-                if t.is_empty() {
-                    format!("Conversation {}", &project_hash.chars().take(6).collect::<String>())
-                } else {
-                    if t.len() > 50 { format!("{}…", &t[..50]) } else { t.to_string() }
-                }
-            } else {
-                format!("Conversation {}", &project_hash.chars().take(6).collect::<String>())
+            // Enumerate rpc-log-*.log in this project folder
+            let logs_iter = match std::fs::read_dir(&proj_path) {
+                Ok(l) => l,
+                Err(_) => continue,
             };
 
-            chats.push(RecentChat {
-                id: project_hash,
-                title,
-                started_at_iso: started_iso,
-                message_count,
-            });
+            for log_entry in logs_iter {
+                let log_entry = match log_entry {
+                    Ok(e) => e,
+                    Err(_) => continue,
+                };
+                let log_path = log_entry.path();
+                let Some(name) = log_path.file_name().and_then(OsStr::to_str) else { continue };
+
+                // Select only files named rpc-log-*.log
+                if !(name.starts_with("rpc-log-") && name.ends_with(".log")) {
+                    continue;
+                }
+
+                // Per-log metadata for timestamp
+                let modified_time = match std::fs::metadata(&log_path)
+                    .and_then(|md| md.modified())
+                {
+                    Ok(m) => m,
+                    Err(_) => SystemTime::now(),
+                };
+                let started_secs = modified_time
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+                let started_iso = chrono::DateTime::<chrono::Utc>::from(
+                    UNIX_EPOCH + std::time::Duration::from_secs(started_secs),
+                )
+                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+
+                // Extract message_count and first user text from this specific log file
+                let (message_count, first_user_text) =
+                    Self::extract_chat_data(Some(log_path.clone()));
+
+                // Title generation (same rules as before but per-log)
+                let title = if let Some(t) = first_user_text.clone() {
+                    let t = t.trim();
+                    if t.is_empty() {
+                        format!(
+                            "Conversation {}",
+                            &project_hash.chars().take(6).collect::<String>()
+                        )
+                    } else if t.len() > 50 {
+                        format!("{}…", &t[..50])
+                    } else {
+                        t.to_string()
+                    }
+                } else {
+                    format!(
+                        "Conversation {}",
+                        &project_hash.chars().take(6).collect::<String>()
+                    )
+                };
+
+                // Per-log unique id: "{project_hash}:{file_name}"
+                let id = format!("{}:{}", project_hash, name);
+
+                chats.push(RecentChat {
+                    id,
+                    title,
+                    started_at_iso: started_iso,
+                    message_count,
+                });
+            }
         }
 
+        // Sort globally by recency and take top 3
         chats.sort_by(|a, b| b.started_at_iso.cmp(&a.started_at_iso));
+        if chats.len() > 3 {
+            chats.truncate(3);
+        }
         Ok(chats)
     }
     
