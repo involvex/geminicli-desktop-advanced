@@ -5,7 +5,7 @@ use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader as AsyncBufReader};
-use tokio::process::{ChildStdin, ChildStdout, Command};
+use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 use tokio::sync::mpsc;
 use sha2::{Sha256, Digest};
 use std::fs::{self, File, OpenOptions};
@@ -589,6 +589,7 @@ pub struct PersistentSession {
     pub stdin: Option<ChildStdin>,
     pub message_sender: Option<mpsc::UnboundedSender<String>>,
     pub rpc_logger: Arc<dyn RpcLogger>,
+    pub child: Option<Child>,
 }
 
 /// Public process status (serializable for external use)
@@ -681,7 +682,10 @@ impl SessionManager {
             .map_err(|_| BackendError::SessionInitFailed("Failed to lock processes".to_string()))?;
 
         if let Some(session) = processes.get_mut(conversation_id) {
-            if let Some(pid) = session.pid {
+            // Prefer graceful kill via stored Child handle.
+            if let Some(mut child) = session.child.take() {
+                let _ = child.kill();
+            } else if let Some(pid) = session.pid {
                 // Kill the process
                 #[cfg(windows)]
                 {
@@ -921,6 +925,7 @@ pub async fn initialize_session<E: EventEmitter + 'static>(
                 stdin: Some(stdin),
                 message_sender: Some(message_tx.clone()),
                 rpc_logger: rpc_logger.clone(),
+                child: Some(child),
             },
         );
     }
@@ -1480,11 +1485,76 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         self.emitter.emit("command-result", result.clone())
     }
 
+    /// Extract chat data from log file.
+    fn extract_chat_data(log_path: Option<std::path::PathBuf>) -> (u32, Option<String>) {
+        use std::io::BufRead;
+        
+        let log_path = match log_path {
+            Some(path) => path,
+            None => return (0, None),
+        };
+        
+        let file = match std::fs::File::open(&log_path) {
+            Ok(file) => file,
+            Err(_) => return (0, None),
+        };
+        
+        let reader = std::io::BufReader::new(file);
+        let mut message_count: u32 = 0;
+        let mut first_user_text = None;
+        
+        for line in reader.lines().filter_map(|l| l.ok()) {
+            let json_str = match line.find('{') {
+                Some(idx) => &line[idx..],
+                None => continue,
+            };
+            
+            let req: JsonRpcRequest = match serde_json::from_str(json_str) {
+                Ok(req) => req,
+                Err(_) => continue,
+            };
+            
+            if req.method == "sendUserMessage" {
+                message_count = message_count.saturating_add(1);
+                
+                if first_user_text.is_none() {
+                    first_user_text = Self::extract_first_user_text(req.params);
+                }
+            }
+        }
+        
+        (message_count, first_user_text)
+    }
+    
+    /// Extract first user text from message parameters.
+    fn extract_first_user_text(params: serde_json::Value) -> Option<String> {
+        let params: SendUserMessageParams = serde_json::from_value(params).ok()?;
+        
+        let combined = params.chunks
+            .into_iter()
+            .filter_map(|ch| match ch {
+                MessageChunk::Text { text } => Some(text),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        
+        if combined.is_empty() {
+            return None;
+        }
+        
+        let words: Vec<&str> = combined.split_whitespace().take(6).collect();
+        if words.is_empty() {
+            None
+        } else {
+            Some(words.join(" "))
+        }
+    }
+
     /// Return recent chats by scanning persisted RPC logs under ~/.gemini-desktop/projects.
     pub async fn get_recent_chats(&self) -> BackendResult<Vec<RecentChat>> {
         use std::ffi::OsStr;
         use std::time::{SystemTime, UNIX_EPOCH};
-        use std::io::BufRead;
 
         let home = std::env::var("HOME").unwrap_or_else(|_| {
             std::env::var("USERPROFILE").unwrap_or_else(|_| "".to_string())
@@ -1551,45 +1621,7 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
             log_files.sort();
             let candidate = log_files.last().cloned();
 
-            let mut message_count: u32 = 0;
-            let mut first_user_text: Option<String> = None;
-
-            if let Some(log_path) = candidate {
-                if let Ok(file) = std::fs::File::open(&log_path) {
-                    let reader = std::io::BufReader::new(file);
-                    for line_result in reader.lines() {
-                        if let Ok(line) = line_result {
-                            if let Some(idx) = line.find('{') {
-                                let json_str = &line[idx..];
-                                if let Ok(req) = serde_json::from_str::<JsonRpcRequest>(json_str) {
-                                    if req.method == "sendUserMessage" {
-                                        message_count = message_count.saturating_add(1);
-                                        if first_user_text.is_none() {
-                                            if let Ok(params) = serde_json::from_value::<SendUserMessageParams>(req.params) {
-                                                let mut combined = String::new();
-                                                for ch in params.chunks {
-                                                    if let MessageChunk::Text { text } = ch {
-                                                        if !combined.is_empty() {
-                                                            combined.push(' ');
-                                                        }
-                                                        combined.push_str(&text);
-                                                    }
-                                                }
-                                                if !combined.is_empty() {
-                                                    let words: Vec<&str> = combined.split_whitespace().take(6).collect();
-                                                    if !words.is_empty() {
-                                                        first_user_text = Some(words.join(" "));
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            let (message_count, first_user_text) = Self::extract_chat_data(candidate);
 
             let started_time = earliest.unwrap_or_else(|| SystemTime::now());
             let started_secs = started_time.duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
@@ -1648,6 +1680,18 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         working_directory: String,
         model: String,
     ) -> BackendResult<()> {
+        // If a session already exists and is alive, reuse it.
+        {
+            let processes = self.session_manager.get_processes();
+            if let Ok(guard) = processes.lock() {
+                if let Some(existing) = guard.get(&session_id) {
+                    if existing.is_alive {
+                        return Ok(());
+                    }
+                }
+            }
+        }
+
         let (_message_tx, _rpc_logger) = initialize_session(
             session_id,
             working_directory,
@@ -1682,9 +1726,8 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         let message_sender = if let Some(sender) = message_sender {
             sender
         } else {
-            // Initialize new session - ERROR: we need working directory!
             return Err(BackendError::SessionInitFailed(
-                "Cannot initialize session without working directory for RPC logging".to_string()
+                "Session not initialized. Call initialize_session with a working directory to start a persistent Gemini process.".to_string()
             ));
         };
 

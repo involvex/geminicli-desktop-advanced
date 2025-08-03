@@ -312,15 +312,16 @@ async fn start_session(request: Json<StartSessionRequest>, state: &State<AppStat
 async fn send_message(request: Json<SendMessageRequest>, state: &State<AppState>) -> Status {
     let req = request.into_inner();
 
-    // Initialize session if model is provided
-    if let Some(model_name) = req.model {
+    // Always ensure a persistent session exists when a working directory is specified.
+    // If a model is provided, use it; otherwise default to gemini-2.5-flash.
+    if !req.working_directory.is_empty() {
+        let model_to_use = req.model.unwrap_or_else(|| "gemini-2.5-flash".to_string());
         let backend = state.backend.lock().await;
-        match backend
-            .initialize_session(req.session_id.clone(), req.working_directory.clone(), model_name)
+        if let Err(_) = backend
+            .initialize_session(req.session_id.clone(), req.working_directory.clone(), model_to_use)
             .await
         {
-            Ok(_) => {}
-            Err(_) => return Status::InternalServerError,
+            return Status::InternalServerError;
         }
     }
 
