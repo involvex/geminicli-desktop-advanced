@@ -16,7 +16,7 @@ use std::sync::{
 use tokio::sync::{Mutex, mpsc as tokio_mpsc};
 
 // Import backend functionality
-use backend::{DirEntry, EventEmitter, GeminiBackend, ProcessStatus};
+use backend::{DirEntry, EventEmitter, GeminiBackend, ProcessStatus, RecentChat};
 
 static FRONTEND_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../frontend/dist");
 
@@ -270,8 +270,17 @@ fn index(path: PathBuf) -> Result<(ContentType, &'static [u8]), Status> {
 }
 
 // =====================================
-// Backend API Routes
-// =====================================
+ // Backend API Routes
+ // =====================================
+
+ #[get("/recent-chats")]
+ async fn get_recent_chats(state: &State<AppState>) -> Result<Json<Vec<RecentChat>>, Status> {
+     let backend = state.backend.lock().await;
+     match backend.get_recent_chats().await {
+         Ok(chats) => Ok(Json(chats)),
+         Err(_) => Err(Status::InternalServerError),
+     }
+ }
 
 #[get("/check-cli-installed")]
 async fn check_cli_installed(state: &State<AppState>) -> Result<Json<bool>, Status> {
@@ -546,7 +555,8 @@ fn rocket() -> _ {
             get_home_directory,
             get_parent_directory,
             list_directory_contents,
-            list_volumes
+            list_volumes,
+            get_recent_chats
         ],
     )
 }

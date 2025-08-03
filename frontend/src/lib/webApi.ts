@@ -178,7 +178,20 @@ export const webApi = {
     const response = await apiClient.get<DirEntry[]>('/list-volumes');
     return response.data;
   },
+
+  // Fetch recent chats for web mode via REST endpoint
+  async get_recent_chats(): Promise<RecentChat[]> {
+    const response = await apiClient.get<RecentChat[]>('/recent-chats');
+    return response.data;
+  },
 };
+
+export interface RecentChat {
+  id: string;
+  title: string;
+  started_at_iso: string;
+  message_count: number;
+}
 
 // WebSocket event types and management
 interface WebSocketEvent<T = any> {

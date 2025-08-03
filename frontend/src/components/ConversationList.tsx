@@ -58,7 +58,7 @@ interface ConversationListProps {
   conversations: Conversation[];
   activeConversation: string | null;
   processStatuses: ProcessStatus[];
-  onConversationSelect: (conversationId: string) => Promise<void>;
+  onConversationSelect: (conversationId: string) => void;
   onKillProcess: (conversationId: string) => void;
   onWorkingDirectoryChange?: (directory: string, isValid: boolean) => void;
   onModelChange?: (model: string) => void;

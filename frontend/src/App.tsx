@@ -31,6 +31,7 @@ import {
 import "./index.css";
 import { GeminiLogoCenter } from "./components/GeminiLogoCenter";
 import { ToolCallDisplay } from "./components/ToolCallDisplay";
+import RecentChats from "./components/RecentChats";
 
 interface ThinkingMessagePart {
   type: "thinking";
@@ -1041,6 +1042,7 @@ function App() {
               <p className="text-muted-foreground">
                 Start a new conversation to begin chatting with Gemini.
               </p>
+              <RecentChats />
             </div>
           )}
 

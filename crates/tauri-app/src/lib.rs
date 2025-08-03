@@ -7,7 +7,7 @@ use tokio::sync::Mutex;
 // Import backend functionality
 use backend::{
     EventEmitter, GeminiBackend,
-    ProcessStatus, DirEntry
+    ProcessStatus, DirEntry, RecentChat
 };
 
 // =====================================
@@ -42,6 +42,8 @@ impl EventEmitter for TauriEventEmitter {
 struct AppState {
     backend: Arc<Mutex<GeminiBackend<TauriEventEmitter>>>,
 }
+
+
 
 // =====================================
 // Tauri Commands (Thin Wrappers)
@@ -204,6 +206,12 @@ async fn list_volumes(state: State<'_, AppState>) -> Result<Vec<DirEntry>, Strin
 }
 
 #[tauri::command]
+async fn get_recent_chats(state: State<'_, AppState>) -> Result<Vec<RecentChat>, String> {
+    let backend = state.backend.lock().await;
+    backend.get_recent_chats().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 async fn debug_environment() -> Result<String, String> {
     let path = std::env::var("PATH").unwrap_or_else(|_| "PATH not found".to_string());
     let home = std::env::var("HOME").unwrap_or_else(|_| {
@@ -315,7 +323,8 @@ pub fn run() {
             get_parent_directory,
             list_directory_contents,
             list_volumes,
-            debug_environment
+            debug_environment,
+            get_recent_chats
         ]);
 
     builder

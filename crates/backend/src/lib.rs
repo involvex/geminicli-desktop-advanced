@@ -639,6 +639,15 @@ impl From<&PersistentSession> for ProcessStatus {
 /// Type alias for the process map
 pub type ProcessMap = Arc<Mutex<HashMap<String, PersistentSession>>>;
 
+/// Recent chat summary returned to the web client
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecentChat {
+    pub id: String,
+    pub title: String,
+    pub started_at_iso: String,
+    pub message_count: u32,
+}
+
 /// Session manager that handles all active CLI sessions
 pub struct SessionManager {
     processes: ProcessMap,
@@ -1471,6 +1480,146 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         self.emitter.emit("command-result", result.clone())
     }
 
+    /// Return recent chats by scanning persisted RPC logs under ~/.gemini-desktop/projects.
+    pub async fn get_recent_chats(&self) -> BackendResult<Vec<RecentChat>> {
+        use std::ffi::OsStr;
+        use std::time::{SystemTime, UNIX_EPOCH};
+        use std::io::BufRead;
+
+        let home = std::env::var("HOME").unwrap_or_else(|_| {
+            std::env::var("USERPROFILE").unwrap_or_else(|_| "".to_string())
+        });
+        if home.is_empty() {
+            return Err(BackendError::SessionInitFailed("Could not determine home directory".to_string()));
+        }
+        let projects_dir = std::path::Path::new(&home).join(".gemini-desktop").join("projects");
+        if !projects_dir.exists() || !projects_dir.is_dir() {
+            return Ok(vec![]);
+        }
+
+        let mut chats: Vec<RecentChat> = Vec::new();
+        let entries = match std::fs::read_dir(&projects_dir) {
+            Ok(e) => e,
+            Err(e) => return Err(BackendError::IoError(e)),
+        };
+
+        for entry in entries {
+            let entry = match entry {
+                Ok(e) => e,
+                Err(_) => continue, // Skip unreadable entries but continue processing
+            };
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            let project_hash = match path.file_name().and_then(OsStr::to_str) {
+                Some(s) => s.to_string(),
+                None => continue,
+            };
+
+            let mut log_files: Vec<std::path::PathBuf> = Vec::new();
+            if let Ok(logs) = std::fs::read_dir(&path) {
+                for log_entry in logs {
+                    let log_entry = match log_entry {
+                        Ok(e) => e,
+                        Err(_) => continue, // Skip unreadable log entries
+                    };
+                    let lp = log_entry.path();
+                    if let Some(name) = lp.file_name().and_then(OsStr::to_str) {
+                        if name.starts_with("rpc-log-") && name.ends_with(".log") {
+                            log_files.push(lp);
+                        }
+                    }
+                }
+            }
+            if log_files.is_empty() {
+                continue;
+            }
+
+            let mut earliest: Option<SystemTime> = None;
+            for lf in &log_files {
+                if let Ok(md) = std::fs::metadata(lf) {
+                    if let Ok(modified) = md.modified() {
+                        earliest = Some(match earliest {
+                            Some(curr) => if modified < curr { modified } else { curr },
+                            None => modified,
+                        });
+                    }
+                }
+            }
+
+            log_files.sort();
+            let candidate = log_files.last().cloned();
+
+            let mut message_count: u32 = 0;
+            let mut first_user_text: Option<String> = None;
+
+            if let Some(log_path) = candidate {
+                if let Ok(file) = std::fs::File::open(&log_path) {
+                    let reader = std::io::BufReader::new(file);
+                    for line_result in reader.lines() {
+                        if let Ok(line) = line_result {
+                            if let Some(idx) = line.find('{') {
+                                let json_str = &line[idx..];
+                                if let Ok(req) = serde_json::from_str::<JsonRpcRequest>(json_str) {
+                                    if req.method == "sendUserMessage" {
+                                        message_count = message_count.saturating_add(1);
+                                        if first_user_text.is_none() {
+                                            if let Ok(params) = serde_json::from_value::<SendUserMessageParams>(req.params) {
+                                                let mut combined = String::new();
+                                                for ch in params.chunks {
+                                                    if let MessageChunk::Text { text } = ch {
+                                                        if !combined.is_empty() {
+                                                            combined.push(' ');
+                                                        }
+                                                        combined.push_str(&text);
+                                                    }
+                                                }
+                                                if !combined.is_empty() {
+                                                    let words: Vec<&str> = combined.split_whitespace().take(6).collect();
+                                                    if !words.is_empty() {
+                                                        first_user_text = Some(words.join(" "));
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            let started_time = earliest.unwrap_or_else(|| SystemTime::now());
+            let started_secs = started_time.duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+            let started_iso = chrono::DateTime::<chrono::Utc>::from(UNIX_EPOCH + std::time::Duration::from_secs(started_secs))
+                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+
+            let title = if let Some(t) = first_user_text.clone() {
+                let t = t.trim();
+                if t.is_empty() {
+                    format!("Conversation {}", &project_hash.chars().take(6).collect::<String>())
+                } else {
+                    if t.len() > 50 { format!("{}…", &t[..50]) } else { t.to_string() }
+                }
+            } else {
+                format!("Conversation {}", &project_hash.chars().take(6).collect::<String>())
+            };
+
+            chats.push(RecentChat {
+                id: project_hash,
+                title,
+                started_at_iso: started_iso,
+                message_count,
+            });
+        }
+
+        chats.sort_by(|a, b| b.started_at_iso.cmp(&a.started_at_iso));
+        Ok(chats)
+    }
+    
+
     /// Check if Gemini CLI is installed and available
     pub async fn check_cli_installed(&self) -> BackendResult<bool> {
         // Test if gemini command is available via shell
@@ -1992,9 +2141,4 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
 
         Ok(entries)
     }
-}
-
-// Placeholder for testing - will be removed
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
 }
