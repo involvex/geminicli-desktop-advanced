@@ -857,7 +857,7 @@ function App() {
               {/* Left section - Gemini Desktop Logo */}
               <div className="flex flex-1 items-center gap-1">
                 <GeminiLogo />
-                <span className="text-lg font-medium bg-gradient-to-r from-[#3186ff] via-[#346bf1] to-[#4fa0ff] bg-clip-text text-transparent">
+                <span className="text-lg font-medium gradient-text-desktop">
                   Desktop
                 </span>
               </div>
@@ -1069,7 +1069,7 @@ function App() {
             <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
               <div className="flex flex-row items-center mb-4 gap-2">
                 <GeminiLogoCenter />
-                <span className="text-4xl font-medium bg-gradient-to-r from-[#3186ff] via-[#346bf1] to-[#4fa0ff] bg-clip-text text-transparent">
+                <span className="text-4xl font-medium gradient-text-desktop">
                   Desktop
                 </span>
               </div>

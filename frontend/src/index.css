@@ -133,4 +133,12 @@
   .font-geist-mono {
     font-family: var(--font-family-geist-mono);
   }
+  
+  .gradient-text-desktop {
+    background: linear-gradient(to right, #3186ff, #346bf1, #4fa0ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
 }
