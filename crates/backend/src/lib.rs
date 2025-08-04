@@ -1560,7 +1560,17 @@ fn analyze_log_file(
     )
 }
 
-/// Enumerate projects and return a paginated ProjectsResponse.
+fn parse_millis_from_log_name(name: &str) -> Option<u64> {
+    // Accept rpc-log-<millis>.log or .json
+    if !name.starts_with("rpc-log-") {
+        return None;
+    }
+    let rest = name.strip_prefix("rpc-log-")?;
+    let ts_part = rest.strip_suffix(".log").or_else(|| rest.strip_suffix(".json"))?;
+    ts_part.parse::<u64>().ok()
+}
+
+/// Enumerate projects and return a paginated ProjectsResponse (fast path).
 pub fn list_projects(limit: u32, offset: u32) -> BackendResult<ProjectsResponse> {
     let Some(root) = home_projects_root() else {
         return Ok(ProjectsResponse {
@@ -1603,72 +1613,88 @@ pub fn list_projects(limit: u32, offset: u32) -> BackendResult<ProjectsResponse>
     let end = std::cmp::min(start + limit as usize, all_ids.len());
     let page_ids = &all_ids[start..end];
 
-    // Build items
+    // Build items (lightweight)
     let mut items: Vec<ProjectListItem> = Vec::new();
     for id in page_ids {
         let proj_path = root.join(id);
 
-        // enumerate rpc-log-*.log or *.json files
-        let mut logs: Vec<PathBuf> = Vec::new();
+        // Enumerate only filenames to compute counts and timestamps. Do not open files.
+        let mut log_count: u32 = 0;
+        let mut earliest_ts_millis: Option<u64> = None;
+        let mut latest_ts_millis: Option<u64> = None;
+        let mut latest_mtime_secs: Option<u64> = None;
+
         if let Ok(rd) = fs::read_dir(&proj_path) {
             for e in rd.flatten() {
                 let p = e.path();
-                if let Some(fname) = p.file_name().and_then(|s| s.to_str()) {
-                    if fname.starts_with("rpc-log-")
-                        && (fname.ends_with(".log") || fname.ends_with(".json"))
-                    {
-                        logs.push(p);
+                let fname_opt = p.file_name().and_then(|s| s.to_str());
+                if let Some(fname) = fname_opt {
+                    if fname.starts_with("rpc-log-") && (fname.ends_with(".log") || fname.ends_with(".json")) {
+                        log_count = log_count.saturating_add(1);
+
+                        // Prefer timestamp embedded in filename for created/updated derivation
+                        if let Some(millis) = parse_millis_from_log_name(fname) {
+                            earliest_ts_millis = match earliest_ts_millis {
+                                Some(cur) => Some(cur.min(millis)),
+                                None => Some(millis),
+                            };
+                            latest_ts_millis = match latest_ts_millis {
+                                Some(cur) => Some(cur.max(millis)),
+                                None => Some(millis),
+                            };
+                        }
+
+                        // Also track latest mtime as fallback for lastActivity
+                        if let Ok(md) = e.metadata() {
+                            if let Ok(modified) = md.modified() {
+                                if let Ok(dur) = modified.duration_since(std::time::UNIX_EPOCH) {
+                                    let secs = dur.as_secs();
+                                    latest_mtime_secs = Some(latest_mtime_secs.map_or(secs, |cur| cur.max(secs)));
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
-        logs.sort(); // name sort; adequate for picking "latest" by name if timestamp is embedded
 
-        let log_count = logs.len() as u32;
-        let mut created: Option<String> = None;
-        let mut updated: Option<String> = None;
-        let mut title: Option<String> = None;
-        let mut status = "unknown".to_string();
-        let mut any_activity = false;
-        let mut any_error = false;
+        // Compute created/updated/lastActivity as ISO strings
+        let created_at_iso: Option<String> = earliest_ts_millis.map(|ms| {
+            // millis -> seconds
+            let secs = ms / 1000;
+            chrono::DateTime::<chrono::Utc>::from(std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs))
+                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+        });
 
-        for log in logs.iter() {
-            let (u, a, t, latest_user_title, earliest_iso, latest_iso, parse_err) =
-                analyze_log_file(log);
-            if earliest_iso.is_some() && created.is_none() {
-                created = earliest_iso.clone();
-            }
-            if let Some(li) = latest_iso {
-                updated = Some(li);
-            }
-            if let Some(ti) = latest_user_title {
-                title = Some(ti);
-            }
-            if u + a + t > 0 {
-                any_activity = true;
-            }
-            if parse_err {
-                any_error = true;
-            }
-        }
+        let updated_at_iso_from_name: Option<String> = latest_ts_millis.map(|ms| {
+            let secs = ms / 1000;
+            chrono::DateTime::<chrono::Utc>::from(std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs))
+                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+        });
 
-        let last_activity = updated.clone();
+        let last_activity_iso_from_mtime: Option<String> = latest_mtime_secs.map(|secs| {
+            chrono::DateTime::<chrono::Utc>::from(std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs))
+                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+        });
 
-        if any_error {
-            status = "error".to_string();
-        } else if any_activity {
-            status = "active".to_string();
-        } else {
-            status = "unknown".to_string();
-        }
+        // Prefer filename-derived updatedAt; fallback to mtime-derived last activity
+        let updated_at_iso = updated_at_iso_from_name.clone().or_else(|| last_activity_iso_from_mtime.clone());
+        let last_activity_iso = updated_at_iso_from_name.or(last_activity_iso_from_mtime);
+
+        // Title: avoid opening files. Provide None to keep fast path.
+        // Frontend renders gracefully without title.
+        let title: Option<String> = None;
+
+        // Status: "active" if there is any log; otherwise "unknown"
+        let status = if log_count > 0 { "active".to_string() } else { "unknown".to_string() };
 
         items.push(ProjectListItem {
             id: id.clone(),
             title,
             status: Some(status),
-            created_at: created,
-            updated_at: updated.clone(),
-            last_activity_at: last_activity,
+            created_at: created_at_iso,
+            updated_at: updated_at_iso.clone(),
+            last_activity_at: last_activity_iso,
             log_count: Some(log_count),
         });
     }
@@ -2304,6 +2330,98 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         // Cap limit to max 100 and at least 1
         let lim = std::cmp::min(limit.max(1), 100);
         list_projects(lim, offset)
+    }
+
+    /// Get discussions (conversations) for a specific project
+    pub async fn get_project_discussions(&self, project_id: &str) -> BackendResult<Vec<RecentChat>> {
+        use std::ffi::OsStr;
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        // Resolve projects root
+        let home = std::env::var("HOME")
+            .unwrap_or_else(|_| std::env::var("USERPROFILE").unwrap_or_else(|_| "".to_string()));
+        if home.is_empty() {
+            return Err(BackendError::SessionInitFailed(
+                "Could not determine home directory".to_string(),
+            ));
+        }
+        let project_path = std::path::Path::new(&home)
+            .join(".gemini-desktop")
+            .join("projects")
+            .join(project_id);
+        
+        if !project_path.exists() || !project_path.is_dir() {
+            return Ok(vec![]);
+        }
+
+        let mut discussions: Vec<RecentChat> = Vec::new();
+
+        // Enumerate rpc-log-*.log files in this project folder
+        let logs_iter = match std::fs::read_dir(&project_path) {
+            Ok(l) => l,
+            Err(_) => return Ok(vec![]),
+        };
+
+        for log_entry in logs_iter {
+            let log_entry = match log_entry {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+            let log_path = log_entry.path();
+            let Some(name) = log_path.file_name().and_then(OsStr::to_str) else {
+                continue;
+            };
+
+            // Select only files named rpc-log-*.log
+            if !(name.starts_with("rpc-log-") && name.ends_with(".log")) {
+                continue;
+            }
+
+            // Extract timestamp from filename for started_at_iso
+            let timestamp_str = name
+                .strip_prefix("rpc-log-")
+                .and_then(|s| s.strip_suffix(".log"))
+                .unwrap_or("0");
+            
+            let timestamp_millis = timestamp_str.parse::<u64>().unwrap_or(0);
+            let started_secs = timestamp_millis / 1000;
+            let started_iso = chrono::DateTime::<chrono::Utc>::from(
+                UNIX_EPOCH + std::time::Duration::from_secs(started_secs),
+            )
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+
+            // Extract message_count and first user text from this specific log file
+            let (message_count, first_user_text) = Self::extract_chat_data(Some(log_path.clone()));
+
+            // Generate title from first user message or use default
+            let title = if let Some(t) = first_user_text.clone() {
+                let t = t.trim();
+                if t.is_empty() {
+                    format!("Conversation {}", &name[8..14]) // Use part of timestamp
+                } else if t.len() > 50 {
+                    format!("{}…", &t[..50])
+                } else {
+                    t.to_string()
+                }
+            } else {
+                format!("Conversation {}", &name[8..14]) // Use part of timestamp
+            };
+
+            // Per-log unique id: "{project_id}:{file_name}"
+            let id = format!("{}:{}", project_id, name);
+
+            discussions.push(RecentChat {
+                id,
+                title,
+                started_at_iso: started_iso,
+                message_count,
+            });
+        }
+
+        // Sort by timestamp descending (newest first)
+        discussions.sort_by(|a, b| b.started_at_iso.cmp(&a.started_at_iso));
+
+        Ok(discussions)
     }
 
     /// Get the user's home directory path

@@ -213,11 +213,25 @@ async fn get_recent_chats(state: State<'_, AppState>) -> Result<Vec<RecentChat>,
 }
 
 #[tauri::command]
-async fn get_projects(limit: Option<u32>, offset: Option<u32>, state: State<'_, AppState>) -> Result<ProjectsResponse, String> {
+async fn list_projects(limit: Option<u32>, offset: Option<u32>, state: State<'_, AppState>) -> Result<ProjectsResponse, String> {
+    // log and count secs
+    println!("list_projects");
+    let start = std::time::Instant::now();
     let backend = state.backend.lock().await;
+    let mut elapsed = start.elapsed().as_secs_f64();
+    println!("lock took {} secs", elapsed);
     let lim = limit.unwrap_or(25);
     let off = offset.unwrap_or(0);
-    backend.list_projects(lim, off).await.map_err(|e| e.to_string())
+    let resp = backend.list_projects(lim, off).await.map_err(|e| e.to_string())?;
+    elapsed = start.elapsed().as_secs_f64();
+    println!("list_projects took total {} secs", elapsed);
+    Ok(resp)
+}
+
+#[tauri::command]
+async fn get_project_discussions(projectId: String, state: State<'_, AppState>) -> Result<Vec<RecentChat>, String> {
+    let backend = state.backend.lock().await;
+    backend.get_project_discussions(&projectId).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -334,7 +348,8 @@ pub fn run() {
             list_volumes,
             debug_environment,
             get_recent_chats,
-            get_projects
+            list_projects,
+            get_project_discussions
         ]);
 
     builder

@@ -184,6 +184,18 @@ export const webApi = {
     const response = await apiClient.get<RecentChat[]>('/recent-chats');
     return response.data;
   },
+
+  async list_projects(params?: { limit?: number; offset?: number }): Promise<ProjectsResponse> {
+    const limit = params?.limit ?? 25;
+    const offset = params?.offset ?? 0;
+    const response = await apiClient.get<ProjectsResponse>('/projects', { params: { limit, offset } });
+    return response.data;
+  },
+
+  async get_project_discussions(project_id: string): Promise<{ id: string; title: string; started_at_iso?: string; message_count?: number }[]> {
+    const response = await apiClient.get<{ id: string; title: string; started_at_iso?: string; message_count?: number }[]>('/projects/' + project_id + '/discussions');
+    return response.data;
+  },
 };
 
 export interface RecentChat {
@@ -210,52 +222,45 @@ export interface ProjectsResponse {
   offset: number;
 }
 
-export async function list_projects(params?: { limit?: number; offset?: number }): Promise<ProjectsResponse> {
-  const limit = params?.limit ?? 25;
-  const offset = params?.offset ?? 0;
+// export async function list_projects(params?: { limit?: number; offset?: number }): Promise<ProjectsResponse> {
+//   const limit = params?.limit ?? 25;
+//   const offset = params?.offset ?? 0;
 
-  // If running in web mode, use REST API
-  if ((globalThis as any).__WEB__) {
-    const response = await apiClient.get<ProjectsResponse>('/projects', { params: { limit, offset } });
-    return response.data;
-  }
+//   // If running in web mode, use REST API
+//   if (__WEB__) {
+//     const response = await apiClient.get<ProjectsResponse>('/projects', { params: { limit, offset } });
+//     return response.data;
+//   }
 
-  // Otherwise, use Tauri native invoke (desktop mode)
-  const { invoke } = (await import('@tauri-apps/api/core')) as any;
-  const resp = await invoke<ProjectsResponse>('get_projects', { limit, offset });
-  return resp;
-}
+//   // Otherwise, use Tauri native invoke (desktop mode)
+//   const { invoke } = (await import('@tauri-apps/api/core')) as any;
+//   const resp = await invoke<ProjectsResponse>('list_projects', { limit, offset });
+//   return resp;
+// }
 
 /**
- * Temporary stub for Step 5: get project discussions.
- * Returns 4–8 mock discussions for the given projectId.
- * Remove/replace with real backend integration in a later step.
+ * Get project discussions (conversations) for a specific project.
+ * Each RPC log file in the project directory represents a discussion/conversation.
  */
-export async function get_project_discussions(
-  projectId: string
-): Promise<{ id: string; title: string; started_at_iso?: string; message_count?: number }[]> {
-  // Temporary stub for Step 5: returns mock discussions keyed by projectId
-  const count = 6;
-  const now = Date.now();
-  const items: { id: string; title: string; started_at_iso?: string; message_count?: number }[] =
-    Array.from({ length: count }).map((_, i) => {
-      const started = new Date(now - i * 5 * 60_000); // every 5 min
-      const id = `${projectId.slice(0, 8)}-disc-${i + 1}`;
-      const title = `Discussion ${i + 1} for ${projectId.slice(0, 6)}…`;
-      const base = {
-        id,
-        title,
-      } as { id: string; title: string; started_at_iso?: string; message_count?: number };
-      if (i !== 0) {
-        base.started_at_iso = started.toISOString();
-      }
-      if (i !== 1) {
-        base.message_count = 3 + (i % 5);
-      }
-      return base;
-    });
-  return items;
-}
+// export async function get_project_discussions(
+//   projectId: string
+// ): Promise<{ id: string; title: string; started_at_iso?: string; message_count?: number }[]> {
+//   // If running in web mode, use REST API
+//   if ((globalThis as any).__WEB__) {
+//     const response = await apiClient.get<{ id: string; title: string; started_at_iso?: string; message_count?: number }[]>(
+//       `/projects/${projectId}/discussions`
+//     );
+//     return response.data;
+//   }
+
+//   // Otherwise, use Tauri native invoke (desktop mode)
+//   const { invoke } = (await import('@tauri-apps/api/core')) as any;
+//   const resp = await invoke<{ id: string; title: string; started_at_iso?: string; message_count?: number }[]>(
+//     'get_project_discussions', 
+//     { projectId }
+//   );
+//   return resp;
+// }
 
 // WebSocket event types and management
 interface WebSocketEvent<T = any> {

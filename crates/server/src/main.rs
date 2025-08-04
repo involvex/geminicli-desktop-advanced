@@ -274,7 +274,7 @@ fn index(path: PathBuf) -> Result<(ContentType, &'static [u8]), Status> {
 // =====================================
 
 #[get("/projects?<limit>&<offset>")]
-async fn get_projects(
+async fn list_projects(
     limit: Option<u32>,
     offset: Option<u32>,
     state: &State<AppState>
@@ -287,6 +287,18 @@ async fn get_projects(
             let v = serde_json::to_value(resp).map_err(|_e| Status::InternalServerError).unwrap();
             Ok(Json(v))
         }
+        Err(_e) => Err(Status::InternalServerError),
+    }
+}
+
+#[get("/projects/<project_id>/discussions")]
+async fn get_project_discussions(
+    project_id: &str,
+    state: &State<AppState>
+) -> Result<Json<Vec<RecentChat>>, Status> {
+    let backend = state.backend.lock().await;
+    match backend.get_project_discussions(project_id).await {
+        Ok(discussions) => Ok(Json(discussions)),
         Err(_e) => Err(Status::InternalServerError),
     }
 }
@@ -576,7 +588,8 @@ fn rocket() -> _ {
             list_directory_contents,
             list_volumes,
             get_recent_chats,
-            get_projects,
+            list_projects,
+            get_project_discussions,
         ],
     )
 }

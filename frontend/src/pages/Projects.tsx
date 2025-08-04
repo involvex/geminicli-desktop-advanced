@@ -1,7 +1,8 @@
 import React from "react";
 import { Card } from "../components/ui/card";
-import { list_projects, ProjectListItem } from "../lib/webApi";
+import { api } from "../App";
 import { ArrowLeft } from "lucide-react";
+import { ProjectListItem, ProjectsResponse } from "../lib/webApi";
 
 type Project = ProjectListItem;
 
@@ -20,7 +21,7 @@ export default function ProjectsPage() {
     let cancelled = false;
     (async () => {
       try {
-        const resp = await list_projects({ limit, offset });
+        const resp = await api.invoke<ProjectsResponse>("list_projects", { limit, offset });
         if (!cancelled) setProjects(resp.items);
       } catch (e) {
         if (!cancelled) setError("Failed to load projects.");

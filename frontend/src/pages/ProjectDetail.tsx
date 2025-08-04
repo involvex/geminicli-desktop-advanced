@@ -1,6 +1,6 @@
 import React from "react";
 import { Card } from "../components/ui/card";
-import { get_project_discussions } from "../lib/webApi";
+import { api } from "../App";
 import { ArrowLeft } from "lucide-react";
 
 type Discussion = {
@@ -27,7 +27,10 @@ export default function ProjectDetailPage({ projectId }: { projectId: string }) 
     let cancelled = false;
     (async () => {
       try {
-        const data = await get_project_discussions(projectId);
+        const data = await api.invoke<{ id: string; title: string; started_at_iso?: string; message_count?: number }[]>(
+          "get_project_discussions",
+          { projectId }
+        );
         if (!cancelled) setDiscussions(data);
       } catch (e) {
         if (!cancelled) setError("Failed to load discussions.");

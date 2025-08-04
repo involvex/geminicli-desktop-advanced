@@ -35,6 +35,7 @@ import { Card, CardHeader, CardTitle, CardDescription } from "./components/ui/ca
 import { GeminiIcon } from "./components/GeminiIcon";
 import ProjectsPage from "./pages/Projects";
 import ProjectDetailPage from "./pages/ProjectDetail";
+import { PageLayout } from "./components/PageLayout";
 
 interface ThinkingMessagePart {
   type: "thinking";
@@ -141,7 +142,7 @@ declare global {
 }
 
 // Abstraction layer for API calls
-const api = {
+export const api = {
   async invoke<T>(command: string, args?: any): Promise<T> {
     if (__WEB__) {
       switch (command) {
@@ -165,6 +166,10 @@ const api = {
           return webApi.validate_directory(args) as Promise<T>;
         case "is_home_directory":
           return webApi.is_home_directory(args) as Promise<T>;
+        case "list_projects":
+          return webApi.list_projects(args) as Promise<T>;
+        case "get_project_discussions":
+          return webApi.get_project_discussions(args) as Promise<T>;
         default:
           throw new Error(`Unknown command: ${command}`);
       }
@@ -810,32 +815,9 @@ function App() {
     if (projectId.length > 0) {
       return (
         <div className="flex h-screen w-full overflow-hidden">
-          <div className="flex flex-col flex-1 min-w-0">
-            {/* Top Header */}
-            <div className="border-b border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex-shrink-0">
-              <div className="px-6 py-4">
-                <div className="flex items-center w-full">
-                  {/* Left section - Gemini Desktop Logo */}
-                  <div className="flex flex-1 items-center gap-1">
-                    <GeminiLogo />
-                    <span className="text-lg font-medium bg-gradient-to-r from-[#3186ff] via-[#346bf1] to-[#4fa0ff] bg-clip-text text-transparent">
-                      Desktop
-                    </span>
-                  </div>
-
-                  {/* Right section - Piebald branding */}
-                  <div className="flex flex-1 flex-col items-end text-xs text-neutral-400">
-                    <p>From the creators of</p> <PiebaldLogo />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Main Content */}
-            <div className="flex-1 flex flex-col bg-background min-h-0">
-              <ProjectDetailPage projectId={projectId} />
-            </div>
-          </div>
+          <PageLayout>
+            <ProjectDetailPage projectId={projectId} />
+          </PageLayout>
         </div>
       );
     }
@@ -845,32 +827,9 @@ function App() {
   if (window.location.pathname === "/projects") {
     return (
       <div className="flex h-screen w-full overflow-hidden">
-        <div className="flex flex-col flex-1 min-w-0">
-          {/* Top Header */}
-          <div className="border-b border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex-shrink-0">
-            <div className="px-6 py-4">
-              <div className="flex items-center w-full">
-                {/* Left section - Gemini Desktop Logo */}
-                <div className="flex flex-1 items-center gap-1">
-                  <GeminiLogo />
-                  <span className="text-lg font-medium bg-gradient-to-r from-[#3186ff] via-[#346bf1] to-[#4fa0ff] bg-clip-text text-transparent">
-                    Desktop
-                  </span>
-                </div>
-
-                {/* Right section - Piebald branding */}
-                <div className="flex flex-1 flex-col items-end text-xs text-neutral-400">
-                  <p>From the creators of</p> <PiebaldLogo />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Main Content */}
-          <div className="flex-1 flex flex-col bg-background min-h-0">
-            <ProjectsPage />
-          </div>
-        </div>
+        <PageLayout>
+          <ProjectsPage />
+        </PageLayout>
       </div>
     );
   }
