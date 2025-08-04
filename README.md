@@ -29,7 +29,7 @@ Gemini CLI can function as an ACP (Agent Communication Protocol) server, which e
 
 ### Prerequisites
 
-Gemini Desktop is written using Rust and Tauri for the backend and web technologies for the frontend.  You'll need to install the following when building it from source:
+Gemini Desktop is written using Rust and Tauri for the backend and web technologies for the frontend.  When building it from source or running it in development you'll need to install the following tools:
 
 - [Rust](https://rust-lang.org)
 - [Node.js](https://nodejs.org)
@@ -66,16 +66,19 @@ sudo apt install libgdk-pixbuf-2.0-dev \
 
 ### Build
 
-Then clone the repository and run `just deps dev` to start the app:
+Then clone the repository:
 
 ```bash
 git clone https://github.com/Piebald-AI/gemini-desktop
 cd gemini-desktop
-just deps dev
 ```
 
-If you want to start the webapp instead, use `just deps dev-web` and go to http://localhost:1420 in your browser.
+You can run the app in development mode, or build it for production.  The desktop, being a Tauri app, follows the standard setup for development and production.  For the webapp, there are two servers that run in development mode: a Rust/Rocket backend API server on port 1858, and a Vite frontend webserver with hot reloading on port 1420.  In production a single executable hosts the backend API and the frontend, both on port 1858.
 
+**Development:** Run `just deps dev` to start the desktop app in development.  Alternatively, run `just deps dev-web` to start the webapp version in development and go to http://localhost:1420 in your browser.
+
+**Production:** Run `just deps build-all`.  Two binaries built in release mode will be produced in `target/release`: `gemini-desktop` (`gemini-desktop.exe`) for the desktop app, and `gemini-desktop-web` (`gemini-desktop-web.exe`) for the webapp version.
+ 
 ## Contributing
 
 Contributions are welcome, although it's a bit raw still.
