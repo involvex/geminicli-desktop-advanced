@@ -2,6 +2,7 @@ import React from "react";
 import { Card } from "../components/ui/card";
 import { api } from "../App";
 import { ArrowLeft } from "lucide-react";
+import { EnrichedProject } from "../lib/webApi";
 
 type Discussion = {
   id: string;
@@ -10,10 +11,6 @@ type Discussion = {
   message_count?: number;
 };
 
-function truncateId(id: string): string {
-  if (!id) return "";
-  return id.length > 20 ? id.slice(0, 20) : id;
-}
 
 /**
  * Full-page Project Detail (Step 5).
@@ -21,19 +18,28 @@ function truncateId(id: string): string {
  */
 export default function ProjectDetailPage({ projectId }: { projectId: string }) {
   const [discussions, setDiscussions] = React.useState<Discussion[] | null>(null);
+  const [projectData, setProjectData] = React.useState<EnrichedProject | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
+        // First, try to get enriched project data from the list
+        const enrichedProjects = await api.invoke<EnrichedProject[]>("list_enriched_projects");
+        const project = enrichedProjects.find(p => p.sha256 === projectId);
+        if (!cancelled && project) {
+          setProjectData(project);
+        }
+        
+        // Then get discussions
         const data = await api.invoke<{ id: string; title: string; started_at_iso?: string; message_count?: number }[]>(
           "get_project_discussions",
           { projectId }
         );
         if (!cancelled) setDiscussions(data);
       } catch (e) {
-        if (!cancelled) setError("Failed to load discussions.");
+        if (!cancelled) setError("Failed to load project data.");
         // eslint-disable-next-line no-console
         console.error(e);
       }
@@ -48,17 +54,26 @@ export default function ProjectDetailPage({ projectId }: { projectId: string }) 
       <div className="mx-auto w-full max-w-4xl px-6 py-8">
         <button
           type="button"
-          onClick={() => window.location.assign("/")}
+          onClick={() => window.location.assign("/projects")}
           className="mb-4 inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition cursor-pointer"
-          aria-label="Back to Home"
+          aria-label="Back to Projects"
         >
           <ArrowLeft className="h-4 w-4 mr-2" aria-hidden="true" />
-          <span>Back to Home</span>
+          <span>Back to Projects</span>
         </button>
         <h1 className="text-3xl font-semibold tracking-tight">Project details</h1>
         <div className="mt-2 text-sm text-muted-foreground flex items-center gap-2">
-          <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{projectId}</code>
-          <span>({truncateId(projectId)})</span>
+          {projectData ? (
+            <>
+              <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{projectData.metadata.path}</code>
+              <span>({projectData.metadata.friendly_name})</span>
+            </>
+          ) : (
+            <>
+              <code className="rounded bg-muted px-1.5 py-0.5 text-xs">Loading...</code>
+              <span>(Loading...)</span>
+            </>
+          )}
         </div>
 
         <div className="mt-6 space-y-3">

@@ -2,27 +2,25 @@ import React from "react";
 import { Card } from "../components/ui/card";
 import { api } from "../App";
 import { ArrowLeft } from "lucide-react";
-import { ProjectListItem, ProjectsResponse } from "../lib/webApi";
+import { EnrichedProject } from "../lib/webApi";
 
-type Project = ProjectListItem;
+type Project = EnrichedProject;
 
-function truncateId(id: string): string {
-  if (!id) return "";
-  return id.length > 20 ? id.slice(0, 20) : id;
+function truncatePath(path: string): string {
+  if (!path) return "";
+  return path.length > 50 ? "..." + path.slice(-47) : path;
 }
 
 export default function ProjectsPage() {
   const [projects, setProjects] = React.useState<Project[] | null>(null);
-  const [limit] = React.useState<number>(25);
-  const [offset] = React.useState<number>(0);
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const resp = await api.invoke<ProjectsResponse>("list_projects", { limit, offset });
-        if (!cancelled) setProjects(resp.items);
+        const enrichedProjects = await api.invoke<EnrichedProject[]>("list_enriched_projects");
+        if (!cancelled) setProjects(enrichedProjects);
       } catch (e) {
         if (!cancelled) setError("Failed to load projects.");
         // eslint-disable-next-line no-console
@@ -63,19 +61,23 @@ export default function ProjectsPage() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {projects.map((p) => (
                 <Card
-                  key={p.id}
+                  key={p.sha256}
                   className="cursor-pointer transition hover:shadow"
-                  onClick={() => window.location.assign(`/projects/${p.id}`)}
+                  onClick={() => window.location.assign(`/projects/${p.sha256}`)}
                 >
                   <div className="p-4">
-                    <div className="font-medium">{truncateId(p.id)}</div>
+                    <div className="font-medium text-sm" title={p.metadata.path}>
+                      {truncatePath(p.metadata.path)}
+                    </div>
                     <div className="mt-1 text-sm text-muted-foreground flex flex-col gap-0.5">
-                      {p.title && <span>"{p.title}"</span>}
-                      {p.lastActivityAt ? (
-                        <span>Last activity: {new Date(p.lastActivityAt).toLocaleString()}</span>
-                      ) : null}
-                      {typeof p.logCount === "number" ? <span>Logs: {p.logCount}</span> : null}
-                      {p.status ? <span>Status: {p.status}</span> : null}
+                      <span>SHA256: {p.sha256.slice(0, 12)}...</span>
+                      <span>Name: {p.metadata.friendly_name}</span>
+                      {p.metadata.first_used && (
+                        <span>First used: {new Date(p.metadata.first_used).toLocaleDateString()}</span>
+                      )}
+                      {p.metadata.updated_at && (
+                        <span>Last updated: {new Date(p.metadata.updated_at).toLocaleDateString()}</span>
+                      )}
                     </div>
                   </div>
                 </Card>

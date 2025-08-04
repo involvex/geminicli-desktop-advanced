@@ -7,7 +7,7 @@ use std::sync::Arc;
 use backend::{
     EventEmitter, GeminiBackend,
     ProcessStatus, DirEntry, RecentChat,
-    ProjectsResponse,
+    ProjectsResponse, EnrichedProject,
 };
 
 // =====================================
@@ -203,6 +203,16 @@ async fn list_projects(limit: Option<u32>, offset: Option<u32>, state: State<'_,
 }
 
 #[tauri::command]
+async fn list_enriched_projects(state: State<'_, AppState>) -> Result<Vec<EnrichedProject>, String> {
+    state.backend.list_enriched_projects().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn get_project(sha256: String, external_root_path: String, state: State<'_, AppState>) -> Result<EnrichedProject, String> {
+    state.backend.get_enriched_project(sha256, external_root_path).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 async fn get_project_discussions(projectId: String, state: State<'_, AppState>) -> Result<Vec<RecentChat>, String> {
     state.backend.get_project_discussions(&projectId).await.map_err(|e| e.to_string())
 }
@@ -322,6 +332,8 @@ pub fn run() {
             debug_environment,
             get_recent_chats,
             list_projects,
+            list_enriched_projects,
+            get_project,
             get_project_discussions
         ]);
 

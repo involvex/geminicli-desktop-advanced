@@ -27,12 +27,12 @@ import {
   AlertCircleIcon,
   AlertTriangle,
   UserRound,
+  FolderKanban,
 } from "lucide-react";
 import "./index.css";
 import { GeminiLogoCenter } from "./components/GeminiLogoCenter";
 import { ToolCallDisplay } from "./components/ToolCallDisplay";
 import { Card, CardHeader, CardTitle, CardDescription } from "./components/ui/card";
-import { GeminiIcon } from "./components/GeminiIcon";
 import ProjectsPage from "./pages/Projects";
 import ProjectDetailPage from "./pages/ProjectDetail";
 import { PageLayout } from "./components/PageLayout";
@@ -1079,15 +1079,15 @@ function App() {
               </p>
 
               {/* Dashboard tiles */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full max-w-3xl">
+              <div className="grid grid-cols-1 gap-4 w-full max-w-3xl place-items-center">
                 {/* Gemini CLI Projects Card */}
                 <Card
-                  className="cursor-pointer transition-colors hover:bg-accent"
+                  className="cursor-pointer transition-colors hover:bg-accent w-full max-w-sm"
                   onClick={() => window.location.assign("/projects")}
                 >
                   <CardHeader className="flex flex-row items-center gap-3">
                     <div className="shrink-0 h-6 w-6 flex items-center justify-center">
-                      <GeminiIcon />
+                      <FolderKanban className="h-5 w-5 text-muted-foreground" />
                     </div>
                     <div className="text-left">
                       <CardTitle className="text-base">Gemini CLI Projects</CardTitle>

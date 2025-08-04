@@ -196,6 +196,11 @@ export const webApi = {
     const response = await apiClient.get<{ id: string; title: string; started_at_iso?: string; message_count?: number }[]>('/projects/' + project_id + '/discussions');
     return response.data;
   },
+
+  async list_projects_enriched(): Promise<EnrichedProject[]> {
+    const response = await apiClient.get<EnrichedProject[]>('/projects-enriched');
+    return response.data;
+  },
 };
 
 export interface RecentChat {
@@ -220,6 +225,20 @@ export interface ProjectsResponse {
   total: number;
   limit: number;
   offset: number;
+}
+
+export interface ProjectMetadata {
+  path: string;
+  sha256: string;
+  friendly_name: string;
+  first_used?: string;
+  updated_at?: string;
+}
+
+export interface EnrichedProject {
+  sha256: string;
+  root_path: string;
+  metadata: ProjectMetadata;
 }
 
 // export async function list_projects(params?: { limit?: number; offset?: number }): Promise<ProjectsResponse> {

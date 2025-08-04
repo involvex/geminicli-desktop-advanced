@@ -1,4 +1,4 @@
-use chrono::{SecondsFormat, Utc};
+use chrono::{DateTime, FixedOffset, Local, SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
@@ -7,6 +7,7 @@ use std::io::{BufRead, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use thiserror::Error;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader as AsyncBufReader};
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
@@ -330,6 +331,9 @@ impl FileRpcLogger {
             .join(&project_hash);
 
         fs::create_dir_all(&log_dir).map_err(|e| BackendError::IoError(e))?;
+
+        // Create project.json for new projects
+        let _ = ensure_project_metadata(&project_hash, Some(std::path::Path::new(&project_dir)));
 
         // Create log file with timestamp
         let timestamp = std::time::SystemTime::now()
@@ -1711,6 +1715,252 @@ pub fn list_projects(limit: u32, offset: u32) -> BackendResult<ProjectsResponse>
 
 // (removed older duplicate block)
 
+
+// =====================================
+// Project Metadata Types
+// =====================================
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProjectMetadata {
+    pub path: PathBuf,
+    #[serde(default)]
+    pub sha256: Option<String>,
+    #[serde(default)]
+    pub friendly_name: Option<String>,
+    #[serde(default)]
+    pub first_used: Option<DateTime<FixedOffset>>,
+    #[serde(default)]
+    pub updated_at: Option<DateTime<FixedOffset>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectMetadataView {
+    pub path: String,
+    pub sha256: String,
+    pub friendly_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub first_used: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnrichedProject {
+    pub sha256: String,
+    pub root_path: PathBuf,
+    pub metadata: ProjectMetadataView,
+}
+
+
+#[derive(Default, Clone)]
+pub struct TouchThrottle {
+    inner: Arc<Mutex<HashMap<PathBuf, Instant>>>,
+    min_interval: Duration,
+}
+
+impl TouchThrottle {
+    pub fn new(min_interval: Duration) -> Self {
+        Self { inner: Arc::new(Mutex::new(HashMap::new())), min_interval }
+    }
+}
+
+fn now_fixed_offset() -> DateTime<FixedOffset> {
+    let now = Local::now();
+    now.with_timezone(now.offset())
+}
+
+fn canonicalize_project_root(path: &Path) -> PathBuf {
+    match path.canonicalize() {
+        Ok(canonical) => canonical,
+        Err(_) => {
+            eprintln!("warn: failed to canonicalize path {}, using as-is", path.display());
+            path.to_path_buf()
+        }
+    }
+}
+
+fn derive_friendly_name_from_path(path: &Path) -> String {
+    let s = path.display().to_string();
+    #[cfg(windows)]
+    {
+        let replaced = s.replace('\\', "-").replace(':', "");
+        let collapsed = replaced.split('-').filter(|p| !p.is_empty()).collect::<Vec<_>>().join("-");
+        collapsed
+    }
+    #[cfg(not(windows))]
+    {
+        let replaced = s.replace('/', "-");
+        let collapsed = replaced.split('-').filter(|p| !p.is_empty()).collect::<Vec<_>>().join("-");
+        collapsed
+    }
+}
+
+fn projects_root_dir() -> Option<PathBuf> {
+    home_projects_root()
+}
+
+fn project_json_path(sha256: &str) -> Option<PathBuf> {
+    projects_root_dir().map(|root| root.join(sha256).join("project.json"))
+}
+
+fn read_project_metadata(root_sha: &str) -> BackendResult<ProjectMetadata> {
+    let Some(path) = project_json_path(root_sha) else { 
+        return Err(BackendError::SessionInitFailed("projects root not found".to_string())); 
+    };
+    if !path.exists() {
+        return Err(BackendError::SessionInitFailed("project.json not found".to_string()));
+    }
+    let content = std::fs::read_to_string(&path).map_err(BackendError::IoError)?;
+    serde_json::from_str::<ProjectMetadata>(&content).map_err(BackendError::SerializationError)
+}
+
+fn write_project_metadata(sha256: &str, meta: &ProjectMetadata) -> BackendResult<()> {
+    let Some(json_path) = project_json_path(sha256) else { 
+        return Err(BackendError::SessionInitFailed("projects root not found".to_string())); 
+    };
+    if let Some(dir) = json_path.parent() {
+        std::fs::create_dir_all(dir).map_err(BackendError::IoError)?;
+    }
+    let tmp_path = json_path.with_extension("json.tmp");
+    let content = serde_json::to_string_pretty(meta).map_err(BackendError::SerializationError)?;
+    std::fs::write(&tmp_path, content.as_bytes()).map_err(BackendError::IoError)?;
+    std::fs::rename(&tmp_path, &json_path).map_err(BackendError::IoError)?;
+    Ok(())
+}
+
+fn to_view(meta: &ProjectMetadata, canonical_root: &Path, sha256: &str) -> ProjectMetadataView {
+    let friendly = meta.friendly_name.clone().unwrap_or_else(|| derive_friendly_name_from_path(canonical_root));
+    let first_used = meta.first_used.as_ref().map(|d| d.to_rfc3339());
+    let updated_at = meta.updated_at.as_ref().map(|d| d.to_rfc3339());
+    ProjectMetadataView {
+        path: meta.path.display().to_string(),
+        sha256: meta.sha256.clone().unwrap_or_else(|| sha256.to_string()),
+        friendly_name: friendly,
+        first_used,
+        updated_at,
+    }
+}
+
+/// Ensure metadata exists for project sha; create lazily if missing using provided external_root_canonical.
+/// Returns Ok(ProjectMetadata) on success; for corrupt files, logs warning and returns a default in-memory struct.
+pub fn ensure_project_metadata(sha256: &str, external_root_canonical: Option<&Path>) -> BackendResult<ProjectMetadata> {
+    match read_project_metadata(sha256) {
+        Ok(meta) => Ok(meta),
+        Err(e) => {
+            // If not found or corrupt, try to create if we have external root
+            if let Some(ext) = external_root_canonical {
+                let now = now_fixed_offset();
+                let meta = ProjectMetadata {
+                    path: ext.to_path_buf(), // Store original path, not canonicalized
+                    sha256: Some(sha256.to_string()),
+                    friendly_name: Some(derive_friendly_name_from_path(ext)),
+                    first_used: Some(now),
+                    updated_at: Some(now),
+                };
+                write_project_metadata(sha256, &meta)?;
+                eprintln!("info: created project.json for {sha256}");
+                Ok(meta)
+            } else {
+                Err(e)
+            }
+        }
+    }
+}
+
+pub fn maybe_touch_updated_at(sha256: &str, throttle: &TouchThrottle) -> BackendResult<()> {
+    // Attempt to read metadata; if missing or corrupt, do nothing
+    let mut meta = match read_project_metadata(sha256) {
+        Ok(m) => m,
+        Err(_) => return Ok(()),
+    };
+
+    let root = meta.path.clone();
+    let mut guard = throttle.inner.lock().unwrap();
+    let last = guard.get(&root).copied();
+    let now_inst = Instant::now();
+    if let Some(last_instant) = last {
+        if now_inst.duration_since(last_instant) < throttle.min_interval {
+            // throttle skip
+            return Ok(());
+        }
+    }
+    guard.insert(root, now_inst);
+    drop(guard);
+
+    meta.updated_at = Some(now_fixed_offset());
+    write_project_metadata(sha256, &meta)?;
+    eprintln!("debug: touched updated_at for {sha256}");
+    Ok(())
+}
+
+/// Create an EnrichedProject view. If metadata missing, it will not auto-create unless external_root is provided and should_create_if_missing is true.
+pub fn make_enriched_project(sha256: &str, external_root: Option<&Path>, should_create_if_missing: bool) -> EnrichedProject {
+    // Get metadata and determine display path
+    let meta_opt = read_project_metadata(sha256).ok();
+    
+    let display_root = if let Some(ref meta) = meta_opt {
+        meta.path.clone() // Use stored path from metadata (user-friendly)
+    } else if let Some(er) = external_root {
+        er.to_path_buf() // Use original external root (user-friendly)
+    } else {
+        // fallback to ~/.gemini-desktop/projects/<sha256> as a virtual root
+        projects_root_dir().unwrap_or_else(|| PathBuf::from(".")).join(sha256)
+    };
+
+    let meta = if meta_opt.is_some() {
+        meta_opt.unwrap()
+    } else if should_create_if_missing {
+        ensure_project_metadata(sha256, external_root).unwrap_or_else(|_| ProjectMetadata {
+            path: display_root.clone(),
+            sha256: Some(sha256.to_string()),
+            friendly_name: Some(derive_friendly_name_from_path(&display_root)),
+            first_used: None,
+            updated_at: None,
+        })
+    } else {
+        ProjectMetadata {
+            path: display_root.clone(),
+            sha256: Some(sha256.to_string()),
+            friendly_name: Some(derive_friendly_name_from_path(&display_root)),
+            first_used: None,
+            updated_at: None,
+        }
+    };
+
+    EnrichedProject {
+        sha256: sha256.to_string(),
+        root_path: display_root.clone(),
+        metadata: to_view(&meta, &display_root, sha256),
+    }
+}
+
+/// Enumerate projects and return EnrichedProject list without touching updated_at or creating project.json unless explicitly asked.
+/// This wraps the existing list_projects fast-path to produce EnrichedProject-lite views.
+pub fn list_enriched_projects() -> BackendResult<Vec<EnrichedProject>> {
+    let Some(root) = home_projects_root() else {
+        return Ok(vec![]);
+    };
+    if !root.exists() || !root.is_dir() {
+        return Ok(vec![]);
+    }
+    let mut all_ids: Vec<String> = Vec::new();
+    for entry in fs::read_dir(&root).map_err(BackendError::IoError)? {
+        let entry = match entry { Ok(e) => e, Err(_) => continue };
+        let path = entry.path();
+        if !path.is_dir() { continue; }
+        if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
+            if name.len() == 64 && name.chars().all(|c| c.is_ascii_hexdigit()) {
+                all_ids.push(name.to_string());
+            }
+        }
+    }
+    all_ids.sort();
+    let enriched = all_ids.iter()
+        .map(|id| make_enriched_project(id, None, false))
+        .collect();
+    Ok(enriched)
+}
+
 // =====================================
 // Public API (to be implemented)
 // =====================================
@@ -1720,6 +1970,7 @@ pub struct GeminiBackend<E: EventEmitter> {
     emitter: E,
     session_manager: SessionManager,
     next_request_id: Arc<Mutex<u32>>,
+    touch_throttle: TouchThrottle,
 }
 
 impl<E: EventEmitter + 'static> GeminiBackend<E> {
@@ -1729,6 +1980,7 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
             emitter,
             session_manager: SessionManager::new(),
             next_request_id: Arc::new(Mutex::new(1000)),
+            touch_throttle: TouchThrottle::new(Duration::from_secs(60)),
         }
     }
 
@@ -2330,6 +2582,23 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         // Cap limit to max 100 and at least 1
         let lim = std::cmp::min(limit.max(1), 100);
         list_projects(lim, offset)
+    }
+
+    /// Return enriched projects (friendly metadata view). Does not mutate files.
+    pub async fn list_enriched_projects(&self) -> BackendResult<Vec<EnrichedProject>> {
+        list_enriched_projects()
+    }
+
+    /// Get an enriched project for a given sha256. Lazily creates project.json if missing using provided external_root_path.
+    /// Also touches updated_at with a simple throttle.
+    pub async fn get_enriched_project(&self, sha256: String, external_root_path: String) -> BackendResult<EnrichedProject> {
+        // Ensure metadata exists (lazy create) using provided external root
+        let external = std::path::Path::new(&external_root_path);
+        ensure_project_metadata(&sha256, Some(external))?;
+        // Touch updated_at with throttle
+        let _ = maybe_touch_updated_at(&sha256, &self.touch_throttle);
+        // Build and return view
+        Ok(make_enriched_project(&sha256, Some(external), false))
     }
 
     /// Get discussions (conversations) for a specific project

@@ -16,7 +16,7 @@ use std::sync::{
 use tokio::sync::{Mutex, mpsc as tokio_mpsc};
 
 // Import backend functionality
-use backend::{DirEntry, EventEmitter, GeminiBackend, ProcessStatus, RecentChat};
+use backend::{DirEntry, EventEmitter, GeminiBackend, ProcessStatus, RecentChat, EnrichedProject};
 
 static FRONTEND_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../frontend/dist");
 
@@ -290,6 +290,29 @@ async fn list_projects(
         Err(_e) => Err(Status::InternalServerError),
     }
 }
+
+#[get("/projects-enriched")]
+async fn list_projects_enriched(state: &State<AppState>) -> Result<Json<Vec<EnrichedProject>>, Status> {
+    let backend = state.backend.lock().await;
+    match backend.list_enriched_projects().await {
+        Ok(list) => Ok(Json(list)),
+        Err(_e) => Err(Status::InternalServerError),
+    }
+}
+
+#[get("/project?<sha256>&<external_root_path>")]
+async fn get_enriched_project_http(
+    state: &State<AppState>,
+    sha256: String,
+    external_root_path: String,
+) -> Result<Json<EnrichedProject>, Status> {
+    let backend = state.backend.lock().await;
+    match backend.get_enriched_project(sha256, external_root_path).await {
+        Ok(p) => Ok(Json(p)),
+        Err(_e) => Err(Status::InternalServerError),
+    }
+}
+
 
 #[get("/projects/<project_id>/discussions")]
 async fn get_project_discussions(
@@ -589,6 +612,8 @@ fn rocket() -> _ {
             list_volumes,
             get_recent_chats,
             list_projects,
+            list_projects_enriched,
+            get_enriched_project_http,
             get_project_discussions,
         ],
     )
