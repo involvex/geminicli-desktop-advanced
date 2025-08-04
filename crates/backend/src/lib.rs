@@ -1,16 +1,16 @@
+use chrono::{SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::fs::{self, File, OpenOptions};
+use std::io::{BufRead, BufWriter, Write};
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader as AsyncBufReader};
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 use tokio::sync::mpsc;
-use sha2::{Sha256, Digest};
-use std::fs::{self, File, OpenOptions};
-use std::io::{BufWriter, Write};
-use chrono::{Utc, SecondsFormat};
 
 // =====================================
 // Internal Event Communication System
@@ -292,7 +292,7 @@ impl ProjectHasher {
         let canonical_path = std::path::Path::new(path)
             .canonicalize()
             .map_err(|e| BackendError::IoError(e))?;
-        
+
         let mut hasher = Sha256::new();
         hasher.update(canonical_path.to_string_lossy().as_bytes());
         let hash = format!("{:x}", hasher.finalize());
@@ -310,23 +310,20 @@ impl FileRpcLogger {
     /// Create a new file-based RPC logger
     pub fn new(working_directory: Option<&str>) -> BackendResult<Self> {
         // Determine project directory
-        let project_dir = working_directory
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| {
-                std::env::current_dir()
-                    .unwrap_or_else(|_| std::path::PathBuf::from("."))
-                    .to_string_lossy()
-                    .to_string()
-            });
+        let project_dir = working_directory.map(|s| s.to_string()).unwrap_or_else(|| {
+            std::env::current_dir()
+                .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                .to_string_lossy()
+                .to_string()
+        });
 
         // Generate project hash
         let project_hash = ProjectHasher::hash_path(&project_dir)?;
 
         // Create log directory structure
-        let home_dir = std::env::var("HOME").unwrap_or_else(|_| {
-            std::env::var("USERPROFILE").unwrap_or_else(|_| ".".to_string())
-        });
-        
+        let home_dir = std::env::var("HOME")
+            .unwrap_or_else(|_| std::env::var("USERPROFILE").unwrap_or_else(|_| ".".to_string()));
+
         let log_dir = std::path::Path::new(&home_dir)
             .join(".gemini-desktop")
             .join("projects")
@@ -339,7 +336,7 @@ impl FileRpcLogger {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis();
-        
+
         let log_filename = format!("rpc-log-{}.log", timestamp);
         let file_path = log_dir.join(log_filename);
 
@@ -361,7 +358,8 @@ impl FileRpcLogger {
         let cutoff_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_secs() - (30 * 24 * 60 * 60); // 30 days
+            .as_secs()
+            - (30 * 24 * 60 * 60); // 30 days
 
         if let Ok(entries) = fs::read_dir(parent_dir) {
             for entry in entries.flatten() {
@@ -369,7 +367,9 @@ impl FileRpcLogger {
                     if filename.starts_with("rpc-log-") && filename.ends_with(".log") {
                         if let Ok(metadata) = entry.metadata() {
                             if let Ok(modified) = metadata.modified() {
-                                if let Ok(modified_secs) = modified.duration_since(std::time::UNIX_EPOCH) {
+                                if let Ok(modified_secs) =
+                                    modified.duration_since(std::time::UNIX_EPOCH)
+                                {
                                     if modified_secs.as_secs() < cutoff_time {
                                         let _ = fs::remove_file(entry.path());
                                     }
@@ -815,9 +815,13 @@ pub async fn initialize_session<E: EventEmitter + 'static>(
     // Now spawn to obtain a Child
     let mut child = cmd.spawn().map_err(|e| {
         #[cfg(target_os = "windows")]
-        { BackendError::SessionInitFailed(format!("Failed to run gemini command via cmd: {e}")) }
+        {
+            BackendError::SessionInitFailed(format!("Failed to run gemini command via cmd: {e}"))
+        }
         #[cfg(not(target_os = "windows"))]
-        { BackendError::SessionInitFailed(format!("Failed to run gemini command via shell: {e}")) }
+        {
+            BackendError::SessionInitFailed(format!("Failed to run gemini command via shell: {e}"))
+        }
     })?;
 
     let pid = child.id();
@@ -1385,6 +1389,303 @@ pub enum BackendError {
 pub type BackendResult<T> = Result<T, BackendError>;
 
 // =====================================
+// Projects Listing Types and Helpers
+// =====================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectListItem {
+    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>, // active | error | unknown
+    #[serde(skip_serializing_if = "Option::is_none", rename = "createdAt")]
+    pub created_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "updatedAt")]
+    pub updated_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "lastActivityAt")]
+    pub last_activity_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "logCount")]
+    pub log_count: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectsResponse {
+    pub items: Vec<ProjectListItem>,
+    pub total: u32,
+    pub limit: u32,
+    pub offset: u32,
+}
+
+fn home_projects_root() -> Option<PathBuf> {
+    let home = std::env::var("HOME")
+        .unwrap_or_else(|_| std::env::var("USERPROFILE").unwrap_or_else(|_| "".to_string()));
+    if home.is_empty() {
+        return None;
+    }
+    Some(Path::new(&home).join(".gemini-desktop").join("projects"))
+}
+
+// Extract the ISO timestamp inside [ ... ] prefix. Returns None if not found or invalid.
+fn extract_prefix_iso(line: &str) -> Option<String> {
+    let start = line.find('[')?;
+    let end = line.find(']')?;
+    if end <= start + 1 {
+        return None;
+    }
+    let ts = &line[start + 1..end];
+    // Basic sanity: must end with 'Z' and contain 'T'
+    if !ts.ends_with('Z') || !ts.contains('T') {
+        return None;
+    }
+    Some(ts.to_string())
+}
+
+// Count message stats and derive title/status by scanning lines.
+fn analyze_log_file(
+    path: &Path,
+) -> (
+    u32,            /*user*/
+    u32,            /*assistant*/
+    u32,            /*thoughts*/
+    Option<String>, /*firstUserTitle*/
+    Option<String>, /*earliest*/
+    Option<String>, /*latest*/
+    bool,           /*parseErr*/
+) {
+    let file = match File::open(path) {
+        Ok(f) => f,
+        Err(_) => return (0, 0, 0, None, None, None, true),
+    };
+    let reader = std::io::BufReader::new(file);
+    let mut user_msgs = 0u32;
+    let mut assistant_msgs = 0u32;
+    let mut thoughts = 0u32;
+    let mut first_user_title: Option<String> = None;
+    let mut earliest_iso: Option<String> = None;
+    let mut latest_iso: Option<String> = None;
+    let mut parse_error = false;
+
+    let mut user_message_ids: HashSet<u64> = HashSet::new();
+
+    for line in reader.lines().filter_map(|l| l.ok()) {
+        // Track timestamps (keep working logic)
+        if let Some(iso) = extract_prefix_iso(&line) {
+            if earliest_iso.is_none() {
+                earliest_iso = Some(iso.clone());
+            }
+            latest_iso = Some(iso);
+        }
+        
+        // Parse JSON (keep existing approach)
+        let json_start = match line.find('{') {
+            Some(i) => i,
+            None => continue,
+        };
+        let json_str = &line[json_start..];
+        let val: serde_json::Value = match serde_json::from_str(json_str) {
+            Ok(v) => v,
+            Err(_) => {
+                parse_error = true;
+                continue;
+            }
+        };
+        
+        let method = val.get("method").and_then(|m| m.as_str()).unwrap_or("");
+        
+        if method == "sendUserMessage" {
+            user_msgs = user_msgs.saturating_add(1);
+            
+            // Track this request ID for assistant response counting
+            if let Some(id) = val.get("id").and_then(|i| i.as_u64()) {
+                user_message_ids.insert(id);
+            }
+            
+            if first_user_title.is_none() {
+                if let Some(params) = val.get("params") {
+                    if let Some(chunks) = params.get("chunks").and_then(|c| c.as_array()) {
+                        let combined = chunks
+                            .iter()
+                            .filter_map(|ch| ch.get("text").and_then(|t| t.as_str()))
+                            .collect::<Vec<_>>()
+                            .join(" ");
+                        let trimmed = combined.trim();
+                        if !trimmed.is_empty() {
+                            let words: Vec<&str> = trimmed.split_whitespace().take(6).collect();
+                            if !words.is_empty() {
+                                first_user_title = Some(words.join(" "));
+                            }
+                        }
+                    }
+                }
+            }
+        } else if method == "streamAssistantMessageChunk" {
+            // Thought counting (keep existing - it was correct)
+            if let Some(params) = val.get("params") {
+                if params
+                    .get("chunk")
+                    .and_then(|c| c.get("thought"))
+                    .and_then(|t| t.as_str())
+                    .is_some()
+                {
+                    thoughts = thoughts.saturating_add(1);
+                }
+            }
+        }
+        
+        if let Some(result) = val.get("result") {
+            if result.is_null() {
+                if let Some(id) = val.get("id").and_then(|i| i.as_u64()) {
+                    if user_message_ids.contains(&id) {
+                        assistant_msgs = assistant_msgs.saturating_add(1);
+                    }
+                }
+            }
+        }
+        
+        // Error detection (keep existing logic)
+        if val.get("error").is_some() {
+            parse_error = true;
+        }
+    }
+
+    (
+        user_msgs,
+        assistant_msgs,
+        thoughts,
+        first_user_title,
+        earliest_iso,
+        latest_iso,
+        parse_error,
+    )
+}
+
+/// Enumerate projects and return a paginated ProjectsResponse.
+pub fn list_projects(limit: u32, offset: u32) -> BackendResult<ProjectsResponse> {
+    let Some(root) = home_projects_root() else {
+        return Ok(ProjectsResponse {
+            items: vec![],
+            total: 0,
+            limit,
+            offset,
+        });
+    };
+    if !root.exists() || !root.is_dir() {
+        return Ok(ProjectsResponse {
+            items: vec![],
+            total: 0,
+            limit,
+            offset,
+        });
+    }
+
+    // Collect all 64-hex directories
+    let mut all_ids: Vec<String> = Vec::new();
+    for entry in fs::read_dir(&root).map_err(BackendError::IoError)? {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
+            if name.len() == 64 && name.chars().all(|c| c.is_ascii_hexdigit()) {
+                all_ids.push(name.to_string());
+            }
+        }
+    }
+    all_ids.sort();
+
+    let total = all_ids.len() as u32;
+    let start = std::cmp::min(offset as usize, all_ids.len());
+    let end = std::cmp::min(start + limit as usize, all_ids.len());
+    let page_ids = &all_ids[start..end];
+
+    // Build items
+    let mut items: Vec<ProjectListItem> = Vec::new();
+    for id in page_ids {
+        let proj_path = root.join(id);
+
+        // enumerate rpc-log-*.log or *.json files
+        let mut logs: Vec<PathBuf> = Vec::new();
+        if let Ok(rd) = fs::read_dir(&proj_path) {
+            for e in rd.flatten() {
+                let p = e.path();
+                if let Some(fname) = p.file_name().and_then(|s| s.to_str()) {
+                    if fname.starts_with("rpc-log-")
+                        && (fname.ends_with(".log") || fname.ends_with(".json"))
+                    {
+                        logs.push(p);
+                    }
+                }
+            }
+        }
+        logs.sort(); // name sort; adequate for picking "latest" by name if timestamp is embedded
+
+        let log_count = logs.len() as u32;
+        let mut created: Option<String> = None;
+        let mut updated: Option<String> = None;
+        let mut title: Option<String> = None;
+        let mut status = "unknown".to_string();
+        let mut any_activity = false;
+        let mut any_error = false;
+
+        for log in logs.iter() {
+            let (u, a, t, latest_user_title, earliest_iso, latest_iso, parse_err) =
+                analyze_log_file(log);
+            if earliest_iso.is_some() && created.is_none() {
+                created = earliest_iso.clone();
+            }
+            if let Some(li) = latest_iso {
+                updated = Some(li);
+            }
+            if let Some(ti) = latest_user_title {
+                title = Some(ti);
+            }
+            if u + a + t > 0 {
+                any_activity = true;
+            }
+            if parse_err {
+                any_error = true;
+            }
+        }
+
+        let last_activity = updated.clone();
+
+        if any_error {
+            status = "error".to_string();
+        } else if any_activity {
+            status = "active".to_string();
+        } else {
+            status = "unknown".to_string();
+        }
+
+        items.push(ProjectListItem {
+            id: id.clone(),
+            title,
+            status: Some(status),
+            created_at: created,
+            updated_at: updated.clone(),
+            last_activity_at: last_activity,
+            log_count: Some(log_count),
+        });
+    }
+
+    Ok(ProjectsResponse {
+        items,
+        total,
+        limit,
+        offset,
+    })
+}
+
+// Duplicated older block removed to resolve conflicts.
+
+// (removed older duplicate block)
+
+// =====================================
 // Public API (to be implemented)
 // =====================================
 
@@ -1488,49 +1789,50 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
     /// Extract chat data from log file.
     fn extract_chat_data(log_path: Option<std::path::PathBuf>) -> (u32, Option<String>) {
         use std::io::BufRead;
-        
+
         let log_path = match log_path {
             Some(path) => path,
             None => return (0, None),
         };
-        
+
         let file = match std::fs::File::open(&log_path) {
             Ok(file) => file,
             Err(_) => return (0, None),
         };
-        
+
         let reader = std::io::BufReader::new(file);
         let mut message_count: u32 = 0;
         let mut first_user_text = None;
-        
+
         for line in reader.lines().filter_map(|l| l.ok()) {
             let json_str = match line.find('{') {
                 Some(idx) => &line[idx..],
                 None => continue,
             };
-            
+
             let req: JsonRpcRequest = match serde_json::from_str(json_str) {
                 Ok(req) => req,
                 Err(_) => continue,
             };
-            
+
             if req.method == "sendUserMessage" {
                 message_count = message_count.saturating_add(1);
-                
+
                 if first_user_text.is_none() {
                     first_user_text = Self::extract_first_user_text(req.params);
                 }
             }
         }
-        
+
         (message_count, first_user_text)
     }
-    
+
     /// Extract first user text from message parameters.
     fn extract_first_user_text(params: serde_json::Value) -> Option<String> {
         let params: SendUserMessageParams = serde_json::from_value(params).ok()?;
-        
-        let combined = params.chunks
+
+        let combined = params
+            .chunks
             .into_iter()
             .filter_map(|ch| match ch {
                 MessageChunk::Text { text } => Some(text),
@@ -1538,11 +1840,11 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
             })
             .collect::<Vec<_>>()
             .join(" ");
-        
+
         if combined.is_empty() {
             return None;
         }
-        
+
         let words: Vec<&str> = combined.split_whitespace().take(6).collect();
         if words.is_empty() {
             None
@@ -1558,15 +1860,16 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         use std::time::{SystemTime, UNIX_EPOCH};
 
         // Resolve projects root
-        let home = std::env::var("HOME").unwrap_or_else(|_| {
-            std::env::var("USERPROFILE").unwrap_or_else(|_| "".to_string())
-        });
+        let home = std::env::var("HOME")
+            .unwrap_or_else(|_| std::env::var("USERPROFILE").unwrap_or_else(|_| "".to_string()));
         if home.is_empty() {
             return Err(BackendError::SessionInitFailed(
                 "Could not determine home directory".to_string(),
             ));
         }
-        let projects_dir = std::path::Path::new(&home).join(".gemini-desktop").join("projects");
+        let projects_dir = std::path::Path::new(&home)
+            .join(".gemini-desktop")
+            .join("projects");
         if !projects_dir.exists() || !projects_dir.is_dir() {
             return Ok(vec![]);
         }
@@ -1606,7 +1909,9 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
                     Err(_) => continue,
                 };
                 let log_path = log_entry.path();
-                let Some(name) = log_path.file_name().and_then(OsStr::to_str) else { continue };
+                let Some(name) = log_path.file_name().and_then(OsStr::to_str) else {
+                    continue;
+                };
 
                 // Select only files named rpc-log-*.log
                 if !(name.starts_with("rpc-log-") && name.ends_with(".log")) {
@@ -1614,8 +1919,7 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
                 }
 
                 // Per-log metadata for timestamp
-                let modified_time = match std::fs::metadata(&log_path)
-                    .and_then(|md| md.modified())
+                let modified_time = match std::fs::metadata(&log_path).and_then(|md| md.modified())
                 {
                     Ok(m) => m,
                     Err(_) => SystemTime::now(),
@@ -1672,7 +1976,6 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         }
         Ok(chats)
     }
-    
 
     /// Check if Gemini CLI is installed and available
     pub async fn check_cli_installed(&self) -> BackendResult<bool> {
@@ -1996,14 +2299,22 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         }
     }
 
+    /// List projects (filesystem-backed) for the Projects page
+    pub async fn list_projects(&self, limit: u32, offset: u32) -> BackendResult<ProjectsResponse> {
+        // Cap limit to max 100 and at least 1
+        let lim = std::cmp::min(limit.max(1), 100);
+        list_projects(lim, offset)
+    }
+
     /// Get the user's home directory path
     pub async fn get_home_directory(&self) -> BackendResult<String> {
-        let home = std::env::var("HOME").unwrap_or_else(|_| {
-            std::env::var("USERPROFILE").unwrap_or_else(|_| "".to_string())
-        });
+        let home = std::env::var("HOME")
+            .unwrap_or_else(|_| std::env::var("USERPROFILE").unwrap_or_else(|_| "".to_string()));
 
         if home.is_empty() {
-            return Err(BackendError::SessionInitFailed("Could not determine home directory".to_string()));
+            return Err(BackendError::SessionInitFailed(
+                "Could not determine home directory".to_string(),
+            ));
         }
 
         Ok(home)
@@ -2037,25 +2348,28 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
     /// List available volumes/drives on the system
     pub async fn list_volumes(&self) -> BackendResult<Vec<DirEntry>> {
         let mut volumes = Vec::new();
-        
+
         #[cfg(target_os = "windows")]
         {
             use std::ffi::OsStr;
             use std::os::windows::ffi::OsStrExt;
-            
+
             // Use Windows API to get logical drives
-            let drives_bitmask = unsafe { windows_sys::Win32::Storage::FileSystem::GetLogicalDrives() };
-            
+            let drives_bitmask =
+                unsafe { windows_sys::Win32::Storage::FileSystem::GetLogicalDrives() };
+
             if drives_bitmask == 0 {
-                return Err(BackendError::SessionInitFailed("Failed to enumerate drives".to_string()));
+                return Err(BackendError::SessionInitFailed(
+                    "Failed to enumerate drives".to_string(),
+                ));
             }
-            
+
             // Check each bit to see which drives exist
             for i in 0..26 {
                 if (drives_bitmask & (1 << i)) != 0 {
                     let drive_letter = (b'A' + i) as char;
                     let drive_path = format!("{}:\\", drive_letter);
-                    
+
                     // Get drive type to provide better information
                     let drive_type = unsafe {
                         let path_wide: Vec<u16> = OsStr::new(&drive_path)
@@ -2064,16 +2378,25 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
                             .collect();
                         windows_sys::Win32::Storage::FileSystem::GetDriveTypeW(path_wide.as_ptr())
                     };
-                    
+
                     let (name, volume_type) = match drive_type {
-                        3 => (format!("Local Disk ({}:)", drive_letter), VolumeType::LocalDisk),      // DRIVE_FIXED
-                        2 => (format!("Removable Disk ({}:)", drive_letter), VolumeType::RemovableDisk),  // DRIVE_REMOVABLE  
-                        4 => (format!("Network Drive ({}:)", drive_letter), VolumeType::NetworkDrive),   // DRIVE_REMOTE
-                        5 => (format!("CD Drive ({}:)", drive_letter), VolumeType::CdDrive),        // DRIVE_CDROM
-                        6 => (format!("RAM Disk ({}:)", drive_letter), VolumeType::RamDisk),        // DRIVE_RAMDISK
+                        3 => (
+                            format!("Local Disk ({}:)", drive_letter),
+                            VolumeType::LocalDisk,
+                        ), // DRIVE_FIXED
+                        2 => (
+                            format!("Removable Disk ({}:)", drive_letter),
+                            VolumeType::RemovableDisk,
+                        ), // DRIVE_REMOVABLE
+                        4 => (
+                            format!("Network Drive ({}:)", drive_letter),
+                            VolumeType::NetworkDrive,
+                        ), // DRIVE_REMOTE
+                        5 => (format!("CD Drive ({}:)", drive_letter), VolumeType::CdDrive), // DRIVE_CDROM
+                        6 => (format!("RAM Disk ({}:)", drive_letter), VolumeType::RamDisk), // DRIVE_RAMDISK
                         _ => (format!("{}:", drive_letter), VolumeType::LocalDisk),
                     };
-                    
+
                     volumes.push(DirEntry {
                         name,
                         is_directory: true,
@@ -2087,7 +2410,7 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
                 }
             }
         }
-        
+
         #[cfg(not(target_os = "windows"))]
         {
             // On Unix systems, we typically don't show a "volume" view like Windows
@@ -2106,25 +2429,30 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
                 });
             }
         }
-        
+
         Ok(volumes)
     }
 
     /// List the contents of a directory
     pub async fn list_directory_contents(&self, path: String) -> BackendResult<Vec<DirEntry>> {
         let path_obj = Path::new(&path);
-        
+
         if !path_obj.exists() {
-            return Err(BackendError::SessionInitFailed(format!("Directory does not exist: {}", path)));
+            return Err(BackendError::SessionInitFailed(format!(
+                "Directory does not exist: {}",
+                path
+            )));
         }
-        
+
         if !path_obj.is_dir() {
-            return Err(BackendError::SessionInitFailed(format!("Path is not a directory: {}", path)));
+            return Err(BackendError::SessionInitFailed(format!(
+                "Path is not a directory: {}",
+                path
+            )));
         }
 
         let mut entries = Vec::new();
-        let read_dir = std::fs::read_dir(path_obj)
-            .map_err(|e| BackendError::IoError(e))?;
+        let read_dir = std::fs::read_dir(path_obj).map_err(|e| BackendError::IoError(e))?;
 
         for entry in read_dir {
             let entry = entry.map_err(|e| BackendError::IoError(e))?;
@@ -2132,12 +2460,17 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
             let full_path = entry.path().to_string_lossy().to_string();
 
             // Always use symlink_metadata to avoid following symlinks
-            let symlink_metadata = entry.path().symlink_metadata().map_err(|e| BackendError::IoError(e))?;
+            let symlink_metadata = entry
+                .path()
+                .symlink_metadata()
+                .map_err(|e| BackendError::IoError(e))?;
             let is_symlink = symlink_metadata.file_type().is_symlink();
-            
+
             // Get symlink target if this is a symlink
             let symlink_target = if is_symlink {
-                entry.path().read_link()
+                entry
+                    .path()
+                    .read_link()
                     .ok()
                     .map(|target| target.to_string_lossy().to_string())
             } else {
@@ -2154,7 +2487,8 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
                         } else {
                             None
                         };
-                        let modified = target_metadata.modified()
+                        let modified = target_metadata
+                            .modified()
                             .ok()
                             .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
                             .map(|duration| duration.as_secs());
@@ -2162,7 +2496,8 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
                     }
                     Err(_) => {
                         // Target is inaccessible, use symlink's own metadata
-                        let modified = symlink_metadata.modified()
+                        let modified = symlink_metadata
+                            .modified()
                             .ok()
                             .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
                             .map(|duration| duration.as_secs());
@@ -2176,7 +2511,8 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
                 } else {
                     None
                 };
-                let modified = symlink_metadata.modified()
+                let modified = symlink_metadata
+                    .modified()
                     .ok()
                     .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
                     .map(|duration| duration.as_secs());
@@ -2196,12 +2532,10 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         }
 
         // Sort entries: directories first, then files, both alphabetically
-        entries.sort_by(|a, b| {
-            match (a.is_directory, b.is_directory) {
-                (true, false) => std::cmp::Ordering::Less,
-                (false, true) => std::cmp::Ordering::Greater,
-                _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
-            }
+        entries.sort_by(|a, b| match (a.is_directory, b.is_directory) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
         });
 
         Ok(entries)

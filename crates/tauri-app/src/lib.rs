@@ -7,7 +7,8 @@ use tokio::sync::Mutex;
 // Import backend functionality
 use backend::{
     EventEmitter, GeminiBackend,
-    ProcessStatus, DirEntry, RecentChat
+    ProcessStatus, DirEntry, RecentChat,
+    ProjectsResponse,
 };
 
 // =====================================
@@ -212,6 +213,14 @@ async fn get_recent_chats(state: State<'_, AppState>) -> Result<Vec<RecentChat>,
 }
 
 #[tauri::command]
+async fn get_projects(limit: Option<u32>, offset: Option<u32>, state: State<'_, AppState>) -> Result<ProjectsResponse, String> {
+    let backend = state.backend.lock().await;
+    let lim = limit.unwrap_or(25);
+    let off = offset.unwrap_or(0);
+    backend.list_projects(lim, off).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 async fn debug_environment() -> Result<String, String> {
     let path = std::env::var("PATH").unwrap_or_else(|_| "PATH not found".to_string());
     let home = std::env::var("HOME").unwrap_or_else(|_| {
@@ -324,7 +333,8 @@ pub fn run() {
             list_directory_contents,
             list_volumes,
             debug_environment,
-            get_recent_chats
+            get_recent_chats,
+            get_projects
         ]);
 
     builder

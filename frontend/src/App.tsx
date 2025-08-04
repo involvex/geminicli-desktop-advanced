@@ -31,7 +31,10 @@ import {
 import "./index.css";
 import { GeminiLogoCenter } from "./components/GeminiLogoCenter";
 import { ToolCallDisplay } from "./components/ToolCallDisplay";
-import RecentChats from "./components/RecentChats";
+import { Card, CardHeader, CardTitle, CardDescription } from "./components/ui/card";
+import { GeminiIcon } from "./components/GeminiIcon";
+import ProjectsPage from "./pages/Projects";
+import ProjectDetailPage from "./pages/ProjectDetail";
 
 interface ThinkingMessagePart {
   type: "thinking";
@@ -799,11 +802,84 @@ function App() {
     }
   };
 
+  // Minimal path-based routing for Project detail (Step 5) and Projects page
+  // First: handle /projects/:id
+  if (window.location.pathname.startsWith("/projects/")) {
+    const suffix = window.location.pathname.slice("/projects/".length);
+    const projectId = suffix.trim();
+    if (projectId.length > 0) {
+      return (
+        <div className="flex h-screen w-full overflow-hidden">
+          <div className="flex flex-col flex-1 min-w-0">
+            {/* Top Header */}
+            <div className="border-b border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex-shrink-0">
+              <div className="px-6 py-4">
+                <div className="flex items-center w-full">
+                  {/* Left section - Gemini Desktop Logo */}
+                  <div className="flex flex-1 items-center gap-1">
+                    <GeminiLogo />
+                    <span className="text-lg font-medium bg-gradient-to-r from-[#3186ff] via-[#346bf1] to-[#4fa0ff] bg-clip-text text-transparent">
+                      Desktop
+                    </span>
+                  </div>
+
+                  {/* Right section - Piebald branding */}
+                  <div className="flex flex-1 flex-col items-end text-xs text-neutral-400">
+                    <p>From the creators of</p> <PiebaldLogo />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Main Content */}
+            <div className="flex-1 flex flex-col bg-background min-h-0">
+              <ProjectDetailPage projectId={projectId} />
+            </div>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // Minimal path-based routing for Projects page (Step 3)
+  if (window.location.pathname === "/projects") {
+    return (
+      <div className="flex h-screen w-full overflow-hidden">
+        <div className="flex flex-col flex-1 min-w-0">
+          {/* Top Header */}
+          <div className="border-b border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex-shrink-0">
+            <div className="px-6 py-4">
+              <div className="flex items-center w-full">
+                {/* Left section - Gemini Desktop Logo */}
+                <div className="flex flex-1 items-center gap-1">
+                  <GeminiLogo />
+                  <span className="text-lg font-medium bg-gradient-to-r from-[#3186ff] via-[#346bf1] to-[#4fa0ff] bg-clip-text text-transparent">
+                    Desktop
+                  </span>
+                </div>
+
+                {/* Right section - Piebald branding */}
+                <div className="flex flex-1 flex-col items-end text-xs text-neutral-400">
+                  <p>From the creators of</p> <PiebaldLogo />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Content */}
+          <div className="flex-1 flex flex-col bg-background min-h-0">
+            <ProjectsPage />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen w-full overflow-hidden">
       {/* Sidebar */}
       <ConversationList
-        conversations={conversations}
+        conversations={conversations as any}
         activeConversation={activeConversation}
         processStatuses={processStatuses}
         onConversationSelect={handleConversationSelect}
@@ -1039,10 +1115,28 @@ function App() {
                 </span>
               </div>
 
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground mb-6">
                 Start a new conversation to begin chatting with Gemini.
               </p>
-              <RecentChats />
+
+              {/* Dashboard tiles */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full max-w-3xl">
+                {/* Gemini CLI Projects Card */}
+                <Card
+                  className="cursor-pointer transition-colors hover:bg-accent"
+                  onClick={() => window.location.assign("/projects")}
+                >
+                  <CardHeader className="flex flex-row items-center gap-3">
+                    <div className="shrink-0 h-6 w-6 flex items-center justify-center">
+                      <GeminiIcon />
+                    </div>
+                    <div className="text-left">
+                      <CardTitle className="text-base">Gemini CLI Projects</CardTitle>
+                      <CardDescription>Browse your projects</CardDescription>
+                    </div>
+                  </CardHeader>
+                </Card>
+              </div>
             </div>
           )}
 

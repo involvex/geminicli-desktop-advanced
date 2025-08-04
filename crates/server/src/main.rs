@@ -270,11 +270,29 @@ fn index(path: PathBuf) -> Result<(ContentType, &'static [u8]), Status> {
 }
 
 // =====================================
- // Backend API Routes
- // =====================================
+// Backend API Routes
+// =====================================
 
- #[get("/recent-chats")]
- async fn get_recent_chats(state: &State<AppState>) -> Result<Json<Vec<RecentChat>>, Status> {
+#[get("/projects?<limit>&<offset>")]
+async fn get_projects(
+    limit: Option<u32>,
+    offset: Option<u32>,
+    state: &State<AppState>
+) -> Result<Json<serde_json::Value>, Status> {
+    let lim = limit.unwrap_or(25);
+    let off = offset.unwrap_or(0);
+    let backend = state.backend.lock().await;
+    match backend.list_projects(lim, off).await {
+        Ok(resp) => {
+            let v = serde_json::to_value(resp).map_err(|_e| Status::InternalServerError).unwrap();
+            Ok(Json(v))
+        }
+        Err(_e) => Err(Status::InternalServerError),
+    }
+}
+
+#[get("/recent-chats")]
+async fn get_recent_chats(state: &State<AppState>) -> Result<Json<Vec<RecentChat>>, Status> {
      let backend = state.backend.lock().await;
      match backend.get_recent_chats().await {
          Ok(chats) => Ok(Json(chats)),
@@ -557,7 +575,8 @@ fn rocket() -> _ {
             get_parent_directory,
             list_directory_contents,
             list_volumes,
-            get_recent_chats
+            get_recent_chats,
+            get_projects,
         ],
     )
 }
