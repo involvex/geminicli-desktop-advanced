@@ -2,7 +2,6 @@
 use tauri::{AppHandle, Emitter, Manager, State};
 use serde::Serialize;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
 // Import backend functionality
 use backend::{
@@ -41,7 +40,7 @@ impl EventEmitter for TauriEventEmitter {
 // =====================================
 
 struct AppState {
-    backend: Arc<Mutex<GeminiBackend<TauriEventEmitter>>>,
+    backend: Arc<GeminiBackend<TauriEventEmitter>>,
 }
 
 
@@ -52,15 +51,13 @@ struct AppState {
 
 #[tauri::command]
 async fn check_cli_installed(state: State<'_, AppState>) -> Result<bool, String> {
-    let backend = state.backend.lock().await;
-    backend.check_cli_installed().await.map_err(|e| e.to_string())
+    state.backend.check_cli_installed().await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 async fn start_session(_session_id: String, state: State<'_, AppState>) -> Result<(), String> {
     // For compatibility with existing frontend, just check if CLI is installed
-    let backend = state.backend.lock().await;
-    let available = backend.check_cli_installed().await.map_err(|e| e.to_string())?;
+    let available = state.backend.check_cli_installed().await.map_err(|e| e.to_string())?;
     if available {
         Ok(())
     } else {
@@ -80,14 +77,12 @@ async fn send_message(
 ) -> Result<(), String> {
     // Initialize session if model is provided
     if let Some(model_name) = model {
-        let backend = state.backend.lock().await;
-        backend.initialize_session(session_id.clone(), working_directory.clone(), model_name)
+        state.backend.initialize_session(session_id.clone(), working_directory.clone(), model_name)
             .await
             .map_err(|e| e.to_string())?;
     }
 
-    let backend = state.backend.lock().await;
-    backend.send_message(session_id, message, conversation_history)
+    state.backend.send_message(session_id, message, conversation_history)
         .await
         .map_err(|e| e.to_string())
 }
@@ -123,14 +118,12 @@ async fn test_gemini_command() -> Result<String, String> {
 
 #[tauri::command]
 async fn get_process_statuses(state: State<'_, AppState>) -> Result<Vec<ProcessStatus>, String> {
-    let backend = state.backend.lock().await;
-    backend.get_process_statuses().map_err(|e| e.to_string())
+    state.backend.get_process_statuses().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 async fn kill_process(conversation_id: String, state: State<'_, AppState>) -> Result<(), String> {
-    let backend = state.backend.lock().await;
-    backend.kill_process(&conversation_id).map_err(|e| e.to_string())
+    state.backend.kill_process(&conversation_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -141,8 +134,7 @@ async fn send_tool_call_confirmation_response(
     outcome: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    let backend = state.backend.lock().await;
-    backend.handle_tool_confirmation(session_id, request_id, tool_call_id, outcome)
+    state.backend.handle_tool_confirmation(session_id, request_id, tool_call_id, outcome)
         .await
         .map_err(|e| e.to_string())
 }
@@ -152,8 +144,7 @@ async fn execute_confirmed_command(
     command: String,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
-    let backend = state.backend.lock().await;
-    backend.execute_confirmed_command(command)
+    state.backend.execute_confirmed_command(command)
         .await
         .map_err(|e| e.to_string())
 }
@@ -164,74 +155,56 @@ async fn generate_conversation_title(
     model: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
-    let backend = state.backend.lock().await;
-    backend.generate_conversation_title(message, model)
+    state.backend.generate_conversation_title(message, model)
         .await
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 async fn validate_directory(path: String, state: State<'_, AppState>) -> Result<bool, String> {
-    let backend = state.backend.lock().await;
-    backend.validate_directory(path).await.map_err(|e| e.to_string())
+    state.backend.validate_directory(path).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 async fn is_home_directory(path: String, state: State<'_, AppState>) -> Result<bool, String> {
-    let backend = state.backend.lock().await;
-    backend.is_home_directory(path).await.map_err(|e| e.to_string())
+    state.backend.is_home_directory(path).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 async fn get_home_directory(state: State<'_, AppState>) -> Result<String, String> {
-    let backend = state.backend.lock().await;
-    backend.get_home_directory().await.map_err(|e| e.to_string())
+    state.backend.get_home_directory().await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 async fn get_parent_directory(path: String, state: State<'_, AppState>) -> Result<Option<String>, String> {
-    let backend = state.backend.lock().await;
-    backend.get_parent_directory(path).await.map_err(|e| e.to_string())
+    state.backend.get_parent_directory(path).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 async fn list_directory_contents(path: String, state: State<'_, AppState>) -> Result<Vec<DirEntry>, String> {
-    let backend = state.backend.lock().await;
-    backend.list_directory_contents(path).await.map_err(|e| e.to_string())
+    state.backend.list_directory_contents(path).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 async fn list_volumes(state: State<'_, AppState>) -> Result<Vec<DirEntry>, String> {
-    let backend = state.backend.lock().await;
-    backend.list_volumes().await.map_err(|e| e.to_string())
+    state.backend.list_volumes().await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 async fn get_recent_chats(state: State<'_, AppState>) -> Result<Vec<RecentChat>, String> {
-    let backend = state.backend.lock().await;
-    backend.get_recent_chats().await.map_err(|e| e.to_string())
+    state.backend.get_recent_chats().await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 async fn list_projects(limit: Option<u32>, offset: Option<u32>, state: State<'_, AppState>) -> Result<ProjectsResponse, String> {
-    // log and count secs
-    println!("list_projects");
-    let start = std::time::Instant::now();
-    let backend = state.backend.lock().await;
-    let mut elapsed = start.elapsed().as_secs_f64();
-    println!("lock took {} secs", elapsed);
     let lim = limit.unwrap_or(25);
     let off = offset.unwrap_or(0);
-    let resp = backend.list_projects(lim, off).await.map_err(|e| e.to_string())?;
-    elapsed = start.elapsed().as_secs_f64();
-    println!("list_projects took total {} secs", elapsed);
-    Ok(resp)
+    state.backend.list_projects(lim, off).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 async fn get_project_discussions(projectId: String, state: State<'_, AppState>) -> Result<Vec<RecentChat>, String> {
-    let backend = state.backend.lock().await;
-    backend.get_project_discussions(&projectId).await.map_err(|e| e.to_string())
+    state.backend.get_project_discussions(&projectId).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -324,7 +297,7 @@ pub fn run() {
             
             // Store in app state
             let app_state = AppState {
-                backend: Arc::new(Mutex::new(backend)),
+                backend: Arc::new(backend),
             };
             app.manage(app_state);
             
