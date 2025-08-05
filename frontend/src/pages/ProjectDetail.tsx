@@ -1,4 +1,5 @@
 import React from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { Card } from "../components/ui/card";
 import { api } from "../App";
 import { ArrowLeft } from "lucide-react";
@@ -16,10 +17,16 @@ type Discussion = {
  * Full-page Project Detail (Step 5).
  * Renders discussions for a given projectId using a temporary stub API.
  */
-export default function ProjectDetailPage({ projectId }: { projectId: string }) {
+export default function ProjectDetailPage() {
+  const { id: projectId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [discussions, setDiscussions] = React.useState<Discussion[] | null>(null);
   const [projectData, setProjectData] = React.useState<EnrichedProject | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+
+  if (!projectId) {
+    return <div>Invalid project ID</div>;
+  }
 
   React.useEffect(() => {
     let cancelled = false;
@@ -54,7 +61,7 @@ export default function ProjectDetailPage({ projectId }: { projectId: string }) 
       <div className="mx-auto w-full max-w-4xl px-6 py-8">
         <button
           type="button"
-          onClick={() => window.location.assign("/projects")}
+          onClick={() => navigate("/projects")}
           className="mb-4 inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition cursor-pointer"
           aria-label="Back to Projects"
         >

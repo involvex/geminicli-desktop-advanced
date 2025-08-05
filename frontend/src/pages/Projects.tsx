@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { Card } from "../components/ui/card";
 import { api } from "../App";
 import { ArrowLeft } from "lucide-react";
@@ -14,6 +15,7 @@ function truncatePath(path: string): string {
 export default function ProjectsPage() {
   const [projects, setProjects] = React.useState<Project[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const navigate = useNavigate();
 
   React.useEffect(() => {
     let cancelled = false;
@@ -37,7 +39,7 @@ export default function ProjectsPage() {
       <div className="mx-auto w-full max-w-4xl px-6 py-8">
         <button
           type="button"
-          onClick={() => window.location.assign("/")}
+          onClick={() => navigate("/")}
           className="mb-4 inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition cursor-pointer"
           aria-label="Back to Home"
         >
@@ -63,7 +65,7 @@ export default function ProjectsPage() {
                 <Card
                   key={p.sha256}
                   className="cursor-pointer transition hover:shadow"
-                  onClick={() => window.location.assign(`/projects/${p.sha256}`)}
+                  onClick={() => navigate(`/projects/${p.sha256}`)}
                 >
                   <div className="pl-4">
                     <div className="font-medium text-sm" title={p.metadata.path}>

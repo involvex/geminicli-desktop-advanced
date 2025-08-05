@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, createContext, useContext } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { Routes, Route, Outlet, Navigate, useNavigate } from "react-router-dom";
 import { webApi, webListen, getWebSocketManager } from "./lib/webApi";
 import { Button } from "./components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "./components/ui/alert";
@@ -34,7 +35,6 @@ import { ToolCallDisplay } from "./components/ToolCallDisplay";
 import { Card, CardHeader, CardTitle, CardDescription } from "./components/ui/card";
 import ProjectsPage from "./pages/Projects";
 import ProjectDetailPage from "./pages/ProjectDetail";
-import { PageLayout } from "./components/PageLayout";
 import { GeminiIcon } from "./components/GeminiIcon";
 import { GeminiText } from "./components/GeminiText";
 
@@ -276,7 +276,35 @@ function createCharDiff(oldText: string, newText: string) {
   return { oldDiff, newDiff };
 }
 
-function App() {
+// Context for sharing conversation state with child routes
+interface ConversationContextType {
+  conversations: Conversation[];
+  activeConversation: string | null;
+  currentConversation: Conversation | undefined;
+  input: string;
+  isCliInstalled: boolean | null;
+  messagesContainerRef: React.RefObject<HTMLDivElement>;
+  cliIOLogs: CliIO[];
+  handleInputChange: (
+    _event: React.ChangeEvent<HTMLInputElement> | null,
+    newValue: string,
+    _newPlainTextValue: string,
+    _mentions: unknown[]
+  ) => void;
+  handleSendMessage: (e: React.FormEvent) => Promise<void>;
+}
+
+const ConversationContext = createContext<ConversationContextType | undefined>(undefined);
+
+export const useConversation = () => {
+  const context = useContext(ConversationContext);
+  if (context === undefined) {
+    throw new Error('useConversation must be used within a ConversationProvider');
+  }
+  return context;
+};
+
+function RootLayout() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] = useState<string | null>(
     null
@@ -808,33 +836,6 @@ function App() {
     }
   };
 
-  // Minimal path-based routing for Project detail (Step 5) and Projects page
-  // First: handle /projects/:id
-  if (window.location.pathname.startsWith("/projects/")) {
-    const suffix = window.location.pathname.slice("/projects/".length);
-    const projectId = suffix.trim();
-    if (projectId.length > 0) {
-      return (
-        <div className="flex h-screen w-full overflow-hidden">
-          <PageLayout>
-            <ProjectDetailPage projectId={projectId} />
-          </PageLayout>
-        </div>
-      );
-    }
-  }
-
-  // Minimal path-based routing for Projects page (Step 3)
-  if (window.location.pathname === "/projects") {
-    return (
-      <div className="flex h-screen w-full overflow-hidden">
-        <PageLayout>
-          <ProjectsPage />
-        </PageLayout>
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-screen w-full overflow-hidden">
       {/* Sidebar */}
@@ -873,35 +874,6 @@ function App() {
 
         {/* Main Content */}
         <div className="flex-1 flex flex-col bg-background min-h-0">
-          {isCliInstalled === false && (
-            <div className="p-4">
-              <Alert
-                variant="destructive"
-                className="bg-red-50 border-red-300 dark:bg-red-950 dark:border-red-700 text-red-300"
-              >
-                <AlertCircleIcon />
-                <AlertTitle>Gemini CLI not found</AlertTitle>
-                <AlertDescription className="dark:text-red-300">
-                  {/* <div className="flex flex-row"> */}
-                  <p>
-                    <span>
-                      Please install the Gemini CLI and make sure it's available
-                      in your PATH. You can install it from{" "}
-                    </span>
-                    <a
-                      href="https://github.com/google-gemini/gemini-cli"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline underline-offset-4"
-                    >
-                      the official repository
-                    </a>
-                    .
-                  </p>
-                </AlertDescription>
-              </Alert>
-            </div>
-          )}
           {isWorkingDirectoryHome && isWorkingDirectoryValid && (
             <div className="p-4">
               <Alert className="bg-yellow-50 border-yellow-300 dark:bg-yellow-950 dark:border-yellow-700">
@@ -968,276 +940,19 @@ function App() {
               </Alert>
             </div>
           )}
-          {currentConversation ? (
-            <div
-              ref={messagesContainerRef}
-              className="flex-1 min-h-0 overflow-y-auto p-6 relative"
-            >
-              <div className="space-y-8 pb-4 max-w-4xl mx-auto">
-                {currentConversation.messages.map((message, index) => (
-                  <div
-                    key={message.id}
-                    className={`w-full ${
-                      message.sender === "user" ? "flex justify-start" : ""
-                    }`}
-                  >
-                    <div className="w-full">
-                      {/* Header with logo and timestamp */}
-                      <div className="flex items-center gap-2 mb-4">
-                        {message.sender === "assistant" ? (
-                          <div>
-                            <GeminiLogo />
-                          </div>
-                        ) : (
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <div
-                                className="size-5.5 flex items-center justify-center overflow-hidden rounded-full"
-                                style={{
-                                  background:
-                                    "radial-gradient(circle, #346bf1 0%, #3186ff 50%, #4fa0ff 100%)",
-                                }}
-                              >
-                                <UserRound className="size-4" />
-                              </div>
-                              User
-                            </div>
-                          </div>
-                        )}
-                        <span className="text-xs text-muted-foreground">
-                          {message.timestamp.toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                      </div>
-
-                      {message.parts.map((msgPart) =>
-                        msgPart.type === "thinking" ? (
-                          <ThinkingBlock thinking={msgPart.thinking} />
-                        ) : msgPart.type === "text" ? (
-                          /* Message Content */
-                          <div className="text-sm text-gray-900 dark:text-gray-100 mb-2">
-                            <MessageContent
-                              content={msgPart.text}
-                              sender={message.sender}
-                            />
-                          </div>
-                        ) : msgPart.type === "toolCall" ? (
-                          <ToolCallDisplay toolCall={msgPart.toolCall} />
-                        ) : null
-                      )}
-
-                      {currentConversation.isStreaming &&
-                        index === currentConversation.messages.length - 1 && (
-                          <div className="text-gray-400 italic text-xs">
-                            <span className="animate-pulse">●</span>{" "}
-                            Generating...
-                          </div>
-                        )}
-
-                      {/* Info button for raw JSON */}
-                      <div className="mt-2 flex justify-start">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-                            >
-                              <Info className="h-3 w-3 mr-1" />
-                              Raw JSON
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                            <DialogHeader>
-                              <DialogTitle>Message Raw JSON</DialogTitle>
-                            </DialogHeader>
-                            <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
-                              <pre className="text-xs whitespace-pre-wrap break-all font-mono">
-                                {JSON.stringify(message, null, 2)}
-                              </pre>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
-              <div className="flex flex-row items-center mb-4 gap-2">
-                <div className="flex flex-row items-center gap-2">
-                  <GeminiIcon />
-                  <GeminiText />
-                </div>
-                <span className="text-4xl font-medium gradient-text-desktop">
-                  Desktop
-                </span>
-              </div>
-
-              <p className="text-muted-foreground mb-6">
-                Your ideas for the future are just a click away.
-              </p>
-
-              {/* Dashboard tiles */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-3xl">
-                {/* Gemini CLI Projects Card */}
-                <Card
-                  className="cursor-pointer transition-colors hover:bg-accent w-full"
-                  onClick={() => window.location.assign("/projects")}
-                >
-                  <CardHeader className="flex flex-row items-center gap-3">
-                    <div className="shrink-0 h-6 w-6 flex items-center justify-center">
-                      <FolderKanban className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                    <div className="text-left">
-                      <CardTitle className="text-base">Projects</CardTitle>
-                      <CardDescription>Manage your projects, view past discussions.</CardDescription>
-                    </div>
-                  </CardHeader>
-                </Card>
-                <Card
-                  className="w-full opacity-60 cursor-not-allowed"
-                  aria-disabled="true"
-                  onClick={(e) => e.preventDefault()}
-                >
-                  <CardHeader className="flex flex-row items-center gap-3">
-                    <div className="shrink-0 h-6 w-6 flex items-center justify-center">
-                      <FolderKanban className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                    <div className="text-left">
-                      <div className="flex items-center gap-2">
-                        <CardTitle className="text-base">MCP Servers</CardTitle>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground uppercase tracking-wide">
-                          Coming soon
-                        </span>
-                      </div>
-                      <CardDescription>Manage MCP configuration and settings.</CardDescription>
-                    </div>
-                  </CardHeader>
-                </Card>
-              </div>
-            </div>
-          )}
-
-          {/* <div className="sticky bottom-0 bg-white dark:bg-neutral-900 flex items-center border-t border-gray-200 dark:border-neutral-700">
-            <div className="px-6 py-2 w-full">
-              <div className="mx-auto">
-                <form
-                  className="flex gap-3 items-end"
-                  onSubmit={handleSendMessage}
-                >
-                  <div className="flex-1 relative">
-                    <MentionInput
-                      value={input}
-                      onChange={handleInputChange}
-                      placeholder={
-                        isCliInstalled === false
-                          ? "Gemini CLI not found"
-                          : "Type @ to mention files..."
-                      }
-                      disabled={isCliInstalled === false}
-                      className="h-9 w-full"
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSendMessage(e);
-                        }
-                      }}
-                    />
-                  </div>
-                  <Button
-                    type="submit"
-                    disabled={
-                      isCliInstalled === false ||
-                      !input.trim() ||
-                      selectedModel === "gemini-2.5-flash-lite"
-                    }
-                    size="icon"
-                  >
-                    <Send />
-                  </Button>
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="outline"
-                        title="View CLI Input/Output"
-                      >
-                        <Info />
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                      <DialogHeader>
-                        <DialogTitle>CLI Input/Output Log</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-                        {cliIOLogs
-                          .filter(
-                            (log) =>
-                              !activeConversation ||
-                              log.conversationId === activeConversation
-                          )
-                          .map((log, index) => (
-                            <div
-                              key={index}
-                              className={`p-3 rounded-lg border ${
-                                log.type === "input"
-                                  ? "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800"
-                                  : "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800"
-                              }`}
-                            >
-                              <div className="flex items-center gap-2 mb-2">
-                                <span
-                                  className={`text-xs font-mono px-2 py-1 rounded ${
-                                    log.type === "input"
-                                      ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
-                                      : "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200"
-                                  }`}
-                                >
-                                  {log.type === "input" ? "IN" : "OUT"}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {log.timestamp.toLocaleTimeString()}
-                                </span>
-                                <span className="text-xs text-muted-foreground font-mono">
-                                  {log.conversationId}
-                                </span>
-                              </div>
-                              <pre className="text-xs whitespace-pre-wrap break-all font-mono bg-white dark:bg-gray-900 p-2 rounded border">
-                                {log.data}
-                              </pre>
-                            </div>
-                          ))}
-                        {cliIOLogs.filter(
-                          (log) =>
-                            !activeConversation ||
-                            log.conversationId === activeConversation
-                        ).length === 0 && (
-                          <div className="text-center text-muted-foreground py-8">
-                            No CLI I/O logs available yet. Start a conversation
-                            to see the raw communication.
-                          </div>
-                        )}
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                  <Button
-                    type="button"
-                    disabled={true}
-                    size="icon"
-                    variant="outline"
-                  >
-                    <ImagePlus />
-                  </Button>
-                </form>
-              </div>
-            </div>
-          </div> */}
+          <ConversationContext.Provider value={{
+            conversations,
+            activeConversation,
+            currentConversation,
+            input,
+            isCliInstalled,
+            messagesContainerRef,
+            cliIOLogs,
+            handleInputChange,
+            handleSendMessage,
+          }}>
+            <Outlet />
+          </ConversationContext.Provider>
         </div>
       </div>
 
@@ -1408,6 +1123,326 @@ function App() {
         </Dialog>
       )}
     </div>
+  );
+}
+
+function HomeDashboard() {
+  const navigate = useNavigate();
+  const {
+    currentConversation,
+    input,
+    isCliInstalled,
+    messagesContainerRef,
+    cliIOLogs,
+    handleInputChange,
+    handleSendMessage,
+  } = useConversation();
+
+  return (
+    <>
+      {isCliInstalled === false && (
+        <div className="p-4">
+          <Alert
+            variant="destructive"
+            className="bg-red-50 border-red-300 dark:bg-red-950 dark:border-red-700 text-red-300"
+          >
+            <AlertCircleIcon />
+            <AlertTitle>Gemini CLI not found</AlertTitle>
+            <AlertDescription className="dark:text-red-300">
+              <p>
+                <span>
+                  Please install the Gemini CLI and make sure it's available
+                  in your PATH. You can install it from{" "}
+                </span>
+                <a
+                  href="https://github.com/google-gemini/gemini-cli"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-4"
+                >
+                  the official repository
+                </a>
+                .
+              </p>
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
+
+      {currentConversation ? (
+        <div
+          ref={messagesContainerRef}
+          className="flex-1 min-h-0 overflow-y-auto p-6 relative"
+        >
+          <div className="space-y-8 pb-4 max-w-4xl mx-auto">
+            {currentConversation.messages.map((message, index) => (
+              <div
+                key={message.id}
+                className={`w-full ${
+                  message.sender === "user" ? "flex justify-start" : ""
+                }`}
+              >
+                <div className="w-full">
+                  {/* Header with logo and timestamp */}
+                  <div className="flex items-center gap-2 mb-4">
+                    {message.sender === "assistant" ? (
+                      <div>
+                        <GeminiLogo />
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="size-5.5 flex items-center justify-center overflow-hidden rounded-full"
+                            style={{
+                              background:
+                                "radial-gradient(circle, #346bf1 0%, #3186ff 50%, #4fa0ff 100%)",
+                            }}
+                          >
+                            <UserRound className="size-4" />
+                          </div>
+                          User
+                        </div>
+                      </div>
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      {message.timestamp.toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+
+                  {message.parts.map((msgPart) =>
+                    msgPart.type === "thinking" ? (
+                      <ThinkingBlock thinking={msgPart.thinking} />
+                    ) : msgPart.type === "text" ? (
+                      /* Message Content */
+                      <div className="text-sm text-gray-900 dark:text-gray-100 mb-2">
+                        <MessageContent
+                          content={msgPart.text}
+                          sender={message.sender}
+                        />
+                      </div>
+                    ) : msgPart.type === "toolCall" ? (
+                      <ToolCallDisplay toolCall={msgPart.toolCall} />
+                    ) : null
+                  )}
+
+                  {currentConversation.isStreaming &&
+                    index === currentConversation.messages.length - 1 && (
+                      <div className="text-gray-400 italic text-xs">
+                        <span className="animate-pulse">●</span>{" "}
+                        Generating...
+                      </div>
+                    )}
+
+                  {/* Info button for raw JSON */}
+                  <div className="mt-2 flex justify-start">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          <Info className="h-3 w-3 mr-1" />
+                          Raw JSON
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle>Message Raw JSON</DialogTitle>
+                        </DialogHeader>
+                        <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
+                          <pre className="text-xs whitespace-pre-wrap break-all font-mono">
+                            {JSON.stringify(message, null, 2)}
+                          </pre>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
+          <div className="flex flex-row items-center mb-4 gap-2">
+            <div className="flex flex-row items-center gap-2">
+              <GeminiIcon />
+              <GeminiText />
+            </div>
+            <span className="text-4xl font-medium gradient-text-desktop">
+              Desktop
+            </span>
+          </div>
+
+          <p className="text-muted-foreground mb-6">
+            Your ideas for the future are just a click away.
+          </p>
+
+          {/* Dashboard tiles */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-3xl">
+            {/* Gemini CLI Projects Card */}
+            <Card
+              className="cursor-pointer transition-colors hover:bg-accent w-full"
+              onClick={() => navigate("/projects")}
+            >
+              <CardHeader className="flex flex-row items-center gap-3">
+                <div className="shrink-0 h-6 w-6 flex items-center justify-center">
+                  <FolderKanban className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div className="text-left">
+                  <CardTitle className="text-base">Projects</CardTitle>
+                  <CardDescription>Manage your projects, view past discussions.</CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
+            <Card
+              className="w-full opacity-60 cursor-not-allowed"
+              aria-disabled="true"
+              onClick={(e) => e.preventDefault()}
+            >
+              <CardHeader className="flex flex-row items-center gap-3">
+                <div className="shrink-0 h-6 w-6 flex items-center justify-center">
+                  <FolderKanban className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div className="text-left">
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-base">MCP Servers</CardTitle>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground uppercase tracking-wide">
+                      Coming soon
+                    </span>
+                  </div>
+                  <CardDescription>Manage MCP configuration and settings.</CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      <div className="sticky bottom-0 bg-white dark:bg-neutral-900 flex items-center border-t border-gray-200 dark:border-neutral-700">
+        <div className="px-6 py-2 w-full">
+          <div className="mx-auto">
+            <form
+              className="flex gap-3 items-end"
+              onSubmit={handleSendMessage}
+            >
+              <div className="flex-1 relative">
+                <MentionInput
+                  value={input}
+                  onChange={handleInputChange}
+                  placeholder={
+                    isCliInstalled === false
+                      ? "Gemini CLI not found"
+                      : "Type @ to mention files..."
+                  }
+                  disabled={isCliInstalled === false}
+                  className="h-9 w-full"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage(e);
+                    }
+                  }}
+                />
+              </div>
+              <Button
+                type="submit"
+                disabled={
+                  isCliInstalled === false ||
+                  !input.trim()
+                }
+                size="icon"
+              >
+                <Send />
+              </Button>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    title="View CLI Input/Output"
+                  >
+                    <Info />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>CLI Input/Output Log</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+                    {cliIOLogs
+                      .map((log, index) => (
+                        <div
+                          key={index}
+                          className={`p-3 rounded-lg border ${
+                            log.type === "input"
+                              ? "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800"
+                              : "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <span
+                              className={`text-xs font-mono px-2 py-1 rounded ${
+                                log.type === "input"
+                                  ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
+                                  : "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200"
+                              }`}
+                            >
+                              {log.type === "input" ? "IN" : "OUT"}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {log.timestamp.toLocaleTimeString()}
+                            </span>
+                            <span className="text-xs text-muted-foreground font-mono">
+                              {log.conversationId}
+                            </span>
+                          </div>
+                          <pre className="text-xs whitespace-pre-wrap break-all font-mono bg-white dark:bg-gray-900 p-2 rounded border">
+                            {log.data}
+                          </pre>
+                        </div>
+                      ))}
+                    {cliIOLogs.length === 0 && (
+                      <div className="text-center text-muted-foreground py-8">
+                        No CLI I/O logs available yet. Start a conversation
+                        to see the raw communication.
+                      </div>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+              <Button
+                type="button"
+                disabled={true}
+                size="icon"
+                variant="outline"
+              >
+                <ImagePlus />
+              </Button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function App() {
+  return (
+    <Routes>
+      <Route element={<RootLayout />}>
+        <Route index element={<HomeDashboard />} />
+        <Route path="projects" element={<ProjectsPage />} />
+        <Route path="projects/:id" element={<ProjectDetailPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
+    </Routes>
   );
 }
 
