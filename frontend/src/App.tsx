@@ -27,7 +27,6 @@ import {
   FolderKanban,
   Send,
   ImagePlus,
-  PlugZap,
 } from "lucide-react";
 import "./index.css";
 import { ToolCallDisplay } from "./components/ToolCallDisplay";
