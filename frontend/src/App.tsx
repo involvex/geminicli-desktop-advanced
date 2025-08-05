@@ -504,7 +504,7 @@ function RootLayout() {
               for (const msgPart of msg.parts) {
                 if (
                   msgPart.type === "toolCall" &&
-                  msgPart.toolCall.id === toolCallId
+                  msgPart.toolCall.id === toolCallId.toString()
                 ) {
                   // Split "finished" into "failed" or "completed".
                   if (status === "finished") {
