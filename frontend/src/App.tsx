@@ -30,12 +30,13 @@ import {
   FolderKanban,
 } from "lucide-react";
 import "./index.css";
-import { GeminiLogoCenter } from "./components/GeminiLogoCenter";
 import { ToolCallDisplay } from "./components/ToolCallDisplay";
 import { Card, CardHeader, CardTitle, CardDescription } from "./components/ui/card";
 import ProjectsPage from "./pages/Projects";
 import ProjectDetailPage from "./pages/ProjectDetail";
 import { PageLayout } from "./components/PageLayout";
+import { GeminiIcon } from "./components/GeminiIcon";
+import { GeminiText } from "./components/GeminiText";
 
 interface ThinkingMessagePart {
   type: "thinking";
@@ -1068,21 +1069,24 @@ function App() {
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
               <div className="flex flex-row items-center mb-4 gap-2">
-                <GeminiLogoCenter />
+                <div className="flex flex-row items-center gap-2">
+                  <GeminiIcon />
+                  <GeminiText />
+                </div>
                 <span className="text-4xl font-medium gradient-text-desktop">
                   Desktop
                 </span>
               </div>
 
               <p className="text-muted-foreground mb-6">
-                Start a new conversation to begin chatting with Gemini.
+                Your ideas for the future are just a click away.
               </p>
 
               {/* Dashboard tiles */}
-              <div className="grid grid-cols-1 gap-4 w-full max-w-3xl place-items-center">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-3xl">
                 {/* Gemini CLI Projects Card */}
                 <Card
-                  className="cursor-pointer transition-colors hover:bg-accent w-full max-w-sm"
+                  className="cursor-pointer transition-colors hover:bg-accent w-full"
                   onClick={() => window.location.assign("/projects")}
                 >
                   <CardHeader className="flex flex-row items-center gap-3">
@@ -1090,8 +1094,28 @@ function App() {
                       <FolderKanban className="h-5 w-5 text-muted-foreground" />
                     </div>
                     <div className="text-left">
-                      <CardTitle className="text-base">Gemini CLI Projects</CardTitle>
-                      <CardDescription>Browse your projects</CardDescription>
+                      <CardTitle className="text-base">Projects</CardTitle>
+                      <CardDescription>Manage your projects, view past discussions.</CardDescription>
+                    </div>
+                  </CardHeader>
+                </Card>
+                <Card
+                  className="w-full opacity-60 cursor-not-allowed"
+                  aria-disabled="true"
+                  onClick={(e) => e.preventDefault()}
+                >
+                  <CardHeader className="flex flex-row items-center gap-3">
+                    <div className="shrink-0 h-6 w-6 flex items-center justify-center">
+                      <FolderKanban className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                    <div className="text-left">
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-base">MCP Servers</CardTitle>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground uppercase tracking-wide">
+                          Coming soon
+                        </span>
+                      </div>
+                      <CardDescription>Manage MCP configuration and settings.</CardDescription>
                     </div>
                   </CardHeader>
                 </Card>

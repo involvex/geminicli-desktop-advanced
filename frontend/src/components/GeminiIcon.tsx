@@ -1,7 +1,7 @@
 export function GeminiIcon() {
   return (
     <svg
-      className="_footerSpark_98udt_151"
+      className="_footerSpark_98udt_151 spin-slow"
       width="28"
       height="28"
       viewBox="0 0 64 64"
