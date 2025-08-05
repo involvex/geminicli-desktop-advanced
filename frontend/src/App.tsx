@@ -21,8 +21,6 @@ import { PiebaldLogo } from "./components/PiebaldLogo";
 import { type ToolCall, type ToolCallResult } from "./utils/toolCallParser";
 import {
   Info,
-  Check,
-  X,
   AlertCircleIcon,
   AlertTriangle,
   UserRound,
@@ -235,50 +233,6 @@ function isErrorResult(content: ErrorContent): boolean {
   return false;
 }
 
-// Simple character-level diff function
-function createCharDiff(oldText: string, newText: string) {
-  const oldChars = oldText.split("");
-  const newChars = newText.split("");
-
-  // Simple LCS-based diff implementation
-  const dp: number[][] = [];
-  for (let i = 0; i <= oldChars.length; i++) {
-    dp[i] = [];
-    for (let j = 0; j <= newChars.length; j++) {
-      if (i === 0) dp[i][j] = j;
-      else if (j === 0) dp[i][j] = i;
-      else if (oldChars[i - 1] === newChars[j - 1]) {
-        dp[i][j] = dp[i - 1][j - 1];
-      } else {
-        dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-      }
-    }
-  }
-
-  // Backtrack to find the diff
-  const oldDiff: Array<{ char: string; type: "same" | "removed" }> = [];
-  const newDiff: Array<{ char: string; type: "same" | "added" }> = [];
-
-  let i = oldChars.length;
-  let j = newChars.length;
-
-  while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && oldChars[i - 1] === newChars[j - 1]) {
-      oldDiff.unshift({ char: oldChars[i - 1], type: "same" });
-      newDiff.unshift({ char: newChars[j - 1], type: "same" });
-      i--;
-      j--;
-    } else if (j > 0 && (i === 0 || dp[i][j - 1] <= dp[i - 1][j])) {
-      newDiff.unshift({ char: newChars[j - 1], type: "added" });
-      j--;
-    } else if (i > 0) {
-      oldDiff.unshift({ char: oldChars[i - 1], type: "removed" });
-      i--;
-    }
-  }
-
-  return { oldDiff, newDiff };
-}
 
 // Context for sharing conversation state with child routes
 interface ConversationContextType {
@@ -298,6 +252,8 @@ interface ConversationContextType {
   handleSendMessage: (e: React.FormEvent) => Promise<void>;
   selectedModel: string;
   startNewConversation: (title: string, workingDirectory?: string) => Promise<string>;
+  handleConfirmToolCall: (toolCallId: string, outcome: string) => Promise<void>;
+  confirmationRequests: Map<string, ToolCallConfirmationRequest>;
 }
 
 const ConversationContext = createContext<ConversationContextType | undefined>(undefined);
@@ -320,8 +276,8 @@ function RootLayout() {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [processStatuses, setProcessStatuses] = useState<ProcessStatus[]>([]);
   const [cliIOLogs, setCliIOLogs] = useState<CliIO[]>([]);
-  const [confirmationRequest, setConfirmationRequest] =
-    useState<ToolCallConfirmationRequest | null>(null);
+  const [confirmationRequests, setConfirmationRequests] =
+    useState<Map<string, ToolCallConfirmationRequest>>(new Map());
   const [selectedModel, setSelectedModel] =
     useState<string>("gemini-2.5-flash");
 
@@ -593,9 +549,14 @@ function RootLayout() {
       await api.listen<ToolCallConfirmationRequest>(
         `gemini-tool-call-confirmation-${conversationId}`,
         (event) => {
-          setConfirmationRequest({
-            ...event.payload,
-            inputJsonRpc: window.pendingToolCallInput,
+          const toolCallId = event.payload.toolCallId || event.payload.requestId.toString();
+          setConfirmationRequests(prev => {
+            const newMap = new Map(prev);
+            newMap.set(toolCallId, {
+              ...event.payload,
+              inputJsonRpc: window.pendingToolCallInput,
+            });
+            return newMap;
           });
         }
       );
@@ -807,12 +768,9 @@ function RootLayout() {
     setSelectedModel(model);
   };
 
-  const handleConfirmToolCall = async (outcome: string) => {
+  const handleConfirmToolCall = async (toolCallId: string, outcome: string) => {
+    const confirmationRequest = confirmationRequests.get(toolCallId);
     if (!confirmationRequest) return;
-
-    const toolCallId =
-      confirmationRequest.toolCallId ||
-      confirmationRequest.requestId.toString();
 
     try {
       await api.invoke("send_tool_call_confirmation_response", {
@@ -822,35 +780,45 @@ function RootLayout() {
         outcome,
       });
 
-      // If approved, create a tool call in the UI to show it's running
+      // If approved, update the tool call status in the UI
       if (outcome === "allow" || outcome.startsWith("alwaysAllow")) {
-        const toolCall: ToolCall = {
-          id: toolCallId,
-          name: confirmationRequest.confirmation.command
-            ? "execute_command"
-            : "unknown_tool",
-          parameters: {
-            command: confirmationRequest.confirmation.command,
-          },
-          status: "running",
-          inputJsonRpc: confirmationRequest.inputJsonRpc || undefined,
-        };
-
-        updateConversation(activeConversation!, (conv, lastMsg) => {
-          if (lastMsg.sender === "assistant") {
-            lastMsg.parts.push({ type: "toolCall", toolCall });
-          } else {
-            conv.messages.push({
-              id: Date.now().toString(),
-              sender: "assistant",
-              timestamp: new Date(),
-              parts: [{ type: "toolCall", toolCall }],
-            });
+        updateConversation(activeConversation!, (conv) => {
+          for (const msg of conv.messages) {
+            for (const msgPart of msg.parts) {
+              if (
+                msgPart.type === "toolCall" &&
+                msgPart.toolCall.id === toolCallId
+              ) {
+                msgPart.toolCall.status = "running";
+                return;
+              }
+            }
+          }
+        });
+      } else {
+        // If rejected, mark as failed
+        updateConversation(activeConversation!, (conv) => {
+          for (const msg of conv.messages) {
+            for (const msgPart of msg.parts) {
+              if (
+                msgPart.type === "toolCall" &&
+                msgPart.toolCall.id === toolCallId
+              ) {
+                msgPart.toolCall.status = "failed";
+                msgPart.toolCall.result = { markdown: "Tool call rejected by user" };
+                return;
+              }
+            }
           }
         });
       }
 
-      setConfirmationRequest(null);
+      // Remove the confirmation request from the map
+      setConfirmationRequests(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(toolCallId);
+        return newMap;
+      });
     } catch (error) {
       console.error("Failed to send confirmation response:", error);
     }
@@ -956,6 +924,8 @@ function RootLayout() {
             handleSendMessage,
             selectedModel,
             startNewConversation,
+            handleConfirmToolCall,
+            confirmationRequests,
           }}>
             <Outlet />
           </ConversationContext.Provider>
@@ -1063,172 +1033,6 @@ function RootLayout() {
         </div>
       </div>
 
-      {/* Tool Call Confirmation Dialog */}
-      {confirmationRequest && (
-        <Dialog
-          open={!!confirmationRequest}
-          onOpenChange={() => setConfirmationRequest(null)}
-        >
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <span className="text-2xl">📝</span>
-                {confirmationRequest.label}
-              </DialogTitle>
-            </DialogHeader>
-
-            <div className="space-y-4">
-              {confirmationRequest.confirmation.type === "execute" ? (
-                <div>
-                  <div className="text-sm text-muted-foreground mb-3">
-                    The assistant wants to execute the following terminal
-                    command:
-                  </div>
-
-                  <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-lg">
-                    <div className="font-mono text-sm font-medium text-green-600 dark:text-green-400">
-                      {confirmationRequest.confirmation.command}
-                    </div>
-                  </div>
-
-                  <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                    <div className="text-sm text-yellow-800 dark:text-yellow-200">
-                      <strong>⚠️ Security Notice:</strong> Only commands from a
-                      predefined safe list can be executed. Dangerous operations
-                      like file deletion, system modification, or network
-                      requests are blocked.
-                    </div>
-                  </div>
-                </div>
-              ) : confirmationRequest.content ? (
-                <div>
-                  <div className="text-sm text-muted-foreground">
-                    The assistant wants to{" "}
-                    {confirmationRequest.content.type === "diff"
-                      ? "write to"
-                      : "modify"}{" "}
-                    the following file:
-                  </div>
-
-                  <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-lg">
-                    <div className="font-mono text-sm font-medium text-blue-600 dark:text-blue-400">
-                      {confirmationRequest.content.path}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-sm text-muted-foreground">
-                  The assistant wants to perform an action.
-                </div>
-              )}
-
-              {confirmationRequest.content &&
-                confirmationRequest.content.type === "diff" &&
-                confirmationRequest.confirmation.type !== "execute" && (
-                  <div className="space-y-3">
-                    <div className="text-sm font-medium">Changes:</div>
-
-                    {(() => {
-                      const { oldDiff, newDiff } = createCharDiff(
-                        confirmationRequest.content.oldText || "",
-                        confirmationRequest.content.newText || ""
-                      );
-
-                      return (
-                        <>
-                          {/* Old content with character-level diff */}
-                          {confirmationRequest.content.oldText &&
-                            confirmationRequest.content.oldText.length > 0 && (
-                              <div>
-                                <div className="text-xs text-red-600 dark:text-red-400 font-medium mb-1">
-                                  - Removed:
-                                </div>
-                                <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-3">
-                                  <pre className="text-xs whitespace-pre-wrap break-all font-mono text-red-700 dark:text-red-300">
-                                    {oldDiff.map((item, index) => (
-                                      <span
-                                        key={index}
-                                        className={
-                                          item.type === "removed"
-                                            ? "bg-red-200 dark:bg-red-800/50"
-                                            : ""
-                                        }
-                                      >
-                                        {item.char}
-                                      </span>
-                                    ))}
-                                  </pre>
-                                </div>
-                              </div>
-                            )}
-
-                          {/* New content with character-level diff */}
-                          <div>
-                            <div className="text-xs text-green-600 dark:text-green-400 font-medium mb-1">
-                              + Added:
-                            </div>
-                            <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-3 max-h-96 overflow-y-auto">
-                              <pre className="text-xs whitespace-pre-wrap break-all font-mono text-green-700 dark:text-green-300">
-                                {newDiff.map((item, index) => (
-                                  <span
-                                    key={index}
-                                    className={
-                                      item.type === "added"
-                                        ? "bg-green-200 dark:bg-green-800/50"
-                                        : ""
-                                    }
-                                  >
-                                    {item.char}
-                                  </span>
-                                ))}
-                              </pre>
-                            </div>
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </div>
-                )}
-
-              <div className="flex flex-col gap-3 pt-4">
-                <div className="flex justify-end space-x-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => handleConfirmToolCall("reject")}
-                    className="flex items-center gap-2"
-                  >
-                    <X className="h-4 w-4" />
-                    Deny
-                  </Button>
-                  <Button
-                    onClick={() => handleConfirmToolCall("allow")}
-                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
-                  >
-                    <Check className="h-4 w-4" />
-                    Allow Once
-                  </Button>
-                </div>
-                <div className="flex justify-end space-x-2">
-                  <Button
-                    variant="secondary"
-                    onClick={() => handleConfirmToolCall("alwaysAllow")}
-                    className="text-xs"
-                  >
-                    Always Allow (Session)
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => handleConfirmToolCall("alwaysAllowTool")}
-                    className="text-xs"
-                  >
-                    Always Allow Tool
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   );
 }
@@ -1239,6 +1043,8 @@ function HomeDashboard() {
     currentConversation,
     isCliInstalled,
     messagesContainerRef,
+    handleConfirmToolCall,
+    confirmationRequests,
   } = useConversation();
 
   return (
@@ -1328,7 +1134,11 @@ function HomeDashboard() {
                         />
                       </div>
                     ) : msgPart.type === "toolCall" ? (
-                      <ToolCallDisplay toolCall={msgPart.toolCall} />
+                      <ToolCallDisplay 
+                        toolCall={msgPart.toolCall} 
+                        onConfirm={handleConfirmToolCall}
+                        hasConfirmationRequest={confirmationRequests.has(msgPart.toolCall.id)}
+                      />
                     ) : null
                   )}
 

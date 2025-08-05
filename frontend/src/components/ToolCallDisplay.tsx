@@ -4,9 +4,11 @@ import type { ToolCall } from "../utils/toolCallParser";
 
 interface ToolCallDisplayProps {
   toolCall: ToolCall;
+  onConfirm?: (toolCallId: string, outcome: string) => void;
+  hasConfirmationRequest?: boolean;
 }
 
-export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
+export function ToolCallDisplay({ toolCall, onConfirm, hasConfirmationRequest }: ToolCallDisplayProps) {
   // Convert snake_case to PascalCase
   const formatToolName = (name: string): string => {
     return name
@@ -287,25 +289,31 @@ export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
             </span>
           </div>
 
-          {/* Approval Buttons */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-700 dark:text-gray-300">
-              Approve?
-            </span>
-            <Button
-              size="sm"
-              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 text-xs"
-            >
-              Yes
-            </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              className="px-3 py-1 text-xs"
-            >
-              No
-            </Button>
-          </div>
+          {/* Approval Buttons - Only show if there's a confirmation request */}
+          {hasConfirmationRequest && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-700 dark:text-gray-300">
+                Approve?
+              </span>
+              <Button
+                size="sm"
+                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 text-xs"
+                onClick={() => onConfirm?.(toolCall.id, "allow")}
+              >
+                <Check className="h-3 w-3 mr-1" />
+                Yes
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="px-3 py-1 text-xs"
+                onClick={() => onConfirm?.(toolCall.id, "reject")}
+              >
+                <X className="h-3 w-3 mr-1" />
+                No
+              </Button>
+            </div>
+          )}
 
           {/* Input JSON-RPC */}
           {toolCall.inputJsonRpc && (
