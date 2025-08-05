@@ -960,8 +960,8 @@ function RootLayout() {
             <Outlet />
           </ConversationContext.Provider>
           
-          {/* Message Input Bar - Only show when there's an active conversation */}
-          {activeConversation && (
+          {/* Message Input Bar - Only show when there's an active conversation with a running process */}
+          {activeConversation && processStatuses.find(status => status.conversation_id === activeConversation && status.is_alive) && (
             <div className="sticky bottom-0 bg-white dark:bg-neutral-900 flex items-center border-t border-gray-200 dark:border-neutral-700">
               <div className="px-6 py-2 w-full">
                 <div className="mx-auto">
