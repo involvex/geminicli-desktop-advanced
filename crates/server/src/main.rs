@@ -205,7 +205,6 @@ struct SendMessageRequest {
     session_id: String,
     message: String,
     conversation_history: String,
-    working_directory: String,
     model: Option<String>,
 }
 
@@ -379,19 +378,6 @@ async fn start_session(request: Json<StartSessionRequest>, state: &State<AppStat
 #[post("/send-message", data = "<request>")]
 async fn send_message(request: Json<SendMessageRequest>, state: &State<AppState>) -> Status {
     let req = request.into_inner();
-
-    // Always ensure a persistent session exists when a working directory is specified.
-    // If a model is provided, use it; otherwise default to gemini-2.5-flash.
-    if !req.working_directory.is_empty() {
-        let model_to_use = req.model.unwrap_or_else(|| "gemini-2.5-flash".to_string());
-        let backend = state.backend.lock().await;
-        if let Err(_) = backend
-            .initialize_session(req.session_id.clone(), req.working_directory.clone(), model_to_use)
-            .await
-        {
-            return Status::InternalServerError;
-        }
-    }
 
     let backend = state.backend.lock().await;
     match backend

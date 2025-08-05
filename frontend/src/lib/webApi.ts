@@ -15,7 +15,6 @@ interface SendMessageRequest {
   session_id: string;
   message: string;
   conversation_history: string;
-  working_directory: string;
   model?: string;
 }
 
@@ -89,14 +88,12 @@ export const webApi = {
     sessionId: string;
     message: string;
     conversationHistory: string;
-    workingDirectory: string;
     model?: string;
   }): Promise<void> {
     const request: SendMessageRequest = {
       session_id: params.sessionId,
       message: params.message,
       conversation_history: params.conversationHistory,
-      working_directory: params.workingDirectory,
       model: params.model,
     };
     await apiClient.post('/send-message', request);

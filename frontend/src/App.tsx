@@ -17,11 +17,8 @@ import { ThinkingBlock } from "./components/ThinkingBlock";
 import { ConversationList } from "./components/ConversationList";
 import { GeminiLogo } from "./components/GeminiLogo";
 import { PiebaldLogo } from "./components/PiebaldLogo";
-import { MentionInput } from "./components/MentionInput";
 import { type ToolCall, type ToolCallResult } from "./utils/toolCallParser";
 import {
-  Send,
-  ImagePlus,
   Info,
   Check,
   X,
@@ -316,11 +313,6 @@ function RootLayout() {
   const [cliIOLogs, setCliIOLogs] = useState<CliIO[]>([]);
   const [confirmationRequest, setConfirmationRequest] =
     useState<ToolCallConfirmationRequest | null>(null);
-  const [workingDirectory, setWorkingDirectory] = useState<string>("");
-  const [isWorkingDirectoryValid, setIsWorkingDirectoryValid] =
-    useState<boolean>(false);
-  const [isWorkingDirectoryHome, setIsWorkingDirectoryHome] =
-    useState<boolean>(false);
   const [selectedModel, setSelectedModel] =
     useState<string>("gemini-2.5-flash");
 
@@ -736,7 +728,6 @@ function RootLayout() {
         sessionId: convId,
         message: messageText,
         conversationHistory: history,
-        workingDirectory: isWorkingDirectoryValid ? workingDirectory : null,
         model: selectedModel,
       });
 
@@ -771,17 +762,7 @@ function RootLayout() {
     }
   };
 
-  const handleWorkingDirectoryChange = (
-    directory: string,
-    isValid: boolean
-  ) => {
-    setWorkingDirectory(directory);
-    setIsWorkingDirectoryValid(isValid);
-  };
 
-  const handleHomeDirectoryChange = (isHomeDirectory: boolean) => {
-    setIsWorkingDirectoryHome(isHomeDirectory);
-  };
 
   const handleModelChange = (model: string) => {
     setSelectedModel(model);
@@ -845,9 +826,7 @@ function RootLayout() {
         processStatuses={processStatuses}
         onConversationSelect={handleConversationSelect}
         onKillProcess={handleKillProcess}
-        onWorkingDirectoryChange={handleWorkingDirectoryChange}
         onModelChange={handleModelChange}
-        onHomeDirectoryChange={handleHomeDirectoryChange}
       />
 
       {/* Main Content Area */}
@@ -874,20 +853,6 @@ function RootLayout() {
 
         {/* Main Content */}
         <div className="flex-1 flex flex-col bg-background min-h-0">
-          {isWorkingDirectoryHome && isWorkingDirectoryValid && (
-            <div className="p-4">
-              <Alert className="bg-yellow-50 border-yellow-300 dark:bg-yellow-950 dark:border-yellow-700">
-                <AlertTriangle className="!text-yellow-500 dark:!text-yellow-300" />
-                <AlertTitle className="text-yellow-800 dark:text-yellow-300">
-                  Using Gemini Desktop in your home directory
-                </AlertTitle>
-                <AlertDescription className="text-yellow-800 dark:text-yellow-300">
-                  You are running Gemini Desktop in your home directory. It is
-                  recommended to run in a project-specific directory.
-                </AlertDescription>
-              </Alert>
-            </div>
-          )}
           {selectedModel === "gemini-2.5-flash-lite" && (
             <div className="p-4">
               <Alert className="bg-yellow-50 border-yellow-300 dark:bg-yellow-950 dark:border-yellow-700">
@@ -1130,12 +1095,8 @@ function HomeDashboard() {
   const navigate = useNavigate();
   const {
     currentConversation,
-    input,
     isCliInstalled,
     messagesContainerRef,
-    cliIOLogs,
-    handleInputChange,
-    handleSendMessage,
   } = useConversation();
 
   return (
@@ -1324,7 +1285,7 @@ function HomeDashboard() {
         </div>
       )}
 
-      <div className="sticky bottom-0 bg-white dark:bg-neutral-900 flex items-center border-t border-gray-200 dark:border-neutral-700">
+      {/* <div className="sticky bottom-0 bg-white dark:bg-neutral-900 flex items-center border-t border-gray-200 dark:border-neutral-700">
         <div className="px-6 py-2 w-full">
           <div className="mx-auto">
             <form
@@ -1428,7 +1389,7 @@ function HomeDashboard() {
             </form>
           </div>
         </div>
-      </div>
+      </div> */}
     </>
   );
 }

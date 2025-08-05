@@ -10,7 +10,6 @@ import {
   DialogFooter,
   DialogTrigger,
 } from "./ui/dialog";
-import { Input } from "./ui/input";
 import {
   Select,
   SelectContent,
@@ -23,15 +22,10 @@ import {
   X,
   MessageCircle,
   Clock,
-  Check,
-  X as XIcon,
-  Folder,
   AlertTriangle,
 } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
+import { useState, useCallback } from "react";
 import { webApi, SearchResult, SearchFilters } from "../lib/webApi";
-import { DirectorySelectionDialog } from "./DirectorySelectionDialog";
 import { SearchInput } from "./SearchInput";
 import { SearchResults } from "./SearchResults";
 
@@ -62,9 +56,7 @@ interface ConversationListProps {
   processStatuses: ProcessStatus[];
   onConversationSelect: (conversationId: string) => void;
   onKillProcess: (conversationId: string) => void;
-  onWorkingDirectoryChange?: (directory: string, isValid: boolean) => void;
   onModelChange?: (model: string) => void;
-  onHomeDirectoryChange?: (isHomeDirectory: boolean) => void;
 }
 
 export function ConversationList({
@@ -73,21 +65,14 @@ export function ConversationList({
   processStatuses,
   onConversationSelect,
   onKillProcess,
-  onWorkingDirectoryChange,
   onModelChange,
-  onHomeDirectoryChange,
 }: ConversationListProps) {
   const [selectedConversationForEnd, setSelectedConversationForEnd] = useState<{
     id: string;
     title: string;
   } | null>(null);
-  const [workingDirectory, setWorkingDirectory] = useState<string>("");
-  const [isValidDirectory, setIsValidDirectory] = useState<boolean | null>(
-    null
-  );
   const [selectedModel, setSelectedModel] =
     useState<string>("gemini-2.5-flash");
-  const [showDirectoryDialog, setShowDirectoryDialog] = useState(false);
   
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -100,69 +85,6 @@ export function ConversationList({
     );
   };
 
-  // Validate directory path using backend
-  useEffect(() => {
-    if (!workingDirectory.trim()) {
-      setIsValidDirectory(null);
-      onWorkingDirectoryChange?.("", false);
-      onHomeDirectoryChange?.(false);
-      return;
-    }
-
-    const validateDirectory = async () => {
-      try {
-        if (__WEB__) {
-          const [isValid, isHome] = await Promise.all([
-            webApi.validate_directory(workingDirectory.trim()),
-            webApi.is_home_directory(workingDirectory.trim()),
-          ]);
-          setIsValidDirectory(isValid);
-          onWorkingDirectoryChange?.(workingDirectory.trim(), isValid);
-          onHomeDirectoryChange?.(isHome);
-        } else {
-          const { invoke } = await import("@tauri-apps/api/core");
-          const [isValid, isHome] = await Promise.all([
-            invoke<boolean>("validate_directory", {
-              path: workingDirectory.trim(),
-            }),
-            invoke<boolean>("is_home_directory", {
-              path: workingDirectory.trim(),
-            }),
-          ]);
-          setIsValidDirectory(isValid);
-          onWorkingDirectoryChange?.(workingDirectory.trim(), isValid);
-          onHomeDirectoryChange?.(isHome);
-        }
-      } catch {
-        setIsValidDirectory(false);
-        onWorkingDirectoryChange?.(workingDirectory.trim(), false);
-        onHomeDirectoryChange?.(false);
-      }
-    };
-
-    const timeoutId = setTimeout(validateDirectory, 300); // Debounce validation
-    return () => clearTimeout(timeoutId);
-  }, [workingDirectory, onWorkingDirectoryChange, onHomeDirectoryChange]);
-
-  const handleDirectorySelect = async () => {
-    try {
-      const selected = await open({
-        directory: true,
-        multiple: false,
-        title: "Select Working Directory",
-      });
-
-      if (selected) {
-        setWorkingDirectory(selected);
-      }
-    } catch (error) {
-      console.error("Error opening directory selector:", error);
-    }
-  };
-
-  const handleDirectoryDialogSelect = (path: string) => {
-    setWorkingDirectory(path);
-  };
 
   const formatLastUpdated = (date: Date) => {
     const now = new Date();
@@ -242,10 +164,7 @@ export function ConversationList({
             <SelectContent>
               <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
               <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
-              <SelectItem
-                value="gemini-2.5-flash-lite"
-                // disabled
-              >
+              <SelectItem value="gemini-2.5-flash-lite">
                 <div className="flex items-center gap-2">
                   <span>Gemini 2.5 Flash-Lite</span>
                   <Tooltip>
@@ -262,61 +181,6 @@ export function ConversationList({
           </Select>
         </div>
 
-        {/* Working Directory Input */}
-        <div className="mt-4">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
-            Working Directory
-          </label>
-
-          {/* Desktop version - Original input with native dialog */}
-          <div className="relative">
-            <div className="absolute left-3 top-2.5 text-gray-400">
-              <Folder className="h-4 w-4" />
-            </div>
-            <Input
-              type="text"
-              placeholder="Select working directory..."
-              value={workingDirectory}
-              readOnly
-              onClick={
-                __WEB__
-                  ? () => setShowDirectoryDialog(true)
-                  : handleDirectorySelect
-              }
-              className="pl-10 pr-10 text-sm cursor-pointer"
-            />
-            <div className="absolute right-3 top-3">
-              {isValidDirectory === null ? null : isValidDirectory ? (
-                <Check className="h-4 w-4 text-green-500" />
-              ) : (
-                <XIcon className="h-4 w-4 text-red-500" />
-              )}
-            </div>
-          </div>
-
-          {/* Validation Status */}
-          {workingDirectory.trim() && (
-            <div className="mt-2 flex items-center gap-2 text-xs">
-              {isValidDirectory === null ? (
-                <span className="text-gray-500">Validating...</span>
-              ) : isValidDirectory ? (
-                <>
-                  <Check className="h-3 w-3 text-green-500" />
-                  <span className="text-green-600 dark:text-green-400">
-                    Valid directory path
-                  </span>
-                </>
-              ) : (
-                <>
-                  <XIcon className="h-3 w-3 text-red-500" />
-                  <span className="text-red-600 dark:text-red-400">
-                    Invalid directory path
-                  </span>
-                </>
-              )}
-            </div>
-          )}
-        </div>
       </div>
 
       {/* Search Results or Conversation List */}
@@ -472,14 +336,6 @@ export function ConversationList({
         )}
       </div>
 
-      {/* Directory Selection Dialog (Web only) */}
-      {__WEB__ && (
-        <DirectorySelectionDialog
-          open={showDirectoryDialog}
-          onOpenChange={setShowDirectoryDialog}
-          onSelect={handleDirectoryDialogSelect}
-        />
-      )}
     </div>
   );
 }

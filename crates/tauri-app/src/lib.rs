@@ -71,18 +71,13 @@ async fn send_message(
     session_id: String,
     message: String,
     conversation_history: String,
-    working_directory: String, // Now required!
     model: Option<String>,
     _app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    // Initialize session if model is provided
-    if let Some(model_name) = model {
-        state.backend.initialize_session(session_id.clone(), working_directory.clone(), model_name)
-            .await
-            .map_err(|e| e.to_string())?;
-    }
-
+    // Without working directory UI, we do not auto-initialize sessions here.
+    // If a session is needed, user flows elsewhere should handle initialization, or backend will error gracefully.
+    let _ = model; // suppress unused warning
     state.backend.send_message(session_id, message, conversation_history)
         .await
         .map_err(|e| e.to_string())
