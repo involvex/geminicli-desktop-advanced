@@ -198,6 +198,8 @@ struct AppState {
 #[derive(Serialize, Deserialize)]
 struct StartSessionRequest {
     session_id: String,
+    working_directory: Option<String>,
+    model: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -360,18 +362,28 @@ async fn check_cli_installed(state: &State<AppState>) -> Result<Json<bool>, Stat
 
 #[post("/start-session", data = "<request>")]
 async fn start_session(request: Json<StartSessionRequest>, state: &State<AppState>) -> Status {
-    let _request = request; // Use the parameter to avoid warning
-    // For compatibility with existing frontend, just check if CLI is installed
+    let req = request.into_inner();
     let backend = state.backend.lock().await;
-    match backend.check_cli_installed().await {
-        Ok(available) => {
-            if available {
-                Status::Ok
-            } else {
-                Status::ServiceUnavailable
-            }
+    
+    // If working_directory is provided, initialize a session with that directory
+    if let Some(working_directory) = req.working_directory {
+        let model = req.model.unwrap_or_else(|| "gemini-2.0-flash-exp".to_string());
+        match backend.initialize_session(req.session_id, working_directory, model).await {
+            Ok(_) => Status::Ok,
+            Err(_) => Status::InternalServerError,
         }
-        Err(_) => Status::InternalServerError,
+    } else {
+        // For compatibility with existing frontend, just check if CLI is installed
+        match backend.check_cli_installed().await {
+            Ok(available) => {
+                if available {
+                    Status::Ok
+                } else {
+                    Status::ServiceUnavailable
+                }
+            }
+            Err(_) => Status::InternalServerError,
+        }
     }
 }
 

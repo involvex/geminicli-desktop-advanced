@@ -9,6 +9,8 @@ const apiClient = axios.create({
 // Types matching the server's request/response types
 interface StartSessionRequest {
   session_id: string;
+  working_directory?: string;
+  model?: string;
 }
 
 interface SendMessageRequest {
@@ -79,8 +81,12 @@ export const webApi = {
     return response.data;
   },
 
-  async start_session(sessionId: string): Promise<void> {
-    const request: StartSessionRequest = { session_id: sessionId };
+  async start_session(sessionId: string, workingDirectory?: string, model?: string): Promise<void> {
+    const request: StartSessionRequest = { 
+      session_id: sessionId,
+      working_directory: workingDirectory,
+      model: model
+    };
     await apiClient.post('/start-session', request);
   },
 

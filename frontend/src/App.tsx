@@ -15,6 +15,7 @@ import {
 import { MessageContent } from "./components/MessageContent";
 import { ThinkingBlock } from "./components/ThinkingBlock";
 import { ConversationList } from "./components/ConversationList";
+import { MentionInput } from "./components/MentionInput";
 import { GeminiLogo } from "./components/GeminiLogo";
 import { PiebaldLogo } from "./components/PiebaldLogo";
 import { type ToolCall, type ToolCallResult } from "./utils/toolCallParser";
@@ -26,6 +27,8 @@ import {
   AlertTriangle,
   UserRound,
   FolderKanban,
+  Send,
+  ImagePlus,
 } from "lucide-react";
 import "./index.css";
 import { ToolCallDisplay } from "./components/ToolCallDisplay";
@@ -168,6 +171,10 @@ export const api = {
           return webApi.list_projects(args) as Promise<T>;
         case "get_project_discussions":
           return webApi.get_project_discussions(args) as Promise<T>;
+        case "list_enriched_projects":
+          return webApi.list_projects_enriched() as Promise<T>;
+        case "start_session":
+          return webApi.start_session(args.sessionId, args.workingDirectory, args.model) as Promise<T>;
         default:
           throw new Error(`Unknown command: ${command}`);
       }
@@ -289,6 +296,8 @@ interface ConversationContextType {
     _mentions: unknown[]
   ) => void;
   handleSendMessage: (e: React.FormEvent) => Promise<void>;
+  selectedModel: string;
+  startNewConversation: (title: string, workingDirectory?: string) => Promise<string>;
 }
 
 const ConversationContext = createContext<ConversationContextType | undefined>(undefined);
@@ -762,6 +771,36 @@ function RootLayout() {
     }
   };
 
+  const startNewConversation = async (title: string, workingDirectory?: string): Promise<string> => {
+    const convId = Date.now().toString();
+    
+    // Create conversation in UI
+    const newConversation: Conversation = {
+      id: convId,
+      title,
+      messages: [],
+      lastUpdated: new Date(),
+      isStreaming: false,
+    };
+    
+    setConversations((prev) => [newConversation, ...prev]);
+    setActiveConversation(convId);
+    
+    // Initialize session with working directory if provided
+    if (workingDirectory) {
+      await api.invoke("start_session", { 
+        sessionId: convId, 
+        workingDirectory, 
+        model: selectedModel 
+      });
+    }
+    
+    // Set up event listeners
+    await setupEventListenerForConversation(convId);
+    
+    return convId;
+  };
+
 
 
   const handleModelChange = (model: string) => {
@@ -915,9 +954,112 @@ function RootLayout() {
             cliIOLogs,
             handleInputChange,
             handleSendMessage,
+            selectedModel,
+            startNewConversation,
           }}>
             <Outlet />
           </ConversationContext.Provider>
+          
+          {/* Message Input Bar - Only show when there's an active conversation */}
+          {activeConversation && (
+            <div className="sticky bottom-0 bg-white dark:bg-neutral-900 flex items-center border-t border-gray-200 dark:border-neutral-700">
+              <div className="px-6 py-2 w-full">
+                <div className="mx-auto">
+                  <form
+                    className="flex gap-3 items-end"
+                    onSubmit={handleSendMessage}
+                  >
+                    <div className="flex-1 relative">
+                    <MentionInput
+                      value={input}
+                      onChange={handleInputChange}
+                      placeholder={
+                        isCliInstalled === false
+                          ? "Gemini CLI not found"
+                          : "Type @ to mention files..."
+                      }
+                      disabled={isCliInstalled === false}
+                      className="h-9 w-full"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendMessage(e);
+                        }
+                      }}
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={
+                      isCliInstalled === false ||
+                      !input.trim()
+                    }
+                    size="icon"
+                  >
+                    <Send />
+                  </Button>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="outline"
+                        title="View CLI Input/Output"
+                      >
+                        <Info className="h-4 w-4" />
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>CLI Input/Output Logs</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {cliIOLogs.map((log, index) => (
+                            <div key={index} className="border rounded p-2">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span
+                                  className={`text-xs font-mono px-2 py-1 rounded ${
+                                    log.type === "input"
+                                      ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
+                                      : "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200"
+                                  }`}
+                                >
+                                  {log.type === "input" ? "IN" : "OUT"}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {log.timestamp.toLocaleTimeString()}
+                                </span>
+                                <span className="text-xs text-muted-foreground font-mono">
+                                  {log.conversationId}
+                                </span>
+                              </div>
+                              <pre className="text-xs whitespace-pre-wrap break-all font-mono bg-white dark:bg-gray-900 p-2 rounded border">
+                                {log.data}
+                              </pre>
+                            </div>
+                          ))}
+                        {cliIOLogs.length === 0 && (
+                          <div className="text-center text-muted-foreground py-8">
+                            No CLI I/O logs available yet. Start a conversation
+                            to see the raw communication.
+                          </div>
+                        )}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                  <Button
+                    type="button"
+                    disabled={true}
+                    size="icon"
+                    variant="outline"
+                  >
+                    <ImagePlus />
+                  </Button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1284,112 +1426,6 @@ function HomeDashboard() {
           </div>
         </div>
       )}
-
-      {/* <div className="sticky bottom-0 bg-white dark:bg-neutral-900 flex items-center border-t border-gray-200 dark:border-neutral-700">
-        <div className="px-6 py-2 w-full">
-          <div className="mx-auto">
-            <form
-              className="flex gap-3 items-end"
-              onSubmit={handleSendMessage}
-            >
-              <div className="flex-1 relative">
-                <MentionInput
-                  value={input}
-                  onChange={handleInputChange}
-                  placeholder={
-                    isCliInstalled === false
-                      ? "Gemini CLI not found"
-                      : "Type @ to mention files..."
-                  }
-                  disabled={isCliInstalled === false}
-                  className="h-9 w-full"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage(e);
-                    }
-                  }}
-                />
-              </div>
-              <Button
-                type="submit"
-                disabled={
-                  isCliInstalled === false ||
-                  !input.trim()
-                }
-                size="icon"
-              >
-                <Send />
-              </Button>
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="outline"
-                    title="View CLI Input/Output"
-                  >
-                    <Info />
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>CLI Input/Output Log</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-                    {cliIOLogs
-                      .map((log, index) => (
-                        <div
-                          key={index}
-                          className={`p-3 rounded-lg border ${
-                            log.type === "input"
-                              ? "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800"
-                              : "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800"
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 mb-2">
-                            <span
-                              className={`text-xs font-mono px-2 py-1 rounded ${
-                                log.type === "input"
-                                  ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
-                                  : "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200"
-                              }`}
-                            >
-                              {log.type === "input" ? "IN" : "OUT"}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {log.timestamp.toLocaleTimeString()}
-                            </span>
-                            <span className="text-xs text-muted-foreground font-mono">
-                              {log.conversationId}
-                            </span>
-                          </div>
-                          <pre className="text-xs whitespace-pre-wrap break-all font-mono bg-white dark:bg-gray-900 p-2 rounded border">
-                            {log.data}
-                          </pre>
-                        </div>
-                      ))}
-                    {cliIOLogs.length === 0 && (
-                      <div className="text-center text-muted-foreground py-8">
-                        No CLI I/O logs available yet. Start a conversation
-                        to see the raw communication.
-                      </div>
-                    )}
-                  </div>
-                </DialogContent>
-              </Dialog>
-              <Button
-                type="button"
-                disabled={true}
-                size="icon"
-                variant="outline"
-              >
-                <ImagePlus />
-              </Button>
-            </form>
-          </div>
-        </div>
-      </div> */}
     </>
   );
 }

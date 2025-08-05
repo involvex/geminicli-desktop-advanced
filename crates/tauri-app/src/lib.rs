@@ -56,13 +56,25 @@ async fn check_cli_installed(state: State<'_, AppState>) -> Result<bool, String>
 }
 
 #[tauri::command]
-async fn start_session(_session_id: String, state: State<'_, AppState>) -> Result<(), String> {
-    // For compatibility with existing frontend, just check if CLI is installed
-    let available = state.backend.check_cli_installed().await.map_err(|e| e.to_string())?;
-    if available {
-        Ok(())
+async fn start_session(
+    session_id: String, 
+    working_directory: Option<String>,
+    model: Option<String>,
+    state: State<'_, AppState>
+) -> Result<(), String> {
+    // If working_directory is provided, initialize a session with that directory
+    if let Some(working_directory) = working_directory {
+        let model = model.unwrap_or_else(|| "gemini-2.0-flash-exp".to_string());
+        state.backend.initialize_session(session_id, working_directory, model).await
+            .map_err(|e| e.to_string())
     } else {
-        Err("Gemini CLI not available".to_string())
+        // For compatibility with existing frontend, just check if CLI is installed
+        let available = state.backend.check_cli_installed().await.map_err(|e| e.to_string())?;
+        if available {
+            Ok(())
+        } else {
+            Err("Gemini CLI not available".to_string())
+        }
     }
 }
 

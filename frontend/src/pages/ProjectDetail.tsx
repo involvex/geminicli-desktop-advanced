@@ -1,8 +1,9 @@
 import React from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card } from "../components/ui/card";
-import { api } from "../App";
-import { ArrowLeft } from "lucide-react";
+import { Button } from "../components/ui/button";
+import { api, useConversation } from "../App";
+import { ArrowLeft, Plus } from "lucide-react";
 import { EnrichedProject } from "../lib/webApi";
 
 type Discussion = {
@@ -20,9 +21,11 @@ type Discussion = {
 export default function ProjectDetailPage() {
   const { id: projectId } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { startNewConversation } = useConversation();
   const [discussions, setDiscussions] = React.useState<Discussion[] | null>(null);
   const [projectData, setProjectData] = React.useState<EnrichedProject | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [isCreatingDiscussion, setIsCreatingDiscussion] = React.useState(false);
 
   if (!projectId) {
     return <div>Invalid project ID</div>;
@@ -56,6 +59,22 @@ export default function ProjectDetailPage() {
     };
   }, [projectId]);
 
+  const handleNewDiscussion = async () => {
+    if (!projectData) return;
+    
+    setIsCreatingDiscussion(true);
+    try {
+      const title = `New Discussion - ${projectData.metadata.friendly_name}`;
+      await startNewConversation(title, projectData.metadata.path);
+      navigate("/");
+    } catch (error) {
+      console.error("Failed to create new discussion:", error);
+      setError("Failed to create discussion. Please ensure Gemini CLI is installed.");
+    } finally {
+      setIsCreatingDiscussion(false);
+    }
+  };
+
   return (
     <div className="w-full">
       <div className="mx-auto w-full max-w-4xl px-6 py-8">
@@ -84,7 +103,17 @@ export default function ProjectDetailPage() {
         </div>
 
         <div className="mt-6 space-y-3">
-          <h2 className="text-lg font-medium">Previous discussions</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-medium">Previous discussions</h2>
+            <Button 
+              onClick={handleNewDiscussion}
+              disabled={!projectData || isCreatingDiscussion}
+              className="inline-flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              {isCreatingDiscussion ? "Creating..." : "New Discussion"}
+            </Button>
+          </div>
 
           {error ? (
             <p className="text-sm text-muted-foreground">{error}</p>
