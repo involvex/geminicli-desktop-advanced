@@ -4,7 +4,7 @@ import type { ToolCall } from "../utils/toolCallParser";
 
 interface ToolCallDisplayProps {
   toolCall: ToolCall;
-  onConfirm?: (toolCallId: string, outcome: string) => void;
+  onConfirm?: (toolCallId: string, outcome: string) => Promise<void>;
   hasConfirmationRequest?: boolean;
 }
 

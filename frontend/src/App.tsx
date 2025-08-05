@@ -1136,9 +1136,9 @@ function HomeDashboard() {
                       </div>
                     ) : msgPart.type === "toolCall" ? (
                       <ToolCallDisplay 
-                        toolCall={msgPart.toolCall} 
-                        onConfirm={handleConfirmToolCall}
+                        toolCall={msgPart.toolCall}
                         hasConfirmationRequest={confirmationRequests.has(msgPart.toolCall.id)}
+                        onConfirm={handleConfirmToolCall}
                       />
                     ) : null
                   )}
