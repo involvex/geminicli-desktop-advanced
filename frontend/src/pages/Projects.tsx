@@ -65,7 +65,7 @@ export default function ProjectsPage() {
                   className="cursor-pointer transition hover:shadow"
                   onClick={() => window.location.assign(`/projects/${p.sha256}`)}
                 >
-                  <div className="p-4">
+                  <div className="pl-4">
                     <div className="font-medium text-sm" title={p.metadata.path}>
                       {truncatePath(p.metadata.path)}
                     </div>
