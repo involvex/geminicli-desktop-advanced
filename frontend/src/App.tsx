@@ -27,6 +27,7 @@ import {
   FolderKanban,
   Send,
   ImagePlus,
+  PlugZap,
 } from "lucide-react";
 import "./index.css";
 import { ToolCallDisplay } from "./components/ToolCallDisplay";
@@ -1214,13 +1215,13 @@ function HomeDashboard() {
               </CardHeader>
             </Card>
             <Card
-              className="w-full opacity-60 cursor-not-allowed"
+              className="w-full opacity-60 cursor-not-allowed select-none"
               aria-disabled="true"
               onClick={(e) => e.preventDefault()}
             >
               <CardHeader className="flex flex-row items-center gap-3">
                 <div className="shrink-0 h-6 w-6 flex items-center justify-center">
-                  <FolderKanban className="h-5 w-5 text-muted-foreground" />
+                  <img src="modelcontextprotocol.svg" alt="Model Context Protocol" className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <div className="text-left">
                   <div className="flex items-center gap-2">
