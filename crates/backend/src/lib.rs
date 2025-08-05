@@ -653,6 +653,31 @@ pub struct RecentChat {
     pub message_count: u32,
 }
 
+/// Search result containing chat info and matching messages
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchResult {
+    pub chat: RecentChat,
+    pub matches: Vec<MessageMatch>,
+    pub relevance_score: f32,
+}
+
+/// Individual message match with context
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MessageMatch {
+    pub content_snippet: String,
+    pub line_number: u32,
+    pub context_before: Option<String>,
+    pub context_after: Option<String>,
+}
+
+/// Search filters for refining results
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SearchFilters {
+    pub date_range: Option<(String, String)>, // ISO strings (start, end)
+    pub project_hash: Option<String>,
+    pub max_results: Option<u32>,
+}
+
 /// Session manager that handles all active CLI sessions
 pub struct SessionManager {
     processes: ProcessMap,
@@ -2105,7 +2130,7 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         (message_count, first_user_text)
     }
 
-    /// Extract first user text from message parameters.
+    /// Extract first user text from message parameters (for titles).
     fn extract_first_user_text(params: serde_json::Value) -> Option<String> {
         let params: SendUserMessageParams = serde_json::from_value(params).ok()?;
 
@@ -2128,6 +2153,27 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
             None
         } else {
             Some(words.join(" "))
+        }
+    }
+
+    /// Extract full message text from message parameters (for searching).
+    fn extract_full_message_text(params: serde_json::Value) -> Option<String> {
+        let params: SendUserMessageParams = serde_json::from_value(params).ok()?;
+
+        let combined = params
+            .chunks
+            .into_iter()
+            .filter_map(|ch| match ch {
+                MessageChunk::Text { text } => Some(text),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        if combined.is_empty() {
+            None
+        } else {
+            Some(combined)
         }
     }
 
@@ -2253,6 +2299,232 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
             chats.truncate(3);
         }
         Ok(chats)
+    }
+
+    /// Search across all chat logs using filesystem scanning
+    pub async fn search_chats(&self, query: String, filters: Option<SearchFilters>) -> BackendResult<Vec<SearchResult>> {
+        use std::ffi::OsStr;
+        
+        let query_lower = query.to_lowercase();
+        let filters = filters.unwrap_or_default();
+        let max_results = filters.max_results.unwrap_or(50);
+        
+        // Use same pattern as get_recent_chats() - scan projects directory
+        let home = std::env::var("HOME")
+            .unwrap_or_else(|_| std::env::var("USERPROFILE").unwrap_or_default());
+        let projects_dir = std::path::Path::new(&home)
+            .join(".gemini-desktop")
+            .join("projects");
+
+        if !projects_dir.exists() {
+            return Ok(vec![]);
+        }
+
+        let mut results = Vec::new();
+        
+        // Scan all project directories (same pattern as existing code)
+        for entry in std::fs::read_dir(&projects_dir).map_err(BackendError::IoError)? {
+            let entry = entry.map_err(BackendError::IoError)?;
+            let project_hash = entry.file_name().to_string_lossy().to_string();
+            
+            // Skip if project filter specified and doesn't match
+            if let Some(ref filter_hash) = filters.project_hash {
+                if &project_hash != filter_hash {
+                    continue;
+                }
+            }
+            
+            // Search within this project's logs
+            self.search_project_logs(&entry.path(), &project_hash, &query_lower, &filters, &mut results).await?;
+            
+            if results.len() >= max_results as usize {
+                break;
+            }
+        }
+
+        // Sort by relevance score (descending)
+        results.sort_by(|a, b| b.relevance_score.partial_cmp(&a.relevance_score).unwrap_or(std::cmp::Ordering::Equal));
+        results.truncate(max_results as usize);
+
+        Ok(results)
+    }
+
+    /// Search within a single project's log files (private helper)
+    async fn search_project_logs(
+        &self,
+        project_path: &std::path::Path,
+        project_hash: &str,
+        query: &str,
+        filters: &SearchFilters,
+        results: &mut Vec<SearchResult>,
+    ) -> BackendResult<()> {
+        for entry in std::fs::read_dir(project_path).map_err(BackendError::IoError)? {
+            let entry = entry.map_err(BackendError::IoError)?;
+            let file_name = entry.file_name().to_string_lossy().to_string();
+            
+            // Only process RPC log files (existing pattern)
+            if !(file_name.starts_with("rpc-log-") && file_name.ends_with(".log")) {
+                continue;
+            }
+
+            // Apply date filtering if specified
+            if let Some((start_date, end_date)) = &filters.date_range {
+                if let Some(timestamp_str) = file_name.strip_prefix("rpc-log-").and_then(|s| s.strip_suffix(".log")) {
+                    if let Ok(timestamp_millis) = timestamp_str.parse::<u64>() {
+                        let file_date = chrono::DateTime::from_timestamp_millis(timestamp_millis as i64);
+                        if let Some(file_dt) = file_date {
+                            if let (Ok(start_dt), Ok(end_dt)) = (
+                                chrono::DateTime::parse_from_rfc3339(start_date),
+                                chrono::DateTime::parse_from_rfc3339(end_date)
+                            ) {
+                                if file_dt < start_dt.with_timezone(&chrono::Utc) || file_dt > end_dt.with_timezone(&chrono::Utc) {
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Search within this log file
+            if let Some(search_result) = self.search_single_log_file(&entry.path(), project_hash, &file_name, query).await? {
+                results.push(search_result);
+            }
+        }
+        Ok(())
+    }
+
+    /// Search within a single log file (private helper)
+    async fn search_single_log_file(
+        &self,
+        log_path: &std::path::Path,
+        project_hash: &str,
+        file_name: &str,
+        query: &str,
+    ) -> BackendResult<Option<SearchResult>> {
+        use std::io::BufRead;
+
+        let file = std::fs::File::open(log_path).map_err(BackendError::IoError)?;
+        let reader = std::io::BufReader::new(file);
+        
+        let mut matches = Vec::new();
+        let mut all_content = String::new();
+        let mut line_number = 0u32;
+        let mut lines: Vec<String> = Vec::new();
+
+        // Read and process all lines (same pattern as extract_chat_data)
+        for line in reader.lines() {
+            let line = line.map_err(BackendError::IoError)?;
+            line_number += 1;
+            lines.push(line.clone());
+            
+            // Extract JSON content (same pattern as existing code)
+            let json_str = match line.find('{') {
+                Some(idx) => &line[idx..],
+                None => continue,
+            };
+
+            // Parse sendUserMessage (same pattern)
+            if let Ok(req) = serde_json::from_str::<JsonRpcRequest>(json_str) {
+                if req.method == "sendUserMessage" {
+                    // Use full message text for searching (not just first 6 words)
+                    if let Some(message_text) = Self::extract_full_message_text(req.params) {
+                        all_content.push_str(&message_text);
+                        all_content.push(' ');
+                        
+                        // Check for query match in the full message content
+                        if message_text.to_lowercase().contains(query) {
+                            let context_before = if line_number > 1 { 
+                                lines.get((line_number - 2) as usize).cloned() 
+                            } else { None };
+                            let context_after = lines.get(line_number as usize).cloned();
+                            
+                            matches.push(MessageMatch {
+                                content_snippet: Self::create_snippet(&message_text, query, 100),
+                                line_number,
+                                context_before,
+                                context_after,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        if matches.is_empty() {
+            return Ok(None);
+        }
+
+        // Calculate relevance score based on match frequency and position
+        let relevance_score = Self::calculate_relevance_score(&all_content, query, matches.len());
+
+        // Generate RecentChat info (reuse existing pattern)
+        let (message_count, first_user_text) = Self::extract_chat_data(Some(log_path.to_path_buf()));
+        let chat_id = format!("{}:{}", project_hash, file_name);
+        
+        // Extract timestamp for started_at_iso (same pattern as existing code)
+        let timestamp_str = file_name
+            .strip_prefix("rpc-log-")
+            .and_then(|s| s.strip_suffix(".log"))
+            .unwrap_or("0");
+        let timestamp_millis = timestamp_str.parse::<u64>().unwrap_or(0);
+        let started_at_iso = chrono::DateTime::from_timestamp_millis(timestamp_millis as i64)
+            .unwrap_or_else(|| chrono::Utc::now().into())
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+
+        let title = if let Some(t) = first_user_text {
+            let t = t.trim();
+            if t.len() > 50 {
+                format!("{}…", &t[..50])
+            } else {
+                t.to_string()
+            }
+        } else {
+            format!("Conversation {}", &project_hash.chars().take(6).collect::<String>())
+        };
+
+        let recent_chat = RecentChat {
+            id: chat_id,
+            title,
+            started_at_iso,
+            message_count,
+        };
+
+        Ok(Some(SearchResult {
+            chat: recent_chat,
+            matches,
+            relevance_score,
+        }))
+    }
+
+    /// Create a snippet with highlighted query terms (private helper)
+    fn create_snippet(text: &str, query: &str, max_length: usize) -> String {
+        let text_lower = text.to_lowercase();
+        let query_lower = query.to_lowercase();
+        
+        if let Some(pos) = text_lower.find(&query_lower) {
+            let start = pos.saturating_sub(max_length / 3);
+            let end = std::cmp::min(pos + query.len() + max_length / 3, text.len());
+            let snippet = &text[start..end];
+            
+            let prefix = if start > 0 { "..." } else { "" };
+            let suffix = if end < text.len() { "..." } else { "" };
+            
+            format!("{}{}{}", prefix, snippet, suffix)
+        } else {
+            let end = std::cmp::min(max_length, text.len());
+            format!("{}...", &text[..end])
+        }
+    }
+
+    /// Calculate relevance score (private helper)
+    fn calculate_relevance_score(content: &str, query: &str, match_count: usize) -> f32 {
+        let content_length = content.len() as f32;
+        let query_frequency = match_count as f32;
+        let density = query_frequency / content_length.max(1.0);
+        
+        // Simple scoring: frequency weight + density weight
+        (query_frequency * 0.7) + (density * 1000.0 * 0.3)
     }
 
     /// Check if Gemini CLI is installed and available

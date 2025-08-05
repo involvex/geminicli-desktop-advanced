@@ -28,10 +28,12 @@ import {
   Folder,
   AlertTriangle,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { webApi } from "../lib/webApi";
+import { webApi, SearchResult, SearchFilters } from "../lib/webApi";
 import { DirectorySelectionDialog } from "./DirectorySelectionDialog";
+import { SearchInput } from "./SearchInput";
+import { SearchResults } from "./SearchResults";
 
 interface ProcessStatus {
   conversation_id: string;
@@ -86,6 +88,11 @@ export function ConversationList({
   const [selectedModel, setSelectedModel] =
     useState<string>("gemini-2.5-flash");
   const [showDirectoryDialog, setShowDirectoryDialog] = useState(false);
+  
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   const getProcessStatus = (conversationId: string) => {
     return processStatuses.find(
@@ -170,6 +177,29 @@ export function ConversationList({
     return `${diffDays}d ago`;
   };
 
+  const handleSearch = useCallback(async (query: string, filters?: SearchFilters) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const results = __WEB__ 
+        ? await webApi.search_chats({ query, filters })
+        : await (async () => {
+            const { invoke } = await import("@tauri-apps/api/core");
+            return await invoke<SearchResult[]>("search_chats", { query, filters });
+          })();
+      setSearchResults(results);
+    } catch (error) {
+      console.error("Search failed:", error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }, []); // Empty dependency array since this function doesn't depend on any props or state
+
   return (
     <div className="w-80 bg-neutral-50 dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-700 h-full overflow-y-auto">
       {/* Header */}
@@ -179,9 +209,19 @@ export function ConversationList({
           Conversations
         </h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          {conversations.length} conversation
-          {conversations.length !== 1 ? "s" : ""}
+          {searchQuery.trim() ? `Searching in ${conversations.length} conversation${conversations.length !== 1 ? "s" : ""}` : 
+           `${conversations.length} conversation${conversations.length !== 1 ? "s" : ""}`}
         </p>
+
+        {/* Search Input */}
+        <div className="mt-3">
+          <SearchInput
+            value={searchQuery}
+            onChange={setSearchQuery}
+            onSearch={handleSearch}
+            isSearching={isSearching}
+          />
+        </div>
 
         {/* Model Selector */}
         <div className="mt-4">
@@ -279,9 +319,16 @@ export function ConversationList({
         </div>
       </div>
 
-      {/* Conversation List */}
+      {/* Search Results or Conversation List */}
       <div className="p-3 space-y-2">
-        {conversations.length === 0 ? (
+        {searchQuery.trim() ? (
+          <SearchResults 
+            results={searchResults}
+            isSearching={isSearching}
+            onConversationSelect={onConversationSelect}
+            query={searchQuery}
+          />
+        ) : conversations.length === 0 ? (
           <div className="text-center py-8 text-gray-500 dark:text-gray-400">
             <MessageCircle className="h-12 w-12 mx-auto mb-3 opacity-50" />
             <p>No conversations yet</p>

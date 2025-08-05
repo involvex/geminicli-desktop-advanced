@@ -185,6 +185,15 @@ export const webApi = {
     return response.data;
   },
 
+  // Search across chats for web mode via REST endpoint
+  async search_chats(params: {
+    query: string;
+    filters?: SearchFilters;
+  }): Promise<SearchResult[]> {
+    const response = await apiClient.post<SearchResult[]>('/search-chats', params);
+    return response.data;
+  },
+
   async list_projects(params?: { limit?: number; offset?: number }): Promise<ProjectsResponse> {
     const limit = params?.limit ?? 25;
     const offset = params?.offset ?? 0;
@@ -208,6 +217,25 @@ export interface RecentChat {
   title: string;
   started_at_iso: string;
   message_count: number;
+}
+
+export interface SearchResult {
+  chat: RecentChat;
+  matches: MessageMatch[];
+  relevance_score: number;
+}
+
+export interface MessageMatch {
+  content_snippet: string;
+  line_number: number;
+  context_before?: string;
+  context_after?: string;
+}
+
+export interface SearchFilters {
+  date_range?: [string, string]; // ISO strings (start, end)
+  project_hash?: string;
+  max_results?: number;
 }
 
 export interface ProjectListItem {

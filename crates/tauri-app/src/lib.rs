@@ -8,6 +8,7 @@ use backend::{
     EventEmitter, GeminiBackend,
     ProcessStatus, DirEntry, RecentChat,
     ProjectsResponse, EnrichedProject,
+    SearchResult, SearchFilters,
 };
 
 // =====================================
@@ -196,6 +197,15 @@ async fn get_recent_chats(state: State<'_, AppState>) -> Result<Vec<RecentChat>,
 }
 
 #[tauri::command]
+async fn search_chats(
+    query: String, 
+    filters: Option<SearchFilters>, 
+    state: State<'_, AppState>
+) -> Result<Vec<SearchResult>, String> {
+    state.backend.search_chats(query, filters).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 async fn list_projects(limit: Option<u32>, offset: Option<u32>, state: State<'_, AppState>) -> Result<ProjectsResponse, String> {
     let lim = limit.unwrap_or(25);
     let off = offset.unwrap_or(0);
@@ -331,6 +341,7 @@ pub fn run() {
             list_volumes,
             debug_environment,
             get_recent_chats,
+            search_chats,
             list_projects,
             list_enriched_projects,
             get_project,

@@ -16,7 +16,7 @@ use std::sync::{
 use tokio::sync::{Mutex, mpsc as tokio_mpsc};
 
 // Import backend functionality
-use backend::{DirEntry, EventEmitter, GeminiBackend, ProcessStatus, RecentChat, EnrichedProject};
+use backend::{DirEntry, EventEmitter, GeminiBackend, ProcessStatus, RecentChat, EnrichedProject, SearchResult, SearchFilters};
 
 static FRONTEND_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../frontend/dist");
 
@@ -335,6 +335,21 @@ async fn get_recent_chats(state: &State<AppState>) -> Result<Json<Vec<RecentChat
      }
  }
 
+#[derive(Deserialize)]
+struct SearchChatsRequest {
+    query: String,
+    filters: Option<SearchFilters>,
+}
+
+#[post("/search-chats", data = "<request>")]
+async fn search_chats(request: Json<SearchChatsRequest>, state: &State<AppState>) -> Result<Json<Vec<SearchResult>>, Status> {
+    let backend = state.backend.lock().await;
+    match backend.search_chats(request.query.clone(), request.filters.clone()).await {
+        Ok(results) => Ok(Json(results)),
+        Err(_) => Err(Status::InternalServerError),
+    }
+}
+
 #[get("/check-cli-installed")]
 async fn check_cli_installed(state: &State<AppState>) -> Result<Json<bool>, Status> {
     let backend = state.backend.lock().await;
@@ -611,6 +626,7 @@ fn rocket() -> _ {
             list_directory_contents,
             list_volumes,
             get_recent_chats,
+            search_chats,
             list_projects,
             list_projects_enriched,
             get_enriched_project_http,
