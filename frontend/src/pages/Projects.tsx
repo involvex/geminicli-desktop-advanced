@@ -1,7 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "../components/ui/card";
-import { api } from "../App";
+import { api } from "../lib/api";
 import { ArrowLeft } from "lucide-react";
 import { EnrichedProject } from "../lib/webApi";
 

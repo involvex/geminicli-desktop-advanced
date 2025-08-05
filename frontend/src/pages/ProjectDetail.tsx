@@ -2,7 +2,8 @@ import React from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { api, useConversation } from "../App";
+import { api } from "../lib/api";
+import { useConversation } from "../contexts/ConversationContext";
 import { ArrowLeft, Plus } from "lucide-react";
 import { EnrichedProject } from "../lib/webApi";
 
@@ -37,7 +38,7 @@ export default function ProjectDetailPage() {
       try {
         // First, try to get enriched project data from the list
         const enrichedProjects = await api.invoke<EnrichedProject[]>("list_enriched_projects");
-        const project = enrichedProjects.find(p => p.sha256 === projectId);
+        const project = enrichedProjects.find((p: EnrichedProject) => p.sha256 === projectId);
         if (!cancelled && project) {
           setProjectData(project);
         }
