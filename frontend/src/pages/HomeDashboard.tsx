@@ -18,6 +18,7 @@ import {
 } from "../components/ui/dialog";
 import { Card, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Info, UserRound, FolderKanban } from "lucide-react";
+import { ModelContextProtocol } from "@/components/ModelContextProtocol";
 
 export const HomeDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -179,7 +180,7 @@ export const HomeDashboard: React.FC = () => {
             >
               <CardHeader className="flex flex-row items-center gap-3">
                 <div className="shrink-0 h-6 w-6 flex items-center justify-center">
-                  <img src="modelcontextprotocol.svg" alt="Model Context Protocol" className="h-5 w-5 text-muted-foreground" />
+                  <ModelContextProtocol className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <div className="text-left">
                   <div className="flex items-center gap-2">
