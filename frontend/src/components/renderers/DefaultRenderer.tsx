@@ -12,8 +12,8 @@ export function DefaultRenderer({ toolCall }: DefaultRendererProps) {
   const renderResult = () => {
     if (typeof result === 'string') {
       return (
-        <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-sm overflow-x-auto whitespace-pre-wrap border">
-          <code className="text-gray-800 dark:text-gray-200">{result}</code>
+        <pre className="bg-muted p-3 rounded text-sm overflow-x-auto whitespace-pre-wrap border">
+          <code className="text-foreground">{result}</code>
         </pre>
       );
     }
@@ -22,7 +22,7 @@ export function DefaultRenderer({ toolCall }: DefaultRendererProps) {
       // Handle common result patterns
       if ('message' in result && result.message) {
         return (
-          <div className="text-sm p-3 bg-gray-50 dark:bg-gray-800 rounded border">
+          <div className="text-sm p-3 bg-muted/50 rounded border">
             {result.message}
           </div>
         );
@@ -30,7 +30,7 @@ export function DefaultRenderer({ toolCall }: DefaultRendererProps) {
 
       if ('content' in result && result.content) {
         return (
-          <div className="text-sm p-3 bg-gray-50 dark:bg-gray-800 rounded whitespace-pre-wrap border">
+          <div className="text-sm p-3 bg-muted/50 rounded whitespace-pre-wrap border">
             {result.content}
           </div>
         );
@@ -38,16 +38,16 @@ export function DefaultRenderer({ toolCall }: DefaultRendererProps) {
 
       if ('output' in result && result.output) {
         return (
-          <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-sm overflow-x-auto whitespace-pre-wrap border">
-            <code className="text-gray-800 dark:text-gray-200">{result.output}</code>
+          <pre className="bg-muted p-3 rounded text-sm overflow-x-auto whitespace-pre-wrap border">
+            <code className="text-foreground">{result.output}</code>
           </pre>
         );
       }
 
       // Fallback: show as formatted JSON
       return (
-        <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-sm overflow-x-auto border">
-          <code className="text-gray-800 dark:text-gray-200">
+        <pre className="bg-muted p-3 rounded text-sm overflow-x-auto border">
+          <code className="text-foreground">
             {JSON.stringify(result, null, 2)}
           </code>
         </pre>
@@ -55,7 +55,7 @@ export function DefaultRenderer({ toolCall }: DefaultRendererProps) {
     }
 
     return (
-      <div className="text-sm text-gray-500 p-3 bg-gray-50 dark:bg-gray-800 rounded border text-center">
+      <div className="text-sm text-gray-500 p-3 bg-muted/50 rounded border text-center">
         No result data available
       </div>
     );
@@ -97,10 +97,10 @@ export function DefaultRenderer({ toolCall }: DefaultRendererProps) {
       <div className="space-y-3">
         {/* Header */}
         <div className="flex items-center gap-2">
-          <Wrench className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+          <Wrench className="h-4 w-4 text-muted-foreground" />
           <div className="text-sm">
             <span className="font-medium">Tool Result</span>
-            <span className="text-gray-600 dark:text-gray-400 ml-2">
+            <span className="text-muted-foreground ml-2">
               ({toolCall.name})
             </span>
           </div>

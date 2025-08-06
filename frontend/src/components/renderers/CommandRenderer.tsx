@@ -74,10 +74,10 @@ export function CommandRenderer({ toolCall }: CommandRendererProps) {
     <div className="mt-4 space-y-4">
       {/* Header */}
       <div className="flex items-center gap-2">
-        <Terminal className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+        <Terminal className="h-4 w-4 text-muted-foreground" />
         <div className="text-sm">
           <span className="font-medium">Command Execution</span>
-          <div className="text-xs text-gray-500 font-mono mt-1">
+          <div className="text-xs text-muted-foreground font-mono mt-1">
             {command}
           </div>
         </div>
@@ -88,7 +88,7 @@ export function CommandRenderer({ toolCall }: CommandRendererProps) {
         <StatusIcon className={`h-4 w-4 ${status.color}`} />
         <span className="text-sm font-medium">{status.label}</span>
         {exitCode !== undefined && (
-          <span className="text-xs text-gray-600 dark:text-gray-400">
+          <span className="text-xs text-muted-foreground">
             (exit code: {exitCode})
           </span>
         )}
@@ -98,12 +98,12 @@ export function CommandRenderer({ toolCall }: CommandRendererProps) {
       {stdout && (
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <div className="text-sm font-medium text-foreground">
               Standard Output
             </div>
           </div>
-          <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded-md text-sm overflow-x-auto border">
-            <code className="text-gray-800 dark:text-gray-200">{stdout}</code>
+          <pre className="bg-muted p-3 rounded-md text-sm overflow-x-auto border">
+            <code className="text-foreground">{stdout}</code>
           </pre>
         </div>
       )}
@@ -112,7 +112,7 @@ export function CommandRenderer({ toolCall }: CommandRendererProps) {
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-amber-500" />
-            <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <div className="text-sm font-medium text-foreground">
               Standard Error
             </div>
           </div>
@@ -124,14 +124,14 @@ export function CommandRenderer({ toolCall }: CommandRendererProps) {
 
       {/* Message fallback */}
       {!hasOutput && result.message && (
-        <div className="text-sm text-gray-600 dark:text-gray-400 p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
+        <div className="text-sm text-muted-foreground p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
           {result.message}
         </div>
       )}
 
       {/* No output indicator */}
       {!hasOutput && !result.message && isSuccess && (
-        <div className="text-sm text-gray-500 p-3 bg-gray-50 dark:bg-gray-800 rounded-md text-center">
+        <div className="text-sm text-muted-foreground p-3 bg-gray-50 dark:bg-gray-800 rounded-md text-center">
           Command completed with no output
         </div>
       )}

@@ -81,7 +81,7 @@ export function SearchRenderer({ toolCall }: SearchRendererProps) {
         <Search className="h-4 w-4 text-blue-500" />
         <div className="text-sm">
           <span className="font-medium">Search Results</span>
-          <span className="text-gray-600 dark:text-gray-400 ml-2">
+          <span className="text-muted-foreground ml-2">
             Found {total} matches for "{pattern}" in {path}
           </span>
         </div>
@@ -94,9 +94,9 @@ export function SearchRenderer({ toolCall }: SearchRendererProps) {
             <div key={file} className="border rounded-lg p-4">
               {/* File header */}
               <div className="flex items-center gap-2 mb-3 pb-2 border-b">
-                <FileText className="h-4 w-4 text-gray-500" />
+                <FileText className="h-4 w-4 text-muted-foreground" />
                 <span className="font-mono text-sm font-medium">{file}</span>
-                <span className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
+                <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
                   {fileMatches.length} matches
                 </span>
               </div>
@@ -107,14 +107,14 @@ export function SearchRenderer({ toolCall }: SearchRendererProps) {
                   <div key={i} className="border-l-2 border-blue-500 pl-4">
                     {match.line_number && (
                       <div className="flex items-center gap-2 mb-1">
-                        <MapPin className="h-3 w-3 text-gray-400" />
-                        <span className="text-xs text-gray-500">
+                        <MapPin className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">
                           Line {match.line_number}
                         </span>
                       </div>
                     )}
                     {match.line_content && (
-                      <pre className="bg-gray-50 dark:bg-gray-900 p-2 rounded text-sm overflow-x-auto">
+                      <pre className="bg-muted p-2 rounded text-sm overflow-x-auto">
                         <code>
                           {highlightMatches(match.line_content, pattern)}
                         </code>
@@ -127,7 +127,7 @@ export function SearchRenderer({ toolCall }: SearchRendererProps) {
           ))}
         </div>
       ) : (
-        <div className="text-center py-8 text-gray-500">
+        <div className="text-center py-8 text-muted-foreground">
           <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
           <div>No matches found</div>
           {result.message && (

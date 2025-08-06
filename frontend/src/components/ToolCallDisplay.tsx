@@ -235,17 +235,17 @@ export function ToolCallDisplay({ toolCall, onConfirm, hasConfirmationRequest }:
     <div className="my-4 w-full">
       {/* Pending State */}
       {toolCall.status === "pending" && (
-        <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+        <div className="bg-muted/50 border border-border rounded-lg p-4">
           <div className="mb-3">
             <span className="font-medium text-base text-black dark:text-white font-mono">
               {formatToolName(toolCall.name)}
             </span>
-            <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
+            <span className="text-sm text-muted-foreground ml-2">
               Pending approval...
             </span>
           </div>
 
-          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span className="animate-pulse">●</span>
             Waiting for user approval
           </div>
@@ -253,10 +253,10 @@ export function ToolCallDisplay({ toolCall, onConfirm, hasConfirmationRequest }:
           {/* Input JSON-RPC */}
           {toolCall.inputJsonRpc && (
             <div className="mt-4">
-              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+              <div className="text-xs font-semibold text-muted-foreground mb-2">
                 Input:
               </div>
-              <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto border">
+              <pre className="bg-muted p-3 rounded text-xs overflow-x-auto border">
                 <code>{toolCall.inputJsonRpc}</code>
               </pre>
             </div>
@@ -266,12 +266,12 @@ export function ToolCallDisplay({ toolCall, onConfirm, hasConfirmationRequest }:
 
       {/* Running State */}
       {toolCall.status === "running" && (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+        <div className="bg-card border border-border rounded-lg p-4">
           <div className="mb-3">
             <span className="font-medium text-base text-black dark:text-white font-mono">
               {formatToolName(toolCall.name)}
             </span>
-            <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
+            <span className="text-sm text-muted-foreground ml-2">
               {getRunningDescription(toolCall)}
             </span>
           </div>
@@ -279,7 +279,7 @@ export function ToolCallDisplay({ toolCall, onConfirm, hasConfirmationRequest }:
           {/* Approval Buttons - Only show if there's a confirmation request */}
           {hasConfirmationRequest && (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-700 dark:text-gray-300">
+              <span className="text-sm text-foreground">
                 Approve?
               </span>
               <Button
@@ -305,10 +305,10 @@ export function ToolCallDisplay({ toolCall, onConfirm, hasConfirmationRequest }:
           {/* Input JSON-RPC */}
           {toolCall.inputJsonRpc && (
             <div className="mt-4">
-              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+              <div className="text-xs font-semibold text-muted-foreground mb-2">
                 Input:
               </div>
-              <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto border">
+              <pre className="bg-muted p-3 rounded text-xs overflow-x-auto border">
                 <code>{toolCall.inputJsonRpc}</code>
               </pre>
             </div>
@@ -330,10 +330,10 @@ export function ToolCallDisplay({ toolCall, onConfirm, hasConfirmationRequest }:
           {/* Input JSON-RPC */}
           {toolCall.inputJsonRpc && (
             <div className="mt-4">
-              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+              <div className="text-xs font-semibold text-muted-foreground mb-2">
                 Input:
               </div>
-              <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto border">
+              <pre className="bg-muted p-3 rounded text-xs overflow-x-auto border">
                 <code>{toolCall.inputJsonRpc}</code>
               </pre>
             </div>
@@ -342,10 +342,10 @@ export function ToolCallDisplay({ toolCall, onConfirm, hasConfirmationRequest }:
           {/* Output JSON-RPC */}
           {toolCall.outputJsonRpc && (
             <div className="mt-4">
-              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+              <div className="text-xs font-semibold text-muted-foreground mb-2">
                 Output:
               </div>
-              <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto border">
+              <pre className="bg-muted p-3 rounded text-xs overflow-x-auto border">
                 <code>{toolCall.outputJsonRpc}</code>
               </pre>
             </div>
@@ -362,10 +362,10 @@ export function ToolCallDisplay({ toolCall, onConfirm, hasConfirmationRequest }:
           {/* Input JSON-RPC */}
           {toolCall.inputJsonRpc && (
             <div className="mt-4">
-              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+              <div className="text-xs font-semibold text-muted-foreground mb-2">
                 Input:
               </div>
-              <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto border">
+              <pre className="bg-muted p-3 rounded text-xs overflow-x-auto border">
                 <code>{toolCall.inputJsonRpc}</code>
               </pre>
             </div>
@@ -374,10 +374,10 @@ export function ToolCallDisplay({ toolCall, onConfirm, hasConfirmationRequest }:
           {/* Output JSON-RPC */}
           {toolCall.outputJsonRpc && (
             <div className="mt-4">
-              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+              <div className="text-xs font-semibold text-muted-foreground mb-2">
                 Output:
               </div>
-              <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto border">
+              <pre className="bg-muted p-3 rounded text-xs overflow-x-auto border">
                 <code>{toolCall.outputJsonRpc}</code>
               </pre>
             </div>

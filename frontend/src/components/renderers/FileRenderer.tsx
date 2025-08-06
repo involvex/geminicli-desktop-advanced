@@ -101,7 +101,7 @@ export function FileRenderer({ toolCall }: FileRendererProps) {
           <FileText className="h-4 w-4 text-blue-500" />
           <div className="text-sm">
             <div className="font-medium font-mono">{filePath}</div>
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-muted-foreground">
               {formatSize(result.size)} • {lineCount} lines • {result.encoding || 'UTF-8'}
               {result.modified && ` • Modified ${formatTime(result.modified)}`}
             </div>
@@ -126,11 +126,11 @@ export function FileRenderer({ toolCall }: FileRendererProps) {
       {/* Content */}
       {content ? (
         <div className="border rounded-lg overflow-hidden">
-          <div className="bg-gray-50 dark:bg-gray-800 px-3 py-2 border-b text-xs text-gray-600 dark:text-gray-400">
+          <div className="bg-muted/50 px-3 py-2 border-b text-xs text-muted-foreground">
             {fileType} • {lineCount} lines
           </div>
           <pre className="p-4 text-sm overflow-x-auto max-h-96">
-            <code className="text-gray-800 dark:text-gray-200">
+            <code className="text-foreground">
               {content}
             </code>
           </pre>
@@ -142,11 +142,11 @@ export function FileRenderer({ toolCall }: FileRendererProps) {
           </div>
         </div>
       ) : result.message ? (
-        <div className="text-sm text-gray-600 dark:text-gray-400 p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
+        <div className="text-sm text-muted-foreground p-3 bg-muted/50 rounded-md">
           {result.message}
         </div>
       ) : (
-        <div className="text-sm text-gray-500 p-3 bg-gray-50 dark:bg-gray-800 rounded-md text-center">
+        <div className="text-sm text-muted-foreground p-3 bg-muted/50 rounded-md text-center">
           File content not available
         </div>
       )}

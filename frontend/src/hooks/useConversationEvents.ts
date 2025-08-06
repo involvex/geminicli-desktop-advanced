@@ -69,6 +69,7 @@ export const useConversationEvents = (
                 });
               }
             }
+            
           } catch {
             // Not JSON, ignore
           }
