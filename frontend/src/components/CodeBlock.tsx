@@ -276,15 +276,15 @@ const CodeBlock = React.memo(
         <ContextMenuTrigger asChild>
           <div
             className={cn(
-              "shiki font-mono overflow-hidden max-h-96 border border-current/10 rounded-md text-sm",
+              "shiki font-mono overflow-hidden max-h-96 border border-current/10 rounded-md text-sm my-4",
               "leading-normal [counter-increment:a_0] [&_.line]:before:[counter-increment:a] [&_.line]:before:content-[counter(a)]",
               "[&_.line]:before:mr-6 [&_.line]:before:ml-3 [&_.line]:before:inline-block [&_.line]:before:text-right",
-              "[&_.line]:before:text-black/40 dark:[&_.line]:before:text-white/40 [&_.line]:before:w-4",
+              "[&_.line]:before:text-black/40 dark:[&_.line]:before:text-white/40 [&_.line]:before:min-w-8",
               "max-w-full min-w-0 overflow-x-auto"
             )}
             style={memoizedStyle}
           >
-            <div className="overflow-auto max-h-96 p-2 [&_pre]:focus-visible:outline-none [&_pre]:whitespace-pre-wrap [&_pre]:word-break-keep-all [&_pre]:overflow-wrap-anywhere">
+            <div className="overflow-auto max-h-96 p-2 [&_pre]:focus-visible:outline-none [&_pre]:whitespace-pre [&_pre]:leading-normal">
               {contentToRender}
             </div>
           </div>
