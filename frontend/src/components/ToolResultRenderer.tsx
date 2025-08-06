@@ -3,6 +3,7 @@ import { DirectoryRenderer } from "./renderers/DirectoryRenderer";
 import { SearchRenderer } from "./renderers/SearchRenderer";
 import { CommandRenderer } from "./renderers/CommandRenderer";
 import { ReadFileRenderer } from "./renderers/ReadFileRenderer";
+import { ReadManyFilesRenderer } from "./renderers/ReadManyFilesRenderer";
 import { DefaultRenderer } from "./renderers/DefaultRenderer";
 
 interface ToolResultRendererProps {
@@ -29,6 +30,9 @@ export function ToolResultRenderer({ toolCall }: ToolResultRendererProps) {
       return <CommandRenderer toolCall={toolCall} />;
     case "read_file":
       return <ReadFileRenderer toolCall={toolCall} />;
+    case "read_many_files":
+    case "ReadManyFiles":
+      return <ReadManyFilesRenderer toolCall={toolCall} />;
     default:
       return <DefaultRenderer toolCall={toolCall} />;
   }
