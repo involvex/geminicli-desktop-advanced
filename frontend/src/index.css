@@ -9,8 +9,9 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --font-family-geist-mono:
-    "Geist Mono", "Consolas", "Monaco", "Courier New", monospace;
+  --font-mono: "Geist Mono", "Consolas", "Monaco", "Courier New", monospace;
+  --font-sans:
+    "Figtree", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -133,7 +134,7 @@
   .font-geist-mono {
     font-family: var(--font-family-geist-mono);
   }
-  
+
   .gradient-text-desktop {
     background: linear-gradient(to right, #3186ff, #346bf1, #4fa0ff);
     -webkit-background-clip: text;

@@ -11,7 +11,7 @@ function Code({
   return (
     <code
       className={cn(
-        "relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm dark:bg-stone-700",
+        "bg-muted relative rounded px-[0.3rem] py-[0.1rem] font-mono text-sm",
         className
       )}
     >

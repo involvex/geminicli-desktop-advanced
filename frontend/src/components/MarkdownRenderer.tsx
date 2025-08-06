@@ -87,7 +87,7 @@ export function MarkdownRenderer({ children }: { children: string }) {
               {...props}
             />
           ),
-          li: (props) => <li className="text-foreground" {...props} />,
+          li: (props) => <li className="text-foreground my-3" {...props} />,
           // Blockquotes
           blockquote: (props) => (
             <blockquote
