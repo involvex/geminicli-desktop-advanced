@@ -89,6 +89,7 @@ const highlighterPromise = createHighlighter({
   langs: [], // Start with no languages - load on demand
 });
 
+
 const CodeBlock = React.memo(
   ({ code, language }: { code: string; language: string }) => {
     const { resolvedTheme } = useTheme();
@@ -253,8 +254,6 @@ const CodeBlock = React.memo(
       lightTheme,
       darkTheme,
       resolvedTheme,
-      code,
-      language,
     ]);
 
     // Memoize the style object to prevent unnecessary re-renders
@@ -304,5 +303,6 @@ const CodeBlock = React.memo(
 );
 
 CodeBlock.displayName = "CodeBlock";
+
 
 export default CodeBlock;
