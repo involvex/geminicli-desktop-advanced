@@ -1,6 +1,8 @@
 import { Check, X } from "lucide-react";
 import { Button } from "./ui/button";
 import type { ToolCall } from "../utils/toolCallParser";
+import { ToolResultRenderer } from "./ToolResultRenderer";
+import { ToolInputParser } from "../utils/toolInputParser";
 
 interface ToolCallDisplayProps {
   toolCall: ToolCall;
@@ -224,23 +226,8 @@ export function ToolCallDisplay({ toolCall, onConfirm, hasConfirmationRequest }:
   };
 
   const getRunningDescription = (toolCall: ToolCall): string => {
-    const params = toolCall.parameters;
-    const name = toolCall.name.toLowerCase();
-
-    if (name === "write_file" || name === "writefile") {
-      return `Writing to ${params.file || params.path || "file"}`;
-    }
-    if (name === "list_files") {
-      return `Listing files in ${params.path || "."}`;
-    }
-    if (name === "search_files") {
-      return `Searching for "${params.pattern || params.query}"`;
-    }
-    if (name === "read_file") {
-      return `Reading ${params.file || params.path}`;
-    }
-
-    return "Running...";
+    const parsedInput = ToolInputParser.parseToolInput(toolCall);
+    return parsedInput.description;
   };
 
 
@@ -376,6 +363,9 @@ export function ToolCallDisplay({ toolCall, onConfirm, hasConfirmationRequest }:
             <Check className="size-3" />
             {getResultSummary(toolCall)}
           </div>
+
+          {/* Enhanced Tool Result Renderer */}
+          <ToolResultRenderer toolCall={toolCall} />
 
           {/* Input JSON-RPC */}
           {toolCall.inputJsonRpc && (
