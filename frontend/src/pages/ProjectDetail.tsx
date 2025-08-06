@@ -4,7 +4,7 @@ import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { api } from "../lib/api";
 import { useConversation } from "../contexts/ConversationContext";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, Plus, Loader2 } from "lucide-react";
 import { EnrichedProject } from "../lib/webApi";
 
 type Discussion = {
@@ -111,7 +111,11 @@ export default function ProjectDetailPage() {
               disabled={!projectData || isCreatingDiscussion}
               className="inline-flex items-center gap-2"
             >
-              <Plus className="h-4 w-4" />
+              {isCreatingDiscussion ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
               {isCreatingDiscussion ? "Creating..." : "New Discussion"}
             </Button>
           </div>
