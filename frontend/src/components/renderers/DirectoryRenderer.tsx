@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { ChevronRight, Folder, File, Link, Copy } from "lucide-react";
+import { ChevronRight, FolderClosed, FolderOpen, File } from "lucide-react";
 import { type ToolCall } from "../../utils/toolCallParser";
-import { Button } from "../ui/button";
 
 interface DirectoryEntry {
   name: string;
@@ -18,16 +17,12 @@ interface DirectoryResult {
   files?: Array<{name: string, type: string, length?: number}>; // Legacy format
 }
 
-type SortKey = 'name' | 'size' | 'modified';
-type SortDirection = 'asc' | 'desc';
-
 interface DirectoryRendererProps {
   toolCall: ToolCall;
 }
 
 export function DirectoryRenderer({ toolCall }: DirectoryRendererProps) {
-  const [sortKey, setSortKey] = useState<SortKey>('name');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [isExpanded, setIsExpanded] = useState(false);
   
   const result = toolCall.result as DirectoryResult;
   
@@ -56,180 +51,57 @@ export function DirectoryRenderer({ toolCall }: DirectoryRendererProps) {
     return '.';
   };
 
-  // Generate breadcrumb from path
-  const getBreadcrumbs = (path: string) => {
-    if (path === '.') return ['Current Directory'];
-    
-    const parts = path.split(/[/\\]/);
-    const breadcrumbs: string[] = [];
-    
-    if (path.startsWith('/')) {
-      breadcrumbs.push('/');
-      breadcrumbs.push(...parts.slice(1));
-    } else if (path.match(/^[A-Z]:\\/)) {
-      breadcrumbs.push(...parts);
-    } else {
-      breadcrumbs.push(...parts);
-    }
-    
-    return breadcrumbs.filter(Boolean);
-  };
-
-  // Sort entries
+  // Sort entries (directories first, then files, both alphabetically)
   const sortedEntries = [...entries].sort((a, b) => {
     // Always show directories first
     if (a.is_directory && !b.is_directory) return -1;
     if (!a.is_directory && b.is_directory) return 1;
     
-    let aVal, bVal;
-    switch (sortKey) {
-      case 'name':
-        aVal = a.name.toLowerCase();
-        bVal = b.name.toLowerCase();
-        break;
-      case 'size':
-        aVal = a.size || 0;
-        bVal = b.size || 0;
-        break;
-      case 'modified':
-        aVal = a.modified || 0;
-        bVal = b.modified || 0;
-        break;
-    }
-    
-    if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-    if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-    return 0;
+    // Then sort alphabetically
+    return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
   });
 
-  // Handle sort column click
-  const handleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortKey(key);
-      setSortDirection('asc');
-    }
-  };
-
-  // Format file size
-  const formatSize = (bytes?: number): string => {
-    if (!bytes) return '-';
-    const units = ['B', 'KB', 'MB', 'GB'];
-    let size = bytes;
-    let unitIndex = 0;
-    
-    while (size >= 1024 && unitIndex < units.length - 1) {
-      size /= 1024;
-      unitIndex++;
-    }
-    
-    return `${size.toFixed(unitIndex > 0 ? 1 : 0)} ${units[unitIndex]}`;
-  };
-
-  // Format modified time
-  const formatTime = (timestamp?: number): string => {
-    if (!timestamp) return '-';
-    return new Date(timestamp * 1000).toLocaleDateString();
-  };
-
-  // Copy path to clipboard
-  const copyPath = async () => {
-    try {
-      await navigator.clipboard.writeText(getPath());
-    } catch {
-      // Fallback for older browsers
-    }
-  };
-
   const path = getPath();
-  const breadcrumbs = getBreadcrumbs(path);
-  const dirCount = entries.filter(e => e.is_directory).length;
-  const fileCount = entries.filter(e => !e.is_directory).length;
+  const displayPath = path === '.' ? 'current directory' : path;
 
   return (
-    <div className="mt-4 space-y-4">
-      {/* Header with breadcrumb and stats */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-          {breadcrumbs.map((crumb, i) => (
-            <div key={i} className="flex items-center gap-2">
-              {i > 0 && <ChevronRight className="h-3 w-3" />}
-              <span className="font-mono">{crumb}</span>
+    <div className="mt-4">
+      {/* Compact summary with click to expand */}
+      <div 
+        className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 p-2 rounded transition-colors"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <FolderClosed className="h-4 w-4 text-blue-500" />
+        <span>Listed </span>
+        <span className="text-muted-foreground font-mono">{displayPath}</span>
+        <ChevronRight 
+          className={`h-4 w-4 text-muted-foreground transition-transform ${
+            isExpanded ? 'rotate-90' : ''
+          }`} 
+        />
+      </div>
+
+      {/* Expanded file/folder list */}
+      {isExpanded && (
+        <div className="ml-6 mt-2 space-y-1 border-l border-gray-200 dark:border-gray-700 pl-4">
+          {sortedEntries.map((entry, i) => (
+            <div key={i} className="flex items-center gap-2 text-sm py-1">
+              {entry.is_directory ? (
+                <FolderClosed className="h-4 w-4 text-blue-500" />
+              ) : (
+                <File className="h-4 w-4 text-gray-500" />
+              )}
+              <span className="font-mono">{entry.name}</span>
             </div>
           ))}
+          
+          {entries.length === 0 && (
+            <div className="text-sm text-muted-foreground py-2">
+              Directory is empty
+            </div>
+          )}
         </div>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={copyPath}
-          className="text-xs"
-        >
-          <Copy className="h-3 w-3 mr-1" />
-          Copy Path
-        </Button>
-      </div>
-
-      {/* Stats */}
-      <div className="text-sm text-gray-600 dark:text-gray-400">
-        Listed {entries.length} entries ({dirCount} directories, {fileCount} files)
-      </div>
-
-      {/* Table */}
-      <div className="border rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 dark:bg-gray-800">
-            <tr>
-              <th 
-                className="text-left px-4 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
-                onClick={() => handleSort('name')}
-              >
-                Name {sortKey === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
-              </th>
-              <th className="text-left px-4 py-2">Type</th>
-              <th 
-                className="text-left px-4 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
-                onClick={() => handleSort('size')}
-              >
-                Size {sortKey === 'size' && (sortDirection === 'asc' ? '↑' : '↓')}
-              </th>
-              <th 
-                className="text-left px-4 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
-                onClick={() => handleSort('modified')}
-              >
-                Modified {sortKey === 'modified' && (sortDirection === 'asc' ? '↑' : '↓')}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedEntries.map((entry, i) => (
-              <tr key={i} className="border-t hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                <td className="px-4 py-2">
-                  <div className="flex items-center gap-2">
-                    {entry.is_symlink ? (
-                      <Link className="h-4 w-4 text-cyan-500" />
-                    ) : entry.is_directory ? (
-                      <Folder className="h-4 w-4 text-blue-500" />
-                    ) : (
-                      <File className="h-4 w-4 text-gray-500" />
-                    )}
-                    <span className="font-mono">{entry.name}</span>
-                  </div>
-                </td>
-                <td className="px-4 py-2 text-gray-600 dark:text-gray-400">
-                  {entry.is_symlink ? 'Symlink' : entry.is_directory ? 'Directory' : 'File'}
-                </td>
-                <td className="px-4 py-2 text-gray-600 dark:text-gray-400">
-                  {formatSize(entry.size)}
-                </td>
-                <td className="px-4 py-2 text-gray-600 dark:text-gray-400">
-                  {formatTime(entry.modified)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      )}
     </div>
   );
 }

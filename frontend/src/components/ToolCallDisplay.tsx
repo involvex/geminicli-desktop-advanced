@@ -355,16 +355,8 @@ export function ToolCallDisplay({ toolCall, onConfirm, hasConfirmationRequest }:
 
       {/* Completed State */}
       {toolCall.result && toolCall.status === "completed" && (
-        <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md px-4 py-3">
-          <div className="font-medium text-sm text-black dark:text-white mb-1 font-mono">
-            {formatToolName(toolCall.name)}
-          </div>
-          <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-300">
-            <Check className="size-3" />
-            {getResultSummary(toolCall)}
-          </div>
-
-          {/* Enhanced Tool Result Renderer */}
+        <div className="space-y-4">
+          {/* Enhanced Tool Result Renderer - replaces generic card for built-in tools */}
           <ToolResultRenderer toolCall={toolCall} />
 
           {/* Input JSON-RPC */}
