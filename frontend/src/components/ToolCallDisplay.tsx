@@ -354,7 +354,7 @@ export function ToolCallDisplay({ toolCall, onConfirm, hasConfirmationRequest }:
       )}
 
       {/* Completed State */}
-      {toolCall.result && toolCall.status === "completed" && (
+      {toolCall.status === "completed" && (
         <div className="space-y-4">
           {/* Enhanced Tool Result Renderer - replaces generic card for built-in tools */}
           <ToolResultRenderer toolCall={toolCall} />

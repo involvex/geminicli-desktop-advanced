@@ -143,6 +143,7 @@ export const useConversationEvents = (
       await api.listen<ToolCallEvent>(
         `gemini-tool-call-${conversationId}`,
         ({ payload: { id, name, locations } }) => {
+          
           updateConversation(conversationId, (conv, lastMsg) => {
             const newToolCall: ToolCall = {
               id: id.toString(),
@@ -178,6 +179,7 @@ export const useConversationEvents = (
       await api.listen<ToolCallUpdateEvent>(
         `gemini-tool-call-update-${conversationId}`,
         ({ payload: { toolCallId, status, content } }) => {
+          
           updateConversation(conversationId, (conv) => {
             for (const msg of conv.messages) {
               for (const msgPart of msg.parts) {
@@ -185,6 +187,7 @@ export const useConversationEvents = (
                   msgPart.type === "toolCall" &&
                   msgPart.toolCall.id === toolCallId.toString()
                 ) {
+                  
                   // Split "finished" into "failed" or "completed".
                   if (status === "finished") {
                     msgPart.toolCall.status = isErrorResult(content)
@@ -198,6 +201,8 @@ export const useConversationEvents = (
                     // Use the status directly.
                     msgPart.toolCall.status = status as ToolCall["status"];
                   }
+                  
+                  
                   return;
                 }
               }

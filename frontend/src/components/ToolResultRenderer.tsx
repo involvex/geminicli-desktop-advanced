@@ -2,7 +2,7 @@ import { type ToolCall } from "../utils/toolCallParser";
 import { DirectoryRenderer } from "./renderers/DirectoryRenderer";
 import { SearchRenderer } from "./renderers/SearchRenderer";
 import { CommandRenderer } from "./renderers/CommandRenderer";
-import { FileRenderer } from "./renderers/FileRenderer";
+import { ReadFileRenderer } from "./renderers/ReadFileRenderer";
 import { DefaultRenderer } from "./renderers/DefaultRenderer";
 
 interface ToolResultRendererProps {
@@ -10,8 +10,12 @@ interface ToolResultRendererProps {
 }
 
 export function ToolResultRenderer({ toolCall }: ToolResultRendererProps) {
-  // Only render if tool call is completed and has results
-  if (toolCall.status !== "completed" || !toolCall.result) {
+  // Always render read_file, even with no result
+  if (toolCall.name === "read_file" && toolCall.status === "completed") {
+    // Don't check for result - render anyway
+  }
+  // For other tools, only render if completed and has results
+  else if (toolCall.status !== "completed" || !toolCall.result) {
     return null;
   }
 
@@ -24,7 +28,7 @@ export function ToolResultRenderer({ toolCall }: ToolResultRendererProps) {
     case "execute_command":
       return <CommandRenderer toolCall={toolCall} />;
     case "read_file":
-      return <FileRenderer toolCall={toolCall} />;
+      return <ReadFileRenderer toolCall={toolCall} />;
     default:
       return <DefaultRenderer toolCall={toolCall} />;
   }
