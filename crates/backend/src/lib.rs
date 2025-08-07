@@ -1236,7 +1236,20 @@ async fn handle_cli_request_internal(
             if let Ok(params) = serde_json::from_value::<PushToolCallParams>(request.params) {
                 let tool_name = match params.icon.as_str() {
                     "folder" => "list_directory",
-                    "fileSearch" => "read_file",
+                    "fileSearch" => {
+                        // Check if this is a ReadManyFiles operation based on label content
+                        let tool_name = if params.label.contains("read and concatenate") || 
+                                          params.label.contains("Will attempt to read") {
+                            "read_many_files"  // ReadManyFiles operation based on label
+                        } else if params.locations.is_empty() {
+                            "glob"  // Empty locations = search/glob operation
+                        } else if params.locations.len() == 1 {
+                            "read_file"  // Single file = file read operation
+                        } else {
+                            "read_many_files"  // Multiple files = read many files operation
+                        };
+                        tool_name
+                    },
                     "search" => "search_files",
                     "terminal" => "execute_command",
                     "code" => "write_file",

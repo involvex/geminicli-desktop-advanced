@@ -123,7 +123,7 @@ export function ReadFileRenderer({ toolCall }: ReadFileRendererProps) {
       const lines = result.content.split('\n').length;
       return `Read ${lines} lines`;
     }
-    return fileInfo.isMultiple ? 'Files read completed' : 'File read completed';
+    return '';
   };
 
   const fileInfo = getFileInfo();
@@ -135,11 +135,11 @@ export function ReadFileRenderer({ toolCall }: ReadFileRendererProps) {
         // Multiple files - collapsible like DirectoryRenderer
         <>
           <div 
-            className="flex items-center gap-1 text-sm px-2 py-1 cursor-pointer hover:bg-muted/50 rounded-lg transition-colors"
+            className="flex items-center gap-2 text-sm px-2 py-1 cursor-pointer hover:bg-muted/50 rounded-lg transition-colors"
             onClick={() => setIsExpanded(!isExpanded)}
           >
             <Eye className="h-4 w-4 text-blue-500" />
-            <span>Read</span>
+            <span>Read </span>
             {fileInfo.isPatternBased ? (
               <span>files matching</span>
             ) : (
@@ -170,16 +170,18 @@ export function ReadFileRenderer({ toolCall }: ReadFileRendererProps) {
           )}
         </>
       ) : (
-        // Single file - simple display
+        // Single file - simple display, not collapsible
         <>
-          <div className="flex items-center gap-1 text-sm px-2 py-1">
-            <FileText className="h-4 w-4 text-blue-500" />
-            <span>Read</span>
+          <div className="flex items-center gap-2 text-sm px-2 py-1">
+            <Eye className="h-4 w-4 text-blue-500" />
+            <span>Read </span>
             <span className="text-muted-foreground">{fileInfo.displayPath}</span>
           </div>
-          <div className="ml-8 text-sm text-muted-foreground">
-            {statusMessage}
-          </div>
+          {statusMessage && (
+            <div className="ml-8 text-sm text-muted-foreground">
+              {statusMessage}
+            </div>
+          )}
         </>
       )}
     </div>

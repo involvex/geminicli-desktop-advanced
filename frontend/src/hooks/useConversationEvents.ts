@@ -142,14 +142,15 @@ export const useConversationEvents = (
       // Listen for new tool calls being sent.
       await api.listen<ToolCallEvent>(
         `gemini-tool-call-${conversationId}`,
-        ({ payload: { id, name, locations } }) => {
-          
+        ({ payload: { id, name, locations, label, icon } }) => {
           updateConversation(conversationId, (conv, lastMsg) => {
             const newToolCall: ToolCall = {
               id: id.toString(),
               name,
               parameters: locations ? { locations } : {},
               status: "pending",
+              ...(label && { label }),
+              ...(icon && { icon }),
             };
 
             // Add tool call to the existing assistant message or create one if needed
@@ -179,7 +180,6 @@ export const useConversationEvents = (
       await api.listen<ToolCallUpdateEvent>(
         `gemini-tool-call-update-${conversationId}`,
         ({ payload: { toolCallId, status, content } }) => {
-          
           updateConversation(conversationId, (conv) => {
             for (const msg of conv.messages) {
               for (const msgPart of msg.parts) {
@@ -187,12 +187,9 @@ export const useConversationEvents = (
                   msgPart.type === "toolCall" &&
                   msgPart.toolCall.id === toolCallId.toString()
                 ) {
-                  
                   // Split "finished" into "failed" or "completed".
                   if (status === "finished") {
-                    msgPart.toolCall.status = isErrorResult(content)
-                      ? "failed"
-                      : "completed";
+                    msgPart.toolCall.status = isErrorResult(content) ? "failed" : "completed";
                     // Store the result content
                     if (content) {
                       msgPart.toolCall.result = content;
@@ -201,7 +198,6 @@ export const useConversationEvents = (
                     // Use the status directly.
                     msgPart.toolCall.status = status as ToolCall["status"];
                   }
-                  
                   
                   return;
                 }

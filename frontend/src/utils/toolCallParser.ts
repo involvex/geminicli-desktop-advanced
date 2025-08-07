@@ -16,6 +16,8 @@ export interface ToolCall {
   status?: "pending" | "running" | "completed" | "failed";
   inputJsonRpc?: string;
   outputJsonRpc?: string;
+  label?: string;
+  icon?: string;
 }
 
 export interface ParsedContent {

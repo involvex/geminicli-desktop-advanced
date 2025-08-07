@@ -1,6 +1,7 @@
 import { type ToolCall } from "../utils/toolCallParser";
 import { DirectoryRenderer } from "./renderers/DirectoryRenderer";
 import { SearchRenderer } from "./renderers/SearchRenderer";
+import { GrepGlobRenderer } from "./renderers/GrepGlobRenderer";
 import { CommandRenderer } from "./renderers/CommandRenderer";
 import { ReadFileRenderer } from "./renderers/ReadFileRenderer";
 import { ReadManyFilesRenderer } from "./renderers/ReadManyFilesRenderer";
@@ -15,6 +16,14 @@ export function ToolResultRenderer({ toolCall }: ToolResultRendererProps) {
   if (toolCall.name === "read_file" && toolCall.status === "completed") {
     // Don't check for result - render anyway
   }
+  // For glob/grep tools, render even without results (they might have empty results)
+  else if ((toolCall.name === "glob" || toolCall.name === "grep") && toolCall.status === "completed") {
+    // Don't check for result - render anyway
+  }
+  // For read_many_files, also render even without results
+  else if ((toolCall.name === "read_many_files" || toolCall.name === "ReadManyFiles") && toolCall.status === "completed") {
+    // Don't check for result - render anyway
+  }
   // For other tools, only render if completed and has results
   else if (toolCall.status !== "completed" || !toolCall.result) {
     return null;
@@ -26,6 +35,9 @@ export function ToolResultRenderer({ toolCall }: ToolResultRendererProps) {
       return <DirectoryRenderer toolCall={toolCall} />;
     case "search_files":
       return <SearchRenderer toolCall={toolCall} />;
+    case "grep":
+    case "glob":
+      return <GrepGlobRenderer toolCall={toolCall} />;
     case "execute_command":
       return <CommandRenderer toolCall={toolCall} />;
     case "read_file":

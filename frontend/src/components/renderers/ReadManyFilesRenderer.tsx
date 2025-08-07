@@ -1,4 +1,5 @@
-import { Eye } from "lucide-react";
+import { useState } from "react";
+import { Eye, ChevronRight, FileText } from "lucide-react";
 import { type ToolCall } from "../../utils/toolCallParser";
 
 interface ReadManyFilesResult {
@@ -13,6 +14,7 @@ interface ReadManyFilesRendererProps {
 }
 
 export function ReadManyFilesRenderer({ toolCall }: ReadManyFilesRendererProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const result = (toolCall.result as ReadManyFilesResult) || {};
   
   // Extract file count and file list from input
@@ -73,17 +75,10 @@ export function ReadManyFilesRenderer({ toolCall }: ReadManyFilesRendererProps) 
     if (result.error) {
       return `Error: ${result.error}`;
     }
-    if (result.markdown) {
-      // Extract the file count from the markdown
-      const match = result.markdown.match(/Successfully read and concatenated content from \*\*(\d+) file\(s\)\*\*/);
-      if (match && match[1]) {
-        return `Successfully read ${match[1]} file${match[1] === '1' ? '' : 's'}`;
-      }
-    }
     if (result.message) {
       return result.message;
     }
-    return 'Files read completed';
+    return '';
   };
 
   const { fileCount, files } = getFileInfo();
@@ -96,27 +91,40 @@ export function ReadManyFilesRenderer({ toolCall }: ReadManyFilesRendererProps) 
 
   return (
     <div className="mt-4">
-      <div className="flex items-center gap-2 text-sm px-2 py-1">
+      <div 
+        className="flex items-center gap-2 text-sm px-2 py-1 cursor-pointer hover:bg-muted/50 rounded-lg transition-colors"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
         <Eye className="h-4 w-4 text-blue-500" />
-        <span>Read </span>
-        <span className="font-medium">{displayCount}</span>
-        <span> file{displayCount === 1 ? '' : 's'}</span>
+        <span>Read <span className="text-muted-foreground">{displayCount} file{displayCount === 1 ? '' : 's'}</span></span>
+        <ChevronRight 
+          className={`h-4 w-4 text-muted-foreground transition-transform ${
+            isExpanded ? 'rotate-90' : ''
+          }`}
+        />
       </div>
       
-      {/* File list */}
-      {displayFiles.length > 0 && (
-        <div className="ml-8 mt-2 space-y-1">
-          {displayFiles.map((file, index) => (
-            <div key={index} className="text-sm text-muted-foreground">
-              {file}
+      {isExpanded && (
+        <>
+          {/* File list */}
+          {displayFiles.length > 0 && (
+            <div className="ml-8 mt-2 space-y-1">
+              {displayFiles.map((file, index) => (
+                <div key={index} className="flex items-center gap-1 text-sm text-muted-foreground">
+                  <FileText className="h-3 w-3" />
+                  <span>{file}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+          
+          {statusMessage && (
+            <div className="ml-8 mt-2 text-sm text-muted-foreground">
+              {statusMessage}
+            </div>
+          )}
+        </>
       )}
-      
-      <div className="ml-8 mt-2 text-sm text-muted-foreground">
-        {statusMessage}
-      </div>
     </div>
   );
 }

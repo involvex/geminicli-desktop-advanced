@@ -89,6 +89,8 @@ export interface ToolCallEvent {
   id: number;
   name: string;
   locations?: Location[];
+  label?: string;
+  icon?: string;
 }
 
 export interface ToolCallUpdateEvent {
