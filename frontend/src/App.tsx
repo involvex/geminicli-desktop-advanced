@@ -1,10 +1,11 @@
 import { useState, useRef, useCallback } from "react";
 import { Routes, Route, Outlet, Navigate } from "react-router-dom";
 import { api } from "./lib/api";
-import { ConversationList } from "./components/ConversationList";
+import { AppSidebar, SidebarTrigger } from "./components/AppSidebar";
 import { MessageInputBar } from "./components/MessageInputBar";
 import { AppHeader } from "./components/AppHeader";
 import { CliWarnings } from "./components/CliWarnings";
+import { SidebarInset } from "./components/ui/sidebar";
 import { ConversationContext } from "./contexts/ConversationContext";
 import { HomeDashboard } from "./pages/HomeDashboard";
 import ProjectsPage from "./pages/Projects";
@@ -24,6 +25,7 @@ function RootLayout() {
   const [selectedModel, setSelectedModel] = useState<string>("gemini-2.5-flash");
   const [cliIOLogs, setCliIOLogs] = useState<CliIO[]>([]);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   
   // Custom hooks for cleaner code
   const isCliInstalled = useCliInstallation();
@@ -101,17 +103,17 @@ function RootLayout() {
   }, [selectedModel, createNewConversation, setActiveConversation, setupEventListenerForConversation]);
 
   return (
-    <div className="flex h-screen w-full overflow-hidden">
-      <ConversationList
-        conversations={conversations as any}
-        activeConversation={activeConversation}
-        processStatuses={processStatuses}
-        onConversationSelect={handleConversationSelect}
-        onKillProcess={handleKillProcess}
-        onModelChange={handleModelChange}
-      />
-
-      <div className="flex flex-col flex-1 min-w-0">
+    <AppSidebar
+      conversations={conversations as any}
+      activeConversation={activeConversation}
+      processStatuses={processStatuses}
+      onConversationSelect={handleConversationSelect}
+      onKillProcess={handleKillProcess}
+      onModelChange={handleModelChange}
+      open={sidebarOpen}
+      onOpenChange={setSidebarOpen}
+    >
+      <SidebarInset>
         <AppHeader />
         
         <div className="flex-1 flex flex-col bg-background min-h-0">
@@ -147,8 +149,8 @@ function RootLayout() {
             />
           )}
         </div>
-      </div>
-    </div>
+      </SidebarInset>
+    </AppSidebar>
   );
 }
 

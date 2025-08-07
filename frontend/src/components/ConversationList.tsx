@@ -28,6 +28,7 @@ import { useState, useCallback } from "react";
 import { webApi, SearchResult, SearchFilters } from "../lib/webApi";
 import { SearchInput } from "./SearchInput";
 import { SearchResults } from "./SearchResults";
+import { useSidebar } from "./ui/sidebar";
 
 interface ProcessStatus {
   conversation_id: string;
@@ -67,6 +68,7 @@ export function ConversationList({
   onKillProcess,
   onModelChange,
 }: ConversationListProps) {
+  const { isMobile, setOpenMobile } = useSidebar();
   const [selectedConversationForEnd, setSelectedConversationForEnd] = useState<{
     id: string;
     title: string;
@@ -123,13 +125,25 @@ export function ConversationList({
   }, []); // Empty dependency array since this function doesn't depend on any props or state
 
   return (
-    <div className="w-80 bg-neutral-50 dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-700 h-full overflow-y-auto">
+    <div className="h-full overflow-y-auto">
       {/* Header */}
       <div className="p-4 border-b border-neutral-200 dark:border-neutral-700">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-          <MessageCircle className="h-5 w-5" />
-          Conversations
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+            <MessageCircle className="h-5 w-5" />
+            Conversations
+          </h2>
+          {isMobile && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={() => setOpenMobile(false)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           {searchQuery.trim() ? `Searching in ${conversations.length} conversation${conversations.length !== 1 ? "s" : ""}` : 
            `${conversations.length} conversation${conversations.length !== 1 ? "s" : ""}`}
