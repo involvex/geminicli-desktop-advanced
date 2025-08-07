@@ -77,8 +77,9 @@ export default function ProjectDetailPage() {
   };
 
   return (
-    <div className="w-full">
-      <div className="mx-auto w-full max-w-4xl px-6 py-8">
+    <div className="flex-1 flex flex-col min-h-0">
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-4xl px-6 py-8">
         <button
           type="button"
           onClick={() => navigate("/projects")}
@@ -149,6 +150,7 @@ export default function ProjectDetailPage() {
               ))}
             </div>
           )}
+        </div>
         </div>
       </div>
     </div>
