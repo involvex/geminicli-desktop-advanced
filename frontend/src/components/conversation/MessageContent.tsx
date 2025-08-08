@@ -1,5 +1,5 @@
 import React from "react";
-import { MarkdownRenderer } from "./MarkdownRenderer";
+import { MarkdownRenderer } from "../common/MarkdownRenderer";
 
 interface MessageContentProps {
   content: string;

@@ -1,15 +1,15 @@
 import React from "react";
-import { Button } from "./ui/button";
+import { Button } from "../ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "./ui/dialog";
-import { MentionInput } from "./MentionInput";
+} from "../ui/dialog";
+import { MentionInput } from "../common/MentionInput";
 import { Send, Info, ImagePlus } from "lucide-react";
-import { CliIO } from "../types";
+import { CliIO } from "../../types";
 
 interface MessageInputBarProps {
   input: string;

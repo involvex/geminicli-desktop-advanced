@@ -1,5 +1,5 @@
 import React from "react";
-import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { AlertCircleIcon, AlertTriangle } from "lucide-react";
 
 interface CliWarningsProps {

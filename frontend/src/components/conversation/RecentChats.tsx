@@ -6,7 +6,7 @@ import {
   CardTitle,
   CardDescription,
   CardContent,
-} from "./ui/card";
+} from "../ui/card";
 import { webApi, RecentChat } from "@/lib/webApi";
 
 type LoadState = "idle" | "loading" | "loaded" | "error";

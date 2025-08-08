@@ -1,7 +1,7 @@
 import React from "react";
-import { GeminiLogo } from "./GeminiLogo";
-import { PiebaldLogo } from "./PiebaldLogo";
-import { SidebarTrigger } from "./ui/sidebar";
+import { GeminiLogo } from "../branding/GeminiLogo";
+import { PiebaldLogo } from "../branding/PiebaldLogo";
+import { SidebarTrigger } from "../ui/sidebar";
 
 export const AppHeader: React.FC = () => {
   return (

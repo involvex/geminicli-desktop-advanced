@@ -1,14 +1,14 @@
 import React from "react";
-import { Button } from "./ui/button";
+import { Button } from "../ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "./ui/dialog";
+} from "../ui/dialog";
 import { Info } from "lucide-react";
-import { type ToolCall } from "../utils/toolCallParser";
+import { type ToolCall } from "../../utils/toolCallParser";
 
 interface Message {
   id: string;

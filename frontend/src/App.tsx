@@ -1,10 +1,10 @@
 import { useState, useRef, useCallback } from "react";
 import { Routes, Route, Outlet, Navigate } from "react-router-dom";
 import { api } from "./lib/api";
-import { AppSidebar } from "./components/AppSidebar";
-import { MessageInputBar } from "./components/MessageInputBar";
-import { AppHeader } from "./components/AppHeader";
-import { CliWarnings } from "./components/CliWarnings";
+import { AppSidebar } from "./components/layout/AppSidebar";
+import { MessageInputBar } from "./components/conversation/MessageInputBar";
+import { AppHeader } from "./components/layout/AppHeader";
+import { CliWarnings } from "./components/common/CliWarnings";
 import { SidebarInset } from "./components/ui/sidebar";
 import { ConversationContext } from "./contexts/ConversationContext";
 import { HomeDashboard } from "./pages/HomeDashboard";

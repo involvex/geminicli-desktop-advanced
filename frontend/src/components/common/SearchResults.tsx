@@ -1,7 +1,7 @@
-import { Card, CardHeader, CardContent } from "./ui/card";
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
-import { Skeleton } from "./ui/skeleton";
+import { Card, CardHeader, CardContent } from "../ui/card";
+import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
+import { Skeleton } from "../ui/skeleton";
 import { SearchResult } from "@/lib/webApi";
 import { Clock, Hash, ChevronRight, Search } from "lucide-react";
 import { useState, useCallback, useMemo } from "react";

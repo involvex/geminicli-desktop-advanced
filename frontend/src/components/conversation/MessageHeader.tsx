@@ -1,5 +1,5 @@
 import React from "react";
-import { GeminiLogo } from "./GeminiLogo";
+import { GeminiLogo } from "../branding/GeminiLogo";
 import { UserRound } from "lucide-react";
 
 interface MessageHeaderProps {

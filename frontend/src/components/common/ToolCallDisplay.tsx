@@ -1,11 +1,11 @@
 import { Check, X } from "lucide-react";
-import { Button } from "./ui/button";
+import { Button } from "../ui/button";
 import type {
   ToolCall,
   ToolCallConfirmationRequest,
-} from "../utils/toolCallParser";
+} from "../../utils/toolCallParser";
 import { ToolResultRenderer } from "./ToolResultRenderer";
-import { ToolInputParser } from "../utils/toolInputParser";
+import { ToolInputParser } from "../../utils/toolInputParser";
 
 interface ToolCallDisplayProps {
   toolCall: ToolCall;

@@ -1,6 +1,6 @@
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
-import { Card, CardHeader, CardContent } from "./ui/card";
+import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
+import { Card, CardHeader, CardContent } from "../ui/card";
 import {
   Dialog,
   DialogContent,
@@ -9,22 +9,22 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTrigger,
-} from "./ui/dialog";
+} from "../ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "./ui/select";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+} from "../ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { X, MessageCircle, Clock, AlertTriangle } from "lucide-react";
 import { useState, useCallback } from "react";
-import { webApi, SearchResult, SearchFilters } from "../lib/webApi";
-import { SearchInput } from "./SearchInput";
-import { SearchResults } from "./SearchResults";
-import { useSidebar } from "./ui/sidebar";
-import type { Conversation, ProcessStatus } from "../types";
+import { webApi, SearchResult, SearchFilters } from "../../lib/webApi";
+import { SearchInput } from "../common/SearchInput";
+import { SearchResults } from "../common/SearchResults";
+import { useSidebar } from "../ui/sidebar";
+import type { Conversation, ProcessStatus } from "../../types";
 
 interface ConversationListProps {
   conversations: Conversation[];

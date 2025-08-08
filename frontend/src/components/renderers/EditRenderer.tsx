@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import { DiffViewer } from "../DiffViewer";
+import { DiffViewer } from "../common/DiffViewer";
 import { type ToolCall } from "../../utils/toolCallParser";
 
 interface EditResult {

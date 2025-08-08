@@ -1,12 +1,12 @@
-import { type ToolCall } from "../utils/toolCallParser";
-import { DirectoryRenderer } from "./renderers/DirectoryRenderer";
-import { SearchRenderer } from "./renderers/SearchRenderer";
-import { GrepGlobRenderer } from "./renderers/GrepGlobRenderer";
-import { CommandRenderer } from "./renderers/CommandRenderer";
-import { ReadFileRenderer } from "./renderers/ReadFileRenderer";
-import { ReadManyFilesRenderer } from "./renderers/ReadManyFilesRenderer";
-import { EditRenderer } from "./renderers/EditRenderer";
-import { DefaultRenderer } from "./renderers/DefaultRenderer";
+import { type ToolCall } from "../../utils/toolCallParser";
+import { DirectoryRenderer } from "../renderers/DirectoryRenderer";
+import { SearchRenderer } from "../renderers/SearchRenderer";
+import { GrepGlobRenderer } from "../renderers/GrepGlobRenderer";
+import { CommandRenderer } from "../renderers/CommandRenderer";
+import { ReadFileRenderer } from "../renderers/ReadFileRenderer";
+import { ReadManyFilesRenderer } from "../renderers/ReadManyFilesRenderer";
+import { EditRenderer } from "../renderers/EditRenderer";
+import { DefaultRenderer } from "../renderers/DefaultRenderer";
 
 interface ToolResultRendererProps {
   toolCall: ToolCall;

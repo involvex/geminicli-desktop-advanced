@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Button } from "./ui/button";
+import { Button } from "../ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "./ui/dialog";
-import { ScrollArea } from "./ui/scroll-area";
-import { Input } from "./ui/input";
+} from "../ui/dialog";
+import { ScrollArea } from "../ui/scroll-area";
+import { Input } from "../ui/input";
 import {
   Table,
   TableBody,
@@ -16,7 +16,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "./ui/table";
+} from "../ui/table";
 import {
   Folder,
   File,
@@ -29,7 +29,7 @@ import {
   Disc,
   Database,
 } from "lucide-react";
-import { webApi, DirEntry } from "../lib/webApi";
+import { webApi, DirEntry } from "../../lib/webApi";
 import { cn } from "@/lib/utils";
 
 interface DirectorySelectionDialogProps {

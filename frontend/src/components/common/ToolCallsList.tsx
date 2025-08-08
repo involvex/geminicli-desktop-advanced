@@ -1,6 +1,6 @@
 import React from "react";
 import { ToolCallDisplay } from "./ToolCallDisplay";
-import { type ToolCall } from "../utils/toolCallParser";
+import { type ToolCall } from "../../utils/toolCallParser";
 
 interface ToolCallsListProps {
   toolCalls: ToolCall[];

@@ -1,12 +1,12 @@
 import React from "react";
-import { ConversationList } from "./ConversationList";
+import { ConversationList } from "../conversation/ConversationList";
 import {
   Sidebar,
   SidebarContent,
   SidebarProvider,
   SidebarTrigger,
-} from "./ui/sidebar";
-import type { Conversation, ProcessStatus } from "../types";
+} from "../ui/sidebar";
+import type { Conversation, ProcessStatus } from "../../types";
 
 interface AppSidebarProps {
   conversations: Conversation[];

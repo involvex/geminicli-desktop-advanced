@@ -1,6 +1,6 @@
 import React from "react";
-import { GeminiLogo } from "./GeminiLogo";
-import { PiebaldLogo } from "./PiebaldLogo";
+import { GeminiLogo } from "../branding/GeminiLogo";
+import { PiebaldLogo } from "../branding/PiebaldLogo";
 
 type PageLayoutProps = {
   children: React.ReactNode;

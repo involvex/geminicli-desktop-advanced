@@ -1,13 +1,13 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useConversation } from "../contexts/ConversationContext";
-import { CliWarnings } from "../components/CliWarnings";
-import { MessageContent } from "../components/MessageContent";
-import { ThinkingBlock } from "../components/ThinkingBlock";
-import { ToolCallDisplay } from "../components/ToolCallDisplay";
-import { GeminiLogo } from "../components/GeminiLogo";
-import { GeminiIcon } from "../components/GeminiIcon";
-import { GeminiText } from "../components/GeminiText";
+import { CliWarnings } from "../components/common/CliWarnings";
+import { MessageContent } from "../components/conversation/MessageContent";
+import { ThinkingBlock } from "../components/conversation/ThinkingBlock";
+import { ToolCallDisplay } from "../components/common/ToolCallDisplay";
+import { GeminiLogo } from "../components/branding/GeminiLogo";
+import { GeminiIcon } from "../components/branding/GeminiIcon";
+import { GeminiText } from "../components/branding/GeminiText";
 import { Button } from "../components/ui/button";
 import {
   Dialog,
@@ -23,7 +23,7 @@ import {
   CardDescription,
 } from "../components/ui/card";
 import { Info, UserRound, FolderKanban } from "lucide-react";
-import { ModelContextProtocol } from "@/components/ModelContextProtocol";
+import { ModelContextProtocol } from "@/components/common/ModelContextProtocol";
 import { ToolCallConfirmationRequest } from "../utils/toolCallParser";
 
 export const HomeDashboard: React.FC = () => {

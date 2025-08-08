@@ -5,7 +5,7 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
 import { Code } from "@/components/ui/code";
-import CodeBlock from "@/components/CodeBlock";
+import CodeBlock from "@/components/common/CodeBlock";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
 // Helper function to determine if a URL is external
