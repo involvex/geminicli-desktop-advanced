@@ -80,7 +80,7 @@ export const api = {
           ) as Promise<T>;
         case "list_enriched_projects":
           return webApi.list_projects_enriched() as Promise<T>;
-        case "start_session":
+        case "start_session": {
           if (!args) throw new Error("Missing arguments for start_session");
           const sessionArgs = args as {
             sessionId: string;
@@ -92,6 +92,7 @@ export const api = {
             sessionArgs.workingDirectory,
             sessionArgs.model
           ) as Promise<T>;
+        }
         default:
           throw new Error(`Unknown command: ${command}`);
       }

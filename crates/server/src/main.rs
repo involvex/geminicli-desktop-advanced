@@ -171,7 +171,7 @@ impl EventEmitter for WebSocketsEventEmitter {
 
         // Serialize to JSON
         let message = serde_json::to_string(&ws_event)
-            .map_err(|e| backend::BackendError::SerializationError(e))?;
+            .map_err(|e| backend::BackendError::JsonError(e.to_string()))?;
 
         // Send synchronously to ordered channel - this maintains perfect ordering
         self.event_sender
