@@ -57,27 +57,6 @@ export interface Location {
   column?: number;
 }
 
-export interface ToolCallConfirmationRequest {
-  requestId: number;
-  sessionId: string;
-  toolCallId?: string | null;
-  label: string;
-  icon: string;
-  content?: {
-    type: string;
-    path?: string;
-    oldText?: string;
-    newText?: string;
-  } | null;
-  confirmation: {
-    type: string;
-    rootCommand?: string;
-    command?: string;
-  };
-  locations: Location[];
-  inputJsonRpc?: string;
-}
-
 export interface ProcessStatus {
   conversation_id: string;
   pid: number | null;

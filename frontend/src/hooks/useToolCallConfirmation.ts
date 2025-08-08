@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { api } from "../lib/api";
-import { ToolCallConfirmationRequest, Conversation, Message } from "../types";
+import { ToolCallConfirmationRequest } from "../utils/toolCallParser";
+import { Conversation, Message } from "../types";
 
 interface UseToolCallConfirmationProps {
   activeConversation: string | null;
@@ -18,71 +19,73 @@ export const useToolCallConfirmation = ({
     Map<string, ToolCallConfirmationRequest>
   >(new Map());
 
-  const handleConfirmToolCall = useCallback(async (
-    toolCallId: string,
-    outcome: string
-  ) => {
-    
-    const confirmationRequest = confirmationRequests.get(toolCallId);
-    if (!confirmationRequest) {
-      return;
-    }
-
-
-    try {
-      await api.invoke("send_tool_call_confirmation_response", {
-        sessionId: confirmationRequest.sessionId,
-        requestId: confirmationRequest.requestId,
-        toolCallId: toolCallId,
-        outcome,
-      });
-
-      // If approved, update the tool call status in the UI
-      if (outcome === "allow" || outcome.startsWith("alwaysAllow")) {
-        updateConversation(activeConversation!, (conv) => {
-          for (const msg of conv.messages) {
-            for (const msgPart of msg.parts) {
-              if (
-                msgPart.type === "toolCall" &&
-                msgPart.toolCall.id === toolCallId
-              ) {
-                // PRESERVE the confirmation request data when changing status
-                const preservedConfirmationRequest = msgPart.toolCall.confirmationRequest || confirmationRequest;
-                msgPart.toolCall.status = "running";
-                msgPart.toolCall.confirmationRequest = preservedConfirmationRequest;
-                return;
-              }
-            }
-          }
-        });
-      } else {
-        // If rejected, mark as failed
-        updateConversation(activeConversation!, (conv) => {
-          for (const msg of conv.messages) {
-            for (const msgPart of msg.parts) {
-              if (
-                msgPart.type === "toolCall" &&
-                msgPart.toolCall.id === toolCallId
-              ) {
-                msgPart.toolCall.status = "failed";
-                msgPart.toolCall.result = { markdown: "Tool call rejected by user" };
-                return;
-              }
-            }
-          }
-        });
+  const handleConfirmToolCall = useCallback(
+    async (toolCallId: string, outcome: string) => {
+      const confirmationRequest = confirmationRequests.get(toolCallId);
+      if (!confirmationRequest) {
+        return;
       }
 
-      // Remove the confirmation request from the map
-      setConfirmationRequests(prev => {
-        const newMap = new Map(prev);
-        newMap.delete(toolCallId);
-        return newMap;
-      });
-    } catch (error) {
-      console.error("Failed to send tool call confirmation:", error);
-    }
-  }, [confirmationRequests, activeConversation, updateConversation]);
+      try {
+        await api.invoke("send_tool_call_confirmation_response", {
+          sessionId: confirmationRequest.sessionId,
+          requestId: confirmationRequest.requestId,
+          toolCallId: toolCallId,
+          outcome,
+        });
+
+        // If approved, update the tool call status in the UI
+        if (outcome === "allow" || outcome.startsWith("alwaysAllow")) {
+          updateConversation(activeConversation!, (conv) => {
+            for (const msg of conv.messages) {
+              for (const msgPart of msg.parts) {
+                if (
+                  msgPart.type === "toolCall" &&
+                  msgPart.toolCall.id === toolCallId
+                ) {
+                  // PRESERVE the confirmation request data when changing status
+                  const preservedConfirmationRequest =
+                    msgPart.toolCall.confirmationRequest || confirmationRequest;
+                  msgPart.toolCall.status = "running";
+                  msgPart.toolCall.confirmationRequest =
+                    preservedConfirmationRequest;
+                  return;
+                }
+              }
+            }
+          });
+        } else {
+          // If rejected, mark as failed
+          updateConversation(activeConversation!, (conv) => {
+            for (const msg of conv.messages) {
+              for (const msgPart of msg.parts) {
+                if (
+                  msgPart.type === "toolCall" &&
+                  msgPart.toolCall.id === toolCallId
+                ) {
+                  msgPart.toolCall.status = "failed";
+                  msgPart.toolCall.result = {
+                    markdown: "Tool call rejected by user",
+                  };
+                  return;
+                }
+              }
+            }
+          });
+        }
+
+        // Remove the confirmation request from the map
+        setConfirmationRequests((prev) => {
+          const newMap = new Map(prev);
+          newMap.delete(toolCallId);
+          return newMap;
+        });
+      } catch (error) {
+        console.error("Failed to send tool call confirmation:", error);
+      }
+    },
+    [confirmationRequests, activeConversation, updateConversation]
+  );
 
   return {
     confirmationRequests,

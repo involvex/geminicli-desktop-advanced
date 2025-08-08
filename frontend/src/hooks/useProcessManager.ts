@@ -7,7 +7,9 @@ export const useProcessManager = () => {
 
   const fetchProcessStatuses = useCallback(async () => {
     try {
-      const statuses = await api.invoke<ProcessStatus[]>("get_process_statuses");
+      const statuses = await api.invoke<ProcessStatus[]>(
+        "get_process_statuses"
+      );
       setProcessStatuses((prev) => {
         // Only update if statuses actually changed
         if (JSON.stringify(prev) !== JSON.stringify(statuses)) {
@@ -20,15 +22,18 @@ export const useProcessManager = () => {
     }
   }, []);
 
-  const handleKillProcess = useCallback(async (conversationId: string) => {
-    try {
-      await api.invoke("kill_process", { conversationId });
-      // Refresh process statuses after killing
-      await fetchProcessStatuses();
-    } catch (error) {
-      console.error("Failed to kill process:", error);
-    }
-  }, [fetchProcessStatuses]);
+  const handleKillProcess = useCallback(
+    async (conversationId: string) => {
+      try {
+        await api.invoke("kill_process", { conversationId });
+        // Refresh process statuses after killing
+        await fetchProcessStatuses();
+      } catch (error) {
+        console.error("Failed to kill process:", error);
+      }
+    },
+    [fetchProcessStatuses]
+  );
 
   useEffect(() => {
     fetchProcessStatuses();

@@ -10,14 +10,14 @@
     "tauri": "tauri",
     "format": "pnpm format:frontend && pnpm format:tauri",
     "format:frontend": "pnpm dlx prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
-    "format:tauri": "cd src-tauri && cargo fmt",
+    "format:tauri": "cd ../crates/backend && cargo fmt",
     "lint": "pnpm lint:frontend && pnpm lint:tauri",
     "lint:frontend": "pnpm dlx eslint \"src/**/*.{ts,tsx,js,jsx}\"",
-    "lint:tauri": "cd src-tauri && cargo clippy -- -D warnings",
-    "lint:tauri:warnings": "cd src-tauri && cargo clippy",
+    "lint:tauri": "cd ../crates/backend && cargo clippy -- -D warnings",
+    "lint:tauri:warnings": "cd ../crates/backend && cargo clippy",
     "check": "pnpm check:frontend && pnpm check:tauri",
     "check:frontend": "tsc --noEmit",
-    "check:tauri": "cd src-tauri && cargo check"
+    "check:tauri": "cd ../crates/backend && cargo check"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

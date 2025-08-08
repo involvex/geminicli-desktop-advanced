@@ -25,19 +25,21 @@ interface SearchRendererProps {
 
 export function SearchRenderer({ toolCall }: SearchRendererProps) {
   const result = toolCall.result as SearchResult;
-  
+
   // Extract search pattern from input
   const getSearchInfo = () => {
     try {
       if (toolCall.inputJsonRpc) {
         const input = JSON.parse(toolCall.inputJsonRpc);
         return {
-          pattern: input.params?.pattern || input.params?.query || 'unknown',
-          path: input.params?.path || '.',
+          pattern: input.params?.pattern || input.params?.query || "unknown",
+          path: input.params?.path || ".",
         };
       }
-    } catch {}
-    return { pattern: 'unknown', path: '.' };
+    } catch {
+      // Intentionally ignore parse errors
+    }
+    return { pattern: "unknown", path: "." };
   };
 
   const { pattern, path } = getSearchInfo();
@@ -47,17 +49,25 @@ export function SearchRenderer({ toolCall }: SearchRendererProps) {
   // Highlight search pattern in text
   const highlightMatches = (text: string, searchPattern: string) => {
     if (!text || !searchPattern) return text;
-    
+
     try {
-      const regex = new RegExp(`(${searchPattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      const regex = new RegExp(
+        `(${searchPattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`,
+        "gi"
+      );
       const parts = text.split(regex);
-      
-      return parts.map((part, i) => 
+
+      return parts.map((part, i) =>
         regex.test(part) ? (
-          <span key={i} className="bg-yellow-200 dark:bg-yellow-700 px-1 rounded">
+          <span
+            key={i}
+            className="bg-yellow-200 dark:bg-yellow-700 px-1 rounded"
+          >
             {part}
           </span>
-        ) : part
+        ) : (
+          part
+        )
       );
     } catch {
       return text;
@@ -65,14 +75,17 @@ export function SearchRenderer({ toolCall }: SearchRendererProps) {
   };
 
   // Group matches by file
-  const groupedMatches = matches.reduce((acc, match) => {
-    const file = match.file;
-    if (!acc[file]) {
-      acc[file] = [];
-    }
-    acc[file].push(match);
-    return acc;
-  }, {} as Record<string, SearchMatch[]>);
+  const groupedMatches = matches.reduce(
+    (acc, match) => {
+      const file = match.file;
+      if (!acc[file]) {
+        acc[file] = [];
+      }
+      acc[file].push(match);
+      return acc;
+    },
+    {} as Record<string, SearchMatch[]>
+  );
 
   return (
     <div className="mt-4 space-y-4">

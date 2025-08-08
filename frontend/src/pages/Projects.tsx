@@ -21,11 +21,12 @@ export default function ProjectsPage() {
     let cancelled = false;
     (async () => {
       try {
-        const enrichedProjects = await api.invoke<EnrichedProject[]>("list_enriched_projects");
+        const enrichedProjects = await api.invoke<EnrichedProject[]>(
+          "list_enriched_projects"
+        );
         if (!cancelled) setProjects(enrichedProjects);
       } catch (e) {
         if (!cancelled) setError("Failed to load projects.");
-        // eslint-disable-next-line no-console
         console.error(e);
       }
     })();
@@ -68,17 +69,26 @@ export default function ProjectsPage() {
                   onClick={() => navigate(`/projects/${p.sha256}`)}
                 >
                   <div className="pl-4">
-                    <div className="font-medium text-sm" title={p.metadata.path}>
+                    <div
+                      className="font-medium text-sm"
+                      title={p.metadata.path}
+                    >
                       {truncatePath(p.metadata.path)}
                     </div>
                     <div className="mt-1 text-sm text-muted-foreground flex flex-col gap-0.5">
                       <span>SHA256: {p.sha256.slice(0, 12)}...</span>
                       <span>Name: {p.metadata.friendly_name}</span>
                       {p.metadata.first_used && (
-                        <span>First used: {new Date(p.metadata.first_used).toLocaleDateString()}</span>
+                        <span>
+                          First used:{" "}
+                          {new Date(p.metadata.first_used).toLocaleDateString()}
+                        </span>
                       )}
                       {p.metadata.updated_at && (
-                        <span>Last updated: {new Date(p.metadata.updated_at).toLocaleDateString()}</span>
+                        <span>
+                          Last updated:{" "}
+                          {new Date(p.metadata.updated_at).toLocaleDateString()}
+                        </span>
                       )}
                     </div>
                   </div>

@@ -77,8 +77,8 @@ export const CliWarnings: React.FC<CliWarningsProps> = ({
             <AlertDescription className="dark:text-red-300">
               <p>
                 <span>
-                  Please install the Gemini CLI and make sure it's available
-                  in your PATH. You can install it from{" "}
+                  Please install the Gemini CLI and make sure it's available in
+                  your PATH. You can install it from{" "}
                 </span>
                 <a
                   href="https://github.com/google-gemini/gemini-cli"

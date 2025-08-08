@@ -13,16 +13,18 @@ interface SearchResultsProps {
   query?: string;
 }
 
-export function SearchResults({ 
-  results, 
-  isSearching = false, 
+export function SearchResults({
+  results,
+  isSearching = false,
   onConversationSelect,
-  query = ""
+  query = "",
 }: SearchResultsProps) {
-  const [expandedResults, setExpandedResults] = useState<Set<string>>(new Set());
+  const [expandedResults, setExpandedResults] = useState<Set<string>>(
+    new Set()
+  );
 
   const toggleExpanded = useCallback((chatId: string) => {
-    setExpandedResults(prev => {
+    setExpandedResults((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(chatId)) {
         newSet.delete(chatId);
@@ -49,52 +51,66 @@ export function SearchResults({
 
   const highlightText = useCallback((text: string, query: string) => {
     if (!query.trim()) return text;
-    
-    const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+
+    const regex = new RegExp(
+      `(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`,
+      "gi"
+    );
     const parts = text.split(regex);
-    
-    return parts.map((part, index) => 
+
+    return parts.map((part, index) =>
       regex.test(part) ? (
-        <mark key={index} className="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded text-black dark:text-white">
+        <mark
+          key={index}
+          className="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded text-black dark:text-white"
+        >
           {part}
         </mark>
-      ) : part
+      ) : (
+        part
+      )
     );
   }, []);
 
   // Memoize the loading skeleton to prevent re-renders
-  const loadingSkeleton = useMemo(() => (
-    <div className="space-y-2">
-      <div className="text-sm text-gray-500 dark:text-gray-400 px-1 flex items-center gap-2">
-        <Search className="h-4 w-4 animate-pulse" />
-        Searching...
+  const loadingSkeleton = useMemo(
+    () => (
+      <div className="space-y-2">
+        <div className="text-sm text-gray-500 dark:text-gray-400 px-1 flex items-center gap-2">
+          <Search className="h-4 w-4 animate-pulse" />
+          Searching...
+        </div>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Card key={i} className="animate-pulse">
+            <CardHeader className="p-3 pb-2">
+              <Skeleton className="h-4 w-3/4" />
+              <div className="flex items-center gap-2 mt-1">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-3 w-12" />
+              </div>
+            </CardHeader>
+            <CardContent className="p-3 pt-0">
+              <Skeleton className="h-3 w-full" />
+              <Skeleton className="h-3 w-2/3 mt-1" />
+            </CardContent>
+          </Card>
+        ))}
       </div>
-      {Array.from({ length: 3 }).map((_, i) => (
-        <Card key={i} className="animate-pulse">
-          <CardHeader className="p-3 pb-2">
-            <Skeleton className="h-4 w-3/4" />
-            <div className="flex items-center gap-2 mt-1">
-              <Skeleton className="h-3 w-16" />
-              <Skeleton className="h-3 w-12" />
-            </div>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-3 w-2/3 mt-1" />
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  ), []);
+    ),
+    []
+  );
 
   // Memoize the empty state
-  const emptyState = useMemo(() => (
-    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-      <Search className="h-12 w-12 mx-auto mb-3 opacity-50" />
-      <p>No conversations found</p>
-      <p className="text-xs mt-1">Try different search terms</p>
-    </div>
-  ), []);
+  const emptyState = useMemo(
+    () => (
+      <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+        <Search className="h-12 w-12 mx-auto mb-3 opacity-50" />
+        <p>No conversations found</p>
+        <p className="text-xs mt-1">Try different search terms</p>
+      </div>
+    ),
+    []
+  );
 
   if (isSearching) {
     return loadingSkeleton;
@@ -109,17 +125,17 @@ export function SearchResults({
       <div className="text-sm text-gray-500 dark:text-gray-400 px-1">
         {results.length} result{results.length !== 1 ? "s" : ""} found
       </div>
-      
+
       {results.map((result) => {
         const isExpanded = expandedResults.has(result.chat.id);
-        const projectHash = result.chat.id.split(':')[0];
-        
+        const projectHash = result.chat.id.split(":")[0];
+
         return (
           <Card
             key={result.chat.id}
             className="cursor-pointer transition-all hover:shadow-md hover:bg-gray-50 dark:hover:bg-gray-800"
           >
-            <CardHeader 
+            <CardHeader
               className="p-3 pb-2"
               onClick={() => onConversationSelect(result.chat.id)}
             >
@@ -137,7 +153,7 @@ export function SearchResults({
                       <Hash className="h-3 w-3 mr-1" />
                       {projectHash.slice(0, 8)}...
                     </Badge>
-                    
+
                     {/* Relevance Score */}
                     <Badge
                       variant="secondary"
@@ -145,7 +161,7 @@ export function SearchResults({
                     >
                       {result.relevance_score.toFixed(1)} score
                     </Badge>
-                    
+
                     {/* Time */}
                     <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
                       <Clock className="h-3 w-3" />
@@ -153,7 +169,7 @@ export function SearchResults({
                     </div>
                   </div>
                 </div>
-                
+
                 <Button
                   variant="ghost"
                   size="sm"
@@ -163,14 +179,19 @@ export function SearchResults({
                     toggleExpanded(result.chat.id);
                   }}
                 >
-                  <ChevronRight className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                  <ChevronRight
+                    className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                  />
                 </Button>
               </div>
             </CardHeader>
 
             <CardContent className="p-3 pt-0">
               <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                <span>{result.chat.message_count} messages • {result.matches.length} matches</span>
+                <span>
+                  {result.chat.message_count} messages • {result.matches.length}{" "}
+                  matches
+                </span>
                 <span>Click to view conversation</span>
               </div>
 
@@ -181,7 +202,10 @@ export function SearchResults({
                     Matching Messages:
                   </div>
                   {result.matches.slice(0, 3).map((match, index) => (
-                    <div key={index} className="bg-gray-50 dark:bg-gray-800 rounded p-2 space-y-1">
+                    <div
+                      key={index}
+                      className="bg-gray-50 dark:bg-gray-800 rounded p-2 space-y-1"
+                    >
                       <div className="text-xs text-gray-500 dark:text-gray-400">
                         Line {match.line_number}
                       </div>

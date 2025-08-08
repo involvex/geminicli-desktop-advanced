@@ -17,25 +17,27 @@ interface CommandRendererProps {
 
 export function CommandRenderer({ toolCall }: CommandRendererProps) {
   const result = toolCall.result as CommandResult;
-  
+
   // Extract command from input
   const getCommand = (): string => {
     try {
       if (toolCall.inputJsonRpc) {
         const input = JSON.parse(toolCall.inputJsonRpc);
-        return input.params?.command || input.params?.cmd || 'unknown command';
+        return input.params?.command || input.params?.cmd || "unknown command";
       }
-    } catch {}
-    return result.command || 'unknown command';
+    } catch {
+      // Intentionally ignore parse errors
+    }
+    return result.command || "unknown command";
   };
 
   const command = getCommand();
   const exitCode = result.exit_code ?? 0;
   const isSuccess = exitCode === 0;
-  
+
   // Get output content
-  const stdout = result.stdout || result.output || '';
-  const stderr = result.stderr || result.error || '';
+  const stdout = result.stdout || result.output || "";
+  const stderr = result.stderr || result.error || "";
   const hasOutput = stdout || stderr;
 
   // Determine status and icon
@@ -43,26 +45,26 @@ export function CommandRenderer({ toolCall }: CommandRendererProps) {
     if (isSuccess && hasOutput) {
       return {
         icon: CheckCircle,
-        color: 'text-green-500',
-        bgColor: 'bg-green-50 dark:bg-green-950/20',
-        borderColor: 'border-green-200 dark:border-green-800',
-        label: 'Success'
+        color: "text-green-500",
+        bgColor: "bg-green-50 dark:bg-green-950/20",
+        borderColor: "border-green-200 dark:border-green-800",
+        label: "Success",
       };
     } else if (isSuccess && !hasOutput) {
       return {
         icon: CheckCircle,
-        color: 'text-green-500',
-        bgColor: 'bg-green-50 dark:bg-green-950/20',
-        borderColor: 'border-green-200 dark:border-green-800',
-        label: 'Completed'
+        color: "text-green-500",
+        bgColor: "bg-green-50 dark:bg-green-950/20",
+        borderColor: "border-green-200 dark:border-green-800",
+        label: "Completed",
       };
     } else {
       return {
         icon: XCircle,
-        color: 'text-red-500',
-        bgColor: 'bg-red-50 dark:bg-red-950/20',
-        borderColor: 'border-red-200 dark:border-red-800',
-        label: 'Failed'
+        color: "text-red-500",
+        bgColor: "bg-red-50 dark:bg-red-950/20",
+        borderColor: "border-red-200 dark:border-red-800",
+        label: "Failed",
       };
     }
   };
@@ -84,7 +86,9 @@ export function CommandRenderer({ toolCall }: CommandRendererProps) {
       </div>
 
       {/* Status */}
-      <div className={`flex items-center gap-2 px-3 py-2 rounded-md ${status.bgColor} ${status.borderColor} border`}>
+      <div
+        className={`flex items-center gap-2 px-3 py-2 rounded-md ${status.bgColor} ${status.borderColor} border`}
+      >
         <StatusIcon className={`h-4 w-4 ${status.color}`} />
         <span className="text-sm font-medium">{status.label}</span>
         {exitCode !== undefined && (

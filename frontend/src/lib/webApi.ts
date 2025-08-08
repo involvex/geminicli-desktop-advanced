@@ -1,8 +1,8 @@
-import axios from 'axios';
+import axios from "axios";
 
 // Create axios client with base URL /api
 const apiClient = axios.create({
-  baseURL: '/api',
+  baseURL: "/api",
   timeout: 30000, // 30 second timeout
 });
 
@@ -64,7 +64,13 @@ export interface DirEntry {
   modified?: number; // Unix timestamp
   is_symlink?: boolean;
   symlink_target?: string;
-  volume_type?: "local_disk" | "removable_disk" | "network_drive" | "cd_drive" | "ram_disk" | "file_system";
+  volume_type?:
+    | "local_disk"
+    | "removable_disk"
+    | "network_drive"
+    | "cd_drive"
+    | "ram_disk"
+    | "file_system";
 }
 
 interface ProcessStatus {
@@ -77,17 +83,21 @@ interface ProcessStatus {
 // Web API functions that mirror Tauri invoke calls
 export const webApi = {
   async check_cli_installed(): Promise<boolean> {
-    const response = await apiClient.get<boolean>('/check-cli-installed');
+    const response = await apiClient.get<boolean>("/check-cli-installed");
     return response.data;
   },
 
-  async start_session(sessionId: string, workingDirectory?: string, model?: string): Promise<void> {
-    const request: StartSessionRequest = { 
+  async start_session(
+    sessionId: string,
+    workingDirectory?: string,
+    model?: string
+  ): Promise<void> {
+    const request: StartSessionRequest = {
       session_id: sessionId,
       working_directory: workingDirectory,
-      model: model
+      model: model,
     };
-    await apiClient.post('/start-session', request);
+    await apiClient.post("/start-session", request);
   },
 
   async send_message(params: {
@@ -102,17 +112,19 @@ export const webApi = {
       conversation_history: params.conversationHistory,
       model: params.model,
     };
-    await apiClient.post('/send-message', request);
+    await apiClient.post("/send-message", request);
   },
 
   async get_process_statuses(): Promise<ProcessStatus[]> {
-    const response = await apiClient.get<ProcessStatus[]>('/process-statuses');
+    const response = await apiClient.get<ProcessStatus[]>("/process-statuses");
     return response.data;
   },
 
   async kill_process(params: { conversationId: string }): Promise<void> {
-    const request: KillProcessRequest = { conversation_id: params.conversationId };
-    await apiClient.post('/kill-process', request);
+    const request: KillProcessRequest = {
+      conversation_id: params.conversationId,
+    };
+    await apiClient.post("/kill-process", request);
   },
 
   async send_tool_call_confirmation_response(params: {
@@ -127,12 +139,12 @@ export const webApi = {
       tool_call_id: params.toolCallId,
       outcome: params.outcome,
     };
-    await apiClient.post('/tool-confirmation', request);
+    await apiClient.post("/tool-confirmation", request);
   },
 
   async execute_confirmed_command(command: string): Promise<string> {
     const request: ExecuteCommandRequest = { command };
-    const response = await apiClient.post<string>('/execute-command', request);
+    const response = await apiClient.post<string>("/execute-command", request);
     return response.data;
   },
 
@@ -144,47 +156,59 @@ export const webApi = {
       message: params.message,
       model: params.model,
     };
-    const response = await apiClient.post<string>('/generate-title', request);
+    const response = await apiClient.post<string>("/generate-title", request);
     return response.data;
   },
 
   async validate_directory(path: string): Promise<boolean> {
     const request: ValidateDirectoryRequest = { path };
-    const response = await apiClient.post<boolean>('/validate-directory', request);
+    const response = await apiClient.post<boolean>(
+      "/validate-directory",
+      request
+    );
     return response.data;
   },
 
   async is_home_directory(path: string): Promise<boolean> {
     const request: IsHomeDirectoryRequest = { path };
-    const response = await apiClient.post<boolean>('/is-home-directory', request);
+    const response = await apiClient.post<boolean>(
+      "/is-home-directory",
+      request
+    );
     return response.data;
   },
 
   async get_home_directory(): Promise<string> {
-    const response = await apiClient.get<string>('/get-home-directory');
+    const response = await apiClient.get<string>("/get-home-directory");
     return response.data;
   },
 
   async get_parent_directory(path: string): Promise<string | null> {
     const request: GetParentDirectoryRequest = { path };
-    const response = await apiClient.post<string | null>('/get-parent-directory', request);
+    const response = await apiClient.post<string | null>(
+      "/get-parent-directory",
+      request
+    );
     return response.data;
   },
 
   async list_directory_contents(path: string): Promise<DirEntry[]> {
     const request: ListDirectoryRequest = { path };
-    const response = await apiClient.post<DirEntry[]>('/list-directory', request);
+    const response = await apiClient.post<DirEntry[]>(
+      "/list-directory",
+      request
+    );
     return response.data;
   },
 
   async list_volumes(): Promise<DirEntry[]> {
-    const response = await apiClient.get<DirEntry[]>('/list-volumes');
+    const response = await apiClient.get<DirEntry[]>("/list-volumes");
     return response.data;
   },
 
   // Fetch recent chats for web mode via REST endpoint
   async get_recent_chats(): Promise<RecentChat[]> {
-    const response = await apiClient.get<RecentChat[]>('/recent-chats');
+    const response = await apiClient.get<RecentChat[]>("/recent-chats");
     return response.data;
   },
 
@@ -193,24 +217,47 @@ export const webApi = {
     query: string;
     filters?: SearchFilters;
   }): Promise<SearchResult[]> {
-    const response = await apiClient.post<SearchResult[]>('/search-chats', params);
+    const response = await apiClient.post<SearchResult[]>(
+      "/search-chats",
+      params
+    );
     return response.data;
   },
 
-  async list_projects(params?: { limit?: number; offset?: number }): Promise<ProjectsResponse> {
+  async list_projects(params?: {
+    limit?: number;
+    offset?: number;
+  }): Promise<ProjectsResponse> {
     const limit = params?.limit ?? 25;
     const offset = params?.offset ?? 0;
-    const response = await apiClient.get<ProjectsResponse>('/projects', { params: { limit, offset } });
+    const response = await apiClient.get<ProjectsResponse>("/projects", {
+      params: { limit, offset },
+    });
     return response.data;
   },
 
-  async get_project_discussions(project_id: string): Promise<{ id: string; title: string; started_at_iso?: string; message_count?: number }[]> {
-    const response = await apiClient.get<{ id: string; title: string; started_at_iso?: string; message_count?: number }[]>('/projects/' + project_id + '/discussions');
+  async get_project_discussions(project_id: string): Promise<
+    {
+      id: string;
+      title: string;
+      started_at_iso?: string;
+      message_count?: number;
+    }[]
+  > {
+    const response = await apiClient.get<
+      {
+        id: string;
+        title: string;
+        started_at_iso?: string;
+        message_count?: number;
+      }[]
+    >("/projects/" + project_id + "/discussions");
     return response.data;
   },
 
   async list_projects_enriched(): Promise<EnrichedProject[]> {
-    const response = await apiClient.get<EnrichedProject[]>('/projects-enriched');
+    const response =
+      await apiClient.get<EnrichedProject[]>("/projects-enriched");
     return response.data;
   },
 };
@@ -244,7 +291,7 @@ export interface SearchFilters {
 export interface ProjectListItem {
   id: string;
   title?: string | null;
-  status?: 'active' | 'error' | 'unknown';
+  status?: "active" | "error" | "unknown";
   createdAt?: string | null;
   updatedAt?: string | null;
   lastActivityAt?: string | null;
@@ -306,14 +353,14 @@ export interface EnrichedProject {
 //   // Otherwise, use Tauri native invoke (desktop mode)
 //   const { invoke } = (await import('@tauri-apps/api/core')) as any;
 //   const resp = await invoke<{ id: string; title: string; started_at_iso?: string; message_count?: number }[]>(
-//     'get_project_discussions', 
+//     'get_project_discussions',
 //     { projectId }
 //   );
 //   return resp;
 // }
 
 // WebSocket event types and management
-interface WebSocketEvent<T = any> {
+interface WebSocketEvent<T = unknown> {
   event: string;
   payload: T;
   sequence: number;
@@ -321,7 +368,7 @@ interface WebSocketEvent<T = any> {
 
 export class WebSocketManager {
   private ws: WebSocket | null = null;
-  private listeners: Map<string, Set<(payload: any) => void>> = new Map();
+  private listeners: Map<string, Set<(payload: unknown) => void>> = new Map();
   private reconnectTimeout: number | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
@@ -334,34 +381,37 @@ export class WebSocketManager {
   }
 
   private connect() {
-    if (this.isConnecting || (this.ws && this.ws.readyState === WebSocket.CONNECTING)) {
+    if (
+      this.isConnecting ||
+      (this.ws && this.ws.readyState === WebSocket.CONNECTING)
+    ) {
       return;
     }
 
     this.isConnecting = true;
-    
+
     // Create a promise that resolves when connection is ready
     this.connectionReadyPromise = new Promise((resolve) => {
       this.connectionReadyResolve = resolve;
     });
-    
+
     // Use current host for WebSocket connection
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/api/ws`;
-    
-    console.log('🔌 Connecting to WebSocket:', wsUrl);
-    
+
+    console.log("🔌 Connecting to WebSocket:", wsUrl);
+
     this.ws = new WebSocket(wsUrl);
 
     this.ws.onopen = () => {
-      console.log('✅ WebSocket connected');
+      console.log("✅ WebSocket connected");
       this.isConnecting = false;
       this.reconnectAttempts = 0;
       if (this.reconnectTimeout) {
         clearTimeout(this.reconnectTimeout);
         this.reconnectTimeout = null;
       }
-      
+
       // Resolve the connection ready promise
       if (this.connectionReadyResolve) {
         this.connectionReadyResolve();
@@ -372,44 +422,52 @@ export class WebSocketManager {
     this.ws.onmessage = (event) => {
       try {
         const wsEvent: WebSocketEvent = JSON.parse(event.data);
-        console.log('📨 WebSocket event:', wsEvent.event, wsEvent.payload);
-        
+        console.log("📨 WebSocket event:", wsEvent.event, wsEvent.payload);
+
         const eventListeners = this.listeners.get(wsEvent.event);
         if (eventListeners) {
-          eventListeners.forEach(listener => {
+          eventListeners.forEach((listener) => {
             try {
               listener(wsEvent.payload);
             } catch (error) {
-              console.error('❌ Error in WebSocket event listener:', error);
+              console.error("❌ Error in WebSocket event listener:", error);
             }
           });
         }
       } catch (error) {
-        console.error('❌ Failed to parse WebSocket message:', error);
+        console.error("❌ Failed to parse WebSocket message:", error);
       }
     };
 
     this.ws.onclose = (event) => {
-      console.log('❌ WebSocket disconnected:', event.code, event.reason);
+      console.log("❌ WebSocket disconnected:", event.code, event.reason);
       this.isConnecting = false;
       this.ws = null;
-      
+
       // Attempt to reconnect if not a normal closure
-      if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
-        const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
-        console.log(`🔄 Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
-        
+      if (
+        event.code !== 1000 &&
+        this.reconnectAttempts < this.maxReconnectAttempts
+      ) {
+        const delay = Math.min(
+          1000 * Math.pow(2, this.reconnectAttempts),
+          30000
+        );
+        console.log(
+          `🔄 Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`
+        );
+
         this.reconnectTimeout = window.setTimeout(() => {
           this.reconnectAttempts++;
           this.connect();
         }, delay);
       } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-        console.error('❌ Max reconnection attempts reached');
+        console.error("❌ Max reconnection attempts reached");
       }
     };
 
     this.ws.onerror = (error) => {
-      console.error('❌ WebSocket error:', error);
+      console.error("❌ WebSocket error:", error);
       this.isConnecting = false;
     };
   }
@@ -418,11 +476,11 @@ export class WebSocketManager {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       return Promise.resolve();
     }
-    
+
     if (this.connectionReadyPromise) {
       return this.connectionReadyPromise;
     }
-    
+
     // If no promise exists and not connected, wait a bit and retry
     return new Promise((resolve) => {
       const checkConnection = () => {
@@ -442,15 +500,19 @@ export class WebSocketManager {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set());
     }
-    
-    const eventListeners = this.listeners.get(event)!;
-    eventListeners.add(callback);
 
-    console.log(`👂 Added listener for event: ${event} (total: ${eventListeners.size})`);
+    const eventListeners = this.listeners.get(event)!;
+    // Cast the callback to match the stored type
+    const wrappedCallback = (payload: unknown) => callback(payload as T);
+    eventListeners.add(wrappedCallback);
+
+    console.log(
+      `👂 Added listener for event: ${event} (total: ${eventListeners.size})`
+    );
 
     // Return unsubscribe function
     return () => {
-      eventListeners.delete(callback);
+      eventListeners.delete(wrappedCallback);
       if (eventListeners.size === 0) {
         this.listeners.delete(event);
       }
@@ -463,16 +525,16 @@ export class WebSocketManager {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
-    
+
     this.reconnectAttempts = this.maxReconnectAttempts; // Prevent reconnection
-    
+
     if (this.ws) {
-      this.ws.close(1000, 'Manual disconnect');
+      this.ws.close(1000, "Manual disconnect");
       this.ws = null;
     }
-    
+
     this.listeners.clear();
-    console.log('🔌 WebSocket disconnected manually');
+    console.log("🔌 WebSocket disconnected manually");
   }
 }
 
@@ -487,7 +549,10 @@ export function getWebSocketManager(): WebSocketManager {
 }
 
 // Web event listener function that mimics Tauri's listen
-export async function webListen<T>(event: string, callback: (event: { payload: T }) => void): Promise<() => void> {
+export async function webListen<T>(
+  event: string,
+  callback: (event: { payload: T }) => void
+): Promise<() => void> {
   const manager = getWebSocketManager();
   return manager.listen(event, (payload: T) => {
     callback({ payload });

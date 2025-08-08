@@ -20,51 +20,51 @@ export function DirectoryRenderer({ toolCall }: DirectoryRendererProps) {
     try {
       if (toolCall.inputJsonRpc) {
         const input = JSON.parse(toolCall.inputJsonRpc);
-        return input.params?.path || input.params?.locations?.[0] || '.';
+        return input.params?.path || input.params?.locations?.[0] || ".";
       }
-    } catch {}
-    return '.';
+    } catch {
+      // Intentionally ignore parse errors
+    }
+    return ".";
   };
 
   // Get the summary message from the result
   const getSummary = (): string => {
-    if (typeof result === 'string') {
+    if (typeof result === "string") {
       return result;
     }
-    if (result && typeof result === 'object') {
-      if ('markdown' in result && result.markdown) {
+    if (result && typeof result === "object") {
+      if ("markdown" in result && result.markdown) {
         return result.markdown;
       }
-      if ('message' in result && result.message) {
+      if ("message" in result && result.message) {
         return result.message;
       }
     }
-    return 'Listed directory';
+    return "Listed directory";
   };
 
   const path = getPath();
-  const displayPath = path === '.' ? 'current directory' : path;
+  const displayPath = path === "." ? "current directory" : path;
   const summary = getSummary();
 
   return (
     <div className="mt-4">
-      <div 
+      <div
         className="flex items-center gap-2 text-sm px-2 py-1 cursor-pointer hover:bg-muted/50 rounded-lg transition-colors"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <FolderClosed className="h-4 w-4 text-blue-500" />
         <span>Listed </span>
         <span className="text-muted-foreground">{displayPath}</span>
-        <ChevronRight 
+        <ChevronRight
           className={`h-4 w-4 text-muted-foreground transition-transform ${
-            isExpanded ? 'rotate-90' : ''
+            isExpanded ? "rotate-90" : ""
           }`}
         />
       </div>
       {isExpanded && (
-        <div className="ml-8 text-sm text-muted-foreground">
-          {summary}
-        </div>
+        <div className="ml-8 text-sm text-muted-foreground">{summary}</div>
       )}
     </div>
   );

@@ -24,10 +24,11 @@ where
         String(String),
         Number(u32),
     }
-    
+
     match StringOrNumber::deserialize(deserializer)? {
-        StringOrNumber::String(s) => s.parse::<u32>()
-            .map_err(|_| serde::de::Error::custom(format!("invalid u32 string: {}", s))),
+        StringOrNumber::String(s) => s
+            .parse::<u32>()
+            .map_err(|_| serde::de::Error::custom(format!("invalid u32 string: {s}"))),
         StringOrNumber::Number(n) => Ok(n),
     }
 }
@@ -312,7 +313,7 @@ impl ProjectHasher {
     pub fn hash_path(path: &str) -> BackendResult<String> {
         let canonical_path = std::path::Path::new(path)
             .canonicalize()
-            .map_err(|e| BackendError::IoError(e))?;
+            .map_err(BackendError::IoError)?;
 
         let mut hasher = Sha256::new();
         hasher.update(canonical_path.to_string_lossy().as_bytes());
@@ -350,7 +351,7 @@ impl FileRpcLogger {
             .join("projects")
             .join(&project_hash);
 
-        fs::create_dir_all(&log_dir).map_err(|e| BackendError::IoError(e))?;
+        fs::create_dir_all(&log_dir).map_err(BackendError::IoError)?;
 
         // Create project.json for new projects
         let _ = ensure_project_metadata(&project_hash, Some(std::path::Path::new(&project_dir)));
@@ -361,7 +362,7 @@ impl FileRpcLogger {
             .unwrap_or_default()
             .as_millis();
 
-        let log_filename = format!("rpc-log-{}.log", timestamp);
+        let log_filename = format!("rpc-log-{timestamp}.log");
         let file_path = log_dir.join(log_filename);
 
         // Open file for writing
@@ -369,7 +370,7 @@ impl FileRpcLogger {
             .create(true)
             .append(true)
             .open(&file_path)
-            .map_err(|e| BackendError::IoError(e))?;
+            .map_err(BackendError::IoError)?;
 
         let writer = Arc::new(Mutex::new(BufWriter::new(file)));
 
@@ -387,20 +388,15 @@ impl FileRpcLogger {
 
         if let Ok(entries) = fs::read_dir(parent_dir) {
             for entry in entries.flatten() {
-                if let Some(filename) = entry.file_name().to_str() {
-                    if filename.starts_with("rpc-log-") && filename.ends_with(".log") {
-                        if let Ok(metadata) = entry.metadata() {
-                            if let Ok(modified) = metadata.modified() {
-                                if let Ok(modified_secs) =
-                                    modified.duration_since(std::time::UNIX_EPOCH)
-                                {
-                                    if modified_secs.as_secs() < cutoff_time {
-                                        let _ = fs::remove_file(entry.path());
-                                    }
-                                }
-                            }
-                        }
-                    }
+                if let Some(filename) = entry.file_name().to_str()
+                    && filename.starts_with("rpc-log-")
+                    && filename.ends_with(".log")
+                    && let Ok(metadata) = entry.metadata()
+                    && let Ok(modified) = metadata.modified()
+                    && let Ok(modified_secs) = modified.duration_since(std::time::UNIX_EPOCH)
+                    && modified_secs.as_secs() < cutoff_time
+                {
+                    let _ = fs::remove_file(entry.path());
                 }
             }
         }
@@ -412,7 +408,7 @@ impl FileRpcLogger {
 impl RpcLogger for FileRpcLogger {
     fn log_rpc(&self, message: &str) -> Result<(), std::io::Error> {
         let timestamp = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
-        let log_line = format!("[{}] {}\n", timestamp, message);
+        let log_line = format!("[{timestamp}] {message}\n");
 
         if let Ok(mut writer) = self.writer.lock() {
             writer.write_all(log_line.as_bytes())?;
@@ -733,7 +729,7 @@ impl SessionManager {
         if let Some(session) = processes.get_mut(conversation_id) {
             // Prefer graceful kill via stored Child handle.
             if let Some(mut child) = session.child.take() {
-                let _ = child.kill();
+                drop(child.kill());
             } else if let Some(pid) = session.pid {
                 // Kill the process
                 #[cfg(windows)]
@@ -1091,17 +1087,17 @@ async fn handle_session_io_internal(
 
                     if let Some(mut stdin) = stdin_opt {
                         // Check if this is a sendUserMessage request and track it
-                        if let Ok(json_request) = serde_json::from_str::<JsonRpcRequest>(&message_json) {
-                            if json_request.method == "sendUserMessage" {
-                                pending_send_message_requests.insert(json_request.id);
-                            }
+                        if let Ok(json_request) = serde_json::from_str::<JsonRpcRequest>(&message_json)
+                            && json_request.method == "sendUserMessage"
+                        {
+                            pending_send_message_requests.insert(json_request.id);
                         }
 
                         // Log the RPC message being sent
-                        if let Ok(processes_guard) = processes.lock() {
-                            if let Some(session) = processes_guard.get(&session_id) {
-                                let _ = session.rpc_logger.log_rpc(&message_json);
-                            }
+                        if let Ok(processes_guard) = processes.lock()
+                            && let Some(session) = processes_guard.get(&session_id)
+                        {
+                            let _ = session.rpc_logger.log_rpc(&message_json);
                         }
 
                         // Emit CLI input event for EVERY message sent to CLI
@@ -1161,10 +1157,10 @@ async fn handle_session_io_internal(
                         }
 
                         // Log the RPC message received
-                        if let Ok(processes_guard) = processes.lock() {
-                            if let Some(session) = processes_guard.get(&session_id) {
-                                let _ = session.rpc_logger.log_rpc(line);
-                            }
+                        if let Ok(processes_guard) = processes.lock()
+                            && let Some(session) = processes_guard.get(&session_id)
+                        {
+                            let _ = session.rpc_logger.log_rpc(line);
                         }
 
                         // Emit CLI output event for EVERY message received from CLI
@@ -1258,18 +1254,18 @@ async fn handle_cli_request_internal(
                     "folder" => "list_directory",
                     "fileSearch" => {
                         // Check if this is a ReadManyFiles operation based on label content
-                        let tool_name = if params.label.contains("read and concatenate") || 
-                                          params.label.contains("Will attempt to read") {
-                            "read_many_files"  // ReadManyFiles operation based on label
+                        if params.label.contains("read and concatenate")
+                            || params.label.contains("Will attempt to read")
+                        {
+                            "read_many_files" // ReadManyFiles operation based on label
                         } else if params.locations.is_empty() {
-                            "glob"  // Empty locations = search/glob operation
+                            "glob" // Empty locations = search/glob operation
                         } else if params.locations.len() == 1 {
-                            "read_file"  // Single file = file read operation
+                            "read_file" // Single file = file read operation
                         } else {
-                            "read_many_files"  // Multiple files = read many files operation
-                        };
-                        tool_name
-                    },
+                            "read_many_files" // Multiple files = read many files operation
+                        }
+                    }
                     "search" => "search_files",
                     "terminal" => "execute_command",
                     "code" => "write_file",
@@ -1380,10 +1376,10 @@ async fn send_response_to_cli_internal(
     let response_json = serde_json::to_string(&response).unwrap();
 
     // Log the RPC response being sent
-    if let Ok(processes_guard) = processes.lock() {
-        if let Some(session) = processes_guard.get(session_id) {
-            let _ = session.rpc_logger.log_rpc(&response_json);
-        }
+    if let Ok(processes_guard) = processes.lock()
+        && let Some(session) = processes_guard.get(session_id)
+    {
+        let _ = session.rpc_logger.log_rpc(&response_json);
     }
 
     // Emit CLI input event for response we're sending back to CLI
@@ -1489,6 +1485,7 @@ fn home_projects_root() -> Option<PathBuf> {
 }
 
 // Extract the ISO timestamp inside [ ... ] prefix. Returns None if not found or invalid.
+#[allow(dead_code)]
 fn extract_prefix_iso(line: &str) -> Option<String> {
     let start = line.find('[')?;
     let end = line.find(']')?;
@@ -1504,6 +1501,7 @@ fn extract_prefix_iso(line: &str) -> Option<String> {
 }
 
 // Count message stats and derive title/status by scanning lines.
+#[allow(dead_code)]
 fn analyze_log_file(
     path: &Path,
 ) -> (
@@ -1530,7 +1528,7 @@ fn analyze_log_file(
 
     let mut user_message_ids: HashSet<u64> = HashSet::new();
 
-    for line in reader.lines().filter_map(|l| l.ok()) {
+    for line in reader.lines().map_while(Result::ok) {
         // Track timestamps (keep working logic)
         if let Some(iso) = extract_prefix_iso(&line) {
             if earliest_iso.is_none() {
@@ -1538,7 +1536,7 @@ fn analyze_log_file(
             }
             latest_iso = Some(iso);
         }
-        
+
         // Parse JSON (keep existing approach)
         let json_start = match line.find('{') {
             Some(i) => i,
@@ -1552,59 +1550,55 @@ fn analyze_log_file(
                 continue;
             }
         };
-        
+
         let method = val.get("method").and_then(|m| m.as_str()).unwrap_or("");
-        
+
         if method == "sendUserMessage" {
             user_msgs = user_msgs.saturating_add(1);
-            
+
             // Track this request ID for assistant response counting
             if let Some(id) = val.get("id").and_then(|i| i.as_u64()) {
                 user_message_ids.insert(id);
             }
-            
-            if first_user_title.is_none() {
-                if let Some(params) = val.get("params") {
-                    if let Some(chunks) = params.get("chunks").and_then(|c| c.as_array()) {
-                        let combined = chunks
-                            .iter()
-                            .filter_map(|ch| ch.get("text").and_then(|t| t.as_str()))
-                            .collect::<Vec<_>>()
-                            .join(" ");
-                        let trimmed = combined.trim();
-                        if !trimmed.is_empty() {
-                            let words: Vec<&str> = trimmed.split_whitespace().take(6).collect();
-                            if !words.is_empty() {
-                                first_user_title = Some(words.join(" "));
-                            }
-                        }
+
+            if first_user_title.is_none()
+                && let Some(params) = val.get("params")
+                && let Some(chunks) = params.get("chunks").and_then(|c| c.as_array())
+            {
+                let combined = chunks
+                    .iter()
+                    .filter_map(|ch| ch.get("text").and_then(|t| t.as_str()))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                let trimmed = combined.trim();
+                if !trimmed.is_empty() {
+                    let words: Vec<&str> = trimmed.split_whitespace().take(6).collect();
+                    if !words.is_empty() {
+                        first_user_title = Some(words.join(" "));
                     }
                 }
             }
         } else if method == "streamAssistantMessageChunk" {
             // Thought counting (keep existing - it was correct)
-            if let Some(params) = val.get("params") {
-                if params
+            if let Some(params) = val.get("params")
+                && params
                     .get("chunk")
                     .and_then(|c| c.get("thought"))
                     .and_then(|t| t.as_str())
                     .is_some()
-                {
-                    thoughts = thoughts.saturating_add(1);
-                }
+            {
+                thoughts = thoughts.saturating_add(1);
             }
         }
-        
-        if let Some(result) = val.get("result") {
-            if result.is_null() {
-                if let Some(id) = val.get("id").and_then(|i| i.as_u64()) {
-                    if user_message_ids.contains(&id) {
-                        assistant_msgs = assistant_msgs.saturating_add(1);
-                    }
-                }
-            }
+
+        if let Some(result) = val.get("result")
+            && result.is_null()
+            && let Some(id) = val.get("id").and_then(|i| i.as_u64())
+            && user_message_ids.contains(&id)
+        {
+            assistant_msgs = assistant_msgs.saturating_add(1);
         }
-        
+
         // Error detection (keep existing logic)
         if val.get("error").is_some() {
             parse_error = true;
@@ -1628,7 +1622,9 @@ fn parse_millis_from_log_name(name: &str) -> Option<u64> {
         return None;
     }
     let rest = name.strip_prefix("rpc-log-")?;
-    let ts_part = rest.strip_suffix(".log").or_else(|| rest.strip_suffix(".json"))?;
+    let ts_part = rest
+        .strip_suffix(".log")
+        .or_else(|| rest.strip_suffix(".json"))?;
     ts_part.parse::<u64>().ok()
 }
 
@@ -1662,10 +1658,11 @@ pub fn list_projects(limit: u32, offset: u32) -> BackendResult<ProjectsResponse>
         if !path.is_dir() {
             continue;
         }
-        if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
-            if name.len() == 64 && name.chars().all(|c| c.is_ascii_hexdigit()) {
-                all_ids.push(name.to_string());
-            }
+        if let Some(name) = path.file_name().and_then(|s| s.to_str())
+            && name.len() == 64
+            && name.chars().all(|c| c.is_ascii_hexdigit())
+        {
+            all_ids.push(name.to_string());
         }
     }
     all_ids.sort();
@@ -1690,31 +1687,32 @@ pub fn list_projects(limit: u32, offset: u32) -> BackendResult<ProjectsResponse>
             for e in rd.flatten() {
                 let p = e.path();
                 let fname_opt = p.file_name().and_then(|s| s.to_str());
-                if let Some(fname) = fname_opt {
-                    if fname.starts_with("rpc-log-") && (fname.ends_with(".log") || fname.ends_with(".json")) {
-                        log_count = log_count.saturating_add(1);
+                if let Some(fname) = fname_opt
+                    && fname.starts_with("rpc-log-")
+                    && (fname.ends_with(".log") || fname.ends_with(".json"))
+                {
+                    log_count = log_count.saturating_add(1);
 
-                        // Prefer timestamp embedded in filename for created/updated derivation
-                        if let Some(millis) = parse_millis_from_log_name(fname) {
-                            earliest_ts_millis = match earliest_ts_millis {
-                                Some(cur) => Some(cur.min(millis)),
-                                None => Some(millis),
-                            };
-                            latest_ts_millis = match latest_ts_millis {
-                                Some(cur) => Some(cur.max(millis)),
-                                None => Some(millis),
-                            };
-                        }
+                    // Prefer timestamp embedded in filename for created/updated derivation
+                    if let Some(millis) = parse_millis_from_log_name(fname) {
+                        earliest_ts_millis = match earliest_ts_millis {
+                            Some(cur) => Some(cur.min(millis)),
+                            None => Some(millis),
+                        };
+                        latest_ts_millis = match latest_ts_millis {
+                            Some(cur) => Some(cur.max(millis)),
+                            None => Some(millis),
+                        };
+                    }
 
-                        // Also track latest mtime as fallback for lastActivity
-                        if let Ok(md) = e.metadata() {
-                            if let Ok(modified) = md.modified() {
-                                if let Ok(dur) = modified.duration_since(std::time::UNIX_EPOCH) {
-                                    let secs = dur.as_secs();
-                                    latest_mtime_secs = Some(latest_mtime_secs.map_or(secs, |cur| cur.max(secs)));
-                                }
-                            }
-                        }
+                    // Also track latest mtime as fallback for lastActivity
+                    if let Ok(md) = e.metadata()
+                        && let Ok(modified) = md.modified()
+                        && let Ok(dur) = modified.duration_since(std::time::UNIX_EPOCH)
+                    {
+                        let secs = dur.as_secs();
+                        latest_mtime_secs =
+                            Some(latest_mtime_secs.map_or(secs, |cur| cur.max(secs)));
                     }
                 }
             }
@@ -1724,23 +1722,31 @@ pub fn list_projects(limit: u32, offset: u32) -> BackendResult<ProjectsResponse>
         let created_at_iso: Option<String> = earliest_ts_millis.map(|ms| {
             // millis -> seconds
             let secs = ms / 1000;
-            chrono::DateTime::<chrono::Utc>::from(std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs))
-                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+            chrono::DateTime::<chrono::Utc>::from(
+                std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs),
+            )
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
         });
 
         let updated_at_iso_from_name: Option<String> = latest_ts_millis.map(|ms| {
             let secs = ms / 1000;
-            chrono::DateTime::<chrono::Utc>::from(std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs))
-                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+            chrono::DateTime::<chrono::Utc>::from(
+                std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs),
+            )
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
         });
 
         let last_activity_iso_from_mtime: Option<String> = latest_mtime_secs.map(|secs| {
-            chrono::DateTime::<chrono::Utc>::from(std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs))
-                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+            chrono::DateTime::<chrono::Utc>::from(
+                std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs),
+            )
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
         });
 
         // Prefer filename-derived updatedAt; fallback to mtime-derived last activity
-        let updated_at_iso = updated_at_iso_from_name.clone().or_else(|| last_activity_iso_from_mtime.clone());
+        let updated_at_iso = updated_at_iso_from_name
+            .clone()
+            .or_else(|| last_activity_iso_from_mtime.clone());
         let last_activity_iso = updated_at_iso_from_name.or(last_activity_iso_from_mtime);
 
         // Title: avoid opening files. Provide None to keep fast path.
@@ -1748,7 +1754,11 @@ pub fn list_projects(limit: u32, offset: u32) -> BackendResult<ProjectsResponse>
         let title: Option<String> = None;
 
         // Status: "active" if there is any log; otherwise "unknown"
-        let status = if log_count > 0 { "active".to_string() } else { "unknown".to_string() };
+        let status = if log_count > 0 {
+            "active".to_string()
+        } else {
+            "unknown".to_string()
+        };
 
         items.push(ProjectListItem {
             id: id.clone(),
@@ -1772,7 +1782,6 @@ pub fn list_projects(limit: u32, offset: u32) -> BackendResult<ProjectsResponse>
 // Duplicated older block removed to resolve conflicts.
 
 // (removed older duplicate block)
-
 
 // =====================================
 // Project Metadata Types
@@ -1809,7 +1818,6 @@ pub struct EnrichedProject {
     pub metadata: ProjectMetadataView,
 }
 
-
 #[derive(Default, Clone)]
 pub struct TouchThrottle {
     inner: Arc<Mutex<HashMap<PathBuf, Instant>>>,
@@ -1818,7 +1826,10 @@ pub struct TouchThrottle {
 
 impl TouchThrottle {
     pub fn new(min_interval: Duration) -> Self {
-        Self { inner: Arc::new(Mutex::new(HashMap::new())), min_interval }
+        Self {
+            inner: Arc::new(Mutex::new(HashMap::new())),
+            min_interval,
+        }
     }
 }
 
@@ -1827,11 +1838,15 @@ fn now_fixed_offset() -> DateTime<FixedOffset> {
     now.with_timezone(now.offset())
 }
 
+#[allow(dead_code)]
 fn canonicalize_project_root(path: &Path) -> PathBuf {
     match path.canonicalize() {
         Ok(canonical) => canonical,
         Err(_) => {
-            eprintln!("warn: failed to canonicalize path {}, using as-is", path.display());
+            eprintln!(
+                "warn: failed to canonicalize path {}, using as-is",
+                path.display()
+            );
             path.to_path_buf()
         }
     }
@@ -1842,14 +1857,20 @@ fn derive_friendly_name_from_path(path: &Path) -> String {
     #[cfg(windows)]
     {
         let replaced = s.replace('\\', "-").replace(':', "");
-        let collapsed = replaced.split('-').filter(|p| !p.is_empty()).collect::<Vec<_>>().join("-");
-        collapsed
+        replaced
+            .split('-')
+            .filter(|p| !p.is_empty())
+            .collect::<Vec<_>>()
+            .join("-")
     }
     #[cfg(not(windows))]
     {
         let replaced = s.replace('/', "-");
-        let collapsed = replaced.split('-').filter(|p| !p.is_empty()).collect::<Vec<_>>().join("-");
-        collapsed
+        replaced
+            .split('-')
+            .filter(|p| !p.is_empty())
+            .collect::<Vec<_>>()
+            .join("-")
     }
 }
 
@@ -1862,19 +1883,25 @@ fn project_json_path(sha256: &str) -> Option<PathBuf> {
 }
 
 fn read_project_metadata(root_sha: &str) -> BackendResult<ProjectMetadata> {
-    let Some(path) = project_json_path(root_sha) else { 
-        return Err(BackendError::SessionInitFailed("projects root not found".to_string())); 
+    let Some(path) = project_json_path(root_sha) else {
+        return Err(BackendError::SessionInitFailed(
+            "projects root not found".to_string(),
+        ));
     };
     if !path.exists() {
-        return Err(BackendError::SessionInitFailed("project.json not found".to_string()));
+        return Err(BackendError::SessionInitFailed(
+            "project.json not found".to_string(),
+        ));
     }
     let content = std::fs::read_to_string(&path).map_err(BackendError::IoError)?;
     serde_json::from_str::<ProjectMetadata>(&content).map_err(BackendError::SerializationError)
 }
 
 fn write_project_metadata(sha256: &str, meta: &ProjectMetadata) -> BackendResult<()> {
-    let Some(json_path) = project_json_path(sha256) else { 
-        return Err(BackendError::SessionInitFailed("projects root not found".to_string())); 
+    let Some(json_path) = project_json_path(sha256) else {
+        return Err(BackendError::SessionInitFailed(
+            "projects root not found".to_string(),
+        ));
     };
     if let Some(dir) = json_path.parent() {
         std::fs::create_dir_all(dir).map_err(BackendError::IoError)?;
@@ -1887,7 +1914,10 @@ fn write_project_metadata(sha256: &str, meta: &ProjectMetadata) -> BackendResult
 }
 
 fn to_view(meta: &ProjectMetadata, canonical_root: &Path, sha256: &str) -> ProjectMetadataView {
-    let friendly = meta.friendly_name.clone().unwrap_or_else(|| derive_friendly_name_from_path(canonical_root));
+    let friendly = meta
+        .friendly_name
+        .clone()
+        .unwrap_or_else(|| derive_friendly_name_from_path(canonical_root));
     let first_used = meta.first_used.as_ref().map(|d| d.to_rfc3339());
     let updated_at = meta.updated_at.as_ref().map(|d| d.to_rfc3339());
     ProjectMetadataView {
@@ -1901,7 +1931,10 @@ fn to_view(meta: &ProjectMetadata, canonical_root: &Path, sha256: &str) -> Proje
 
 /// Ensure metadata exists for project sha; create lazily if missing using provided external_root_canonical.
 /// Returns Ok(ProjectMetadata) on success; for corrupt files, logs warning and returns a default in-memory struct.
-pub fn ensure_project_metadata(sha256: &str, external_root_canonical: Option<&Path>) -> BackendResult<ProjectMetadata> {
+pub fn ensure_project_metadata(
+    sha256: &str,
+    external_root_canonical: Option<&Path>,
+) -> BackendResult<ProjectMetadata> {
     match read_project_metadata(sha256) {
         Ok(meta) => Ok(meta),
         Err(e) => {
@@ -1936,11 +1969,11 @@ pub fn maybe_touch_updated_at(sha256: &str, throttle: &TouchThrottle) -> Backend
     let mut guard = throttle.inner.lock().unwrap();
     let last = guard.get(&root).copied();
     let now_inst = Instant::now();
-    if let Some(last_instant) = last {
-        if now_inst.duration_since(last_instant) < throttle.min_interval {
-            // throttle skip
-            return Ok(());
-        }
+    if let Some(last_instant) = last
+        && now_inst.duration_since(last_instant) < throttle.min_interval
+    {
+        // throttle skip
+        return Ok(());
     }
     guard.insert(root, now_inst);
     drop(guard);
@@ -1952,21 +1985,27 @@ pub fn maybe_touch_updated_at(sha256: &str, throttle: &TouchThrottle) -> Backend
 }
 
 /// Create an EnrichedProject view. If metadata missing, it will not auto-create unless external_root is provided and should_create_if_missing is true.
-pub fn make_enriched_project(sha256: &str, external_root: Option<&Path>, should_create_if_missing: bool) -> EnrichedProject {
+pub fn make_enriched_project(
+    sha256: &str,
+    external_root: Option<&Path>,
+    should_create_if_missing: bool,
+) -> EnrichedProject {
     // Get metadata and determine display path
     let meta_opt = read_project_metadata(sha256).ok();
-    
+
     let display_root = if let Some(ref meta) = meta_opt {
         meta.path.clone() // Use stored path from metadata (user-friendly)
     } else if let Some(er) = external_root {
         er.to_path_buf() // Use original external root (user-friendly)
     } else {
         // fallback to ~/.gemini-desktop/projects/<sha256> as a virtual root
-        projects_root_dir().unwrap_or_else(|| PathBuf::from(".")).join(sha256)
+        projects_root_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join(sha256)
     };
 
-    let meta = if meta_opt.is_some() {
-        meta_opt.unwrap()
+    let meta = if let Some(meta) = meta_opt {
+        meta
     } else if should_create_if_missing {
         ensure_project_metadata(sha256, external_root).unwrap_or_else(|_| ProjectMetadata {
             path: display_root.clone(),
@@ -2003,17 +2042,24 @@ pub fn list_enriched_projects() -> BackendResult<Vec<EnrichedProject>> {
     }
     let mut all_ids: Vec<String> = Vec::new();
     for entry in fs::read_dir(&root).map_err(BackendError::IoError)? {
-        let entry = match entry { Ok(e) => e, Err(_) => continue };
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
         let path = entry.path();
-        if !path.is_dir() { continue; }
-        if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
-            if name.len() == 64 && name.chars().all(|c| c.is_ascii_hexdigit()) {
-                all_ids.push(name.to_string());
-            }
+        if !path.is_dir() {
+            continue;
+        }
+        if let Some(name) = path.file_name().and_then(|s| s.to_str())
+            && name.len() == 64
+            && name.chars().all(|c| c.is_ascii_hexdigit())
+        {
+            all_ids.push(name.to_string());
         }
     }
     all_ids.sort();
-    let enriched = all_ids.iter()
+    let enriched = all_ids
+        .iter()
         .map(|id| make_enriched_project(id, None, false))
         .collect();
     Ok(enriched)
@@ -2140,7 +2186,7 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         let mut message_count: u32 = 0;
         let mut first_user_text = None;
 
-        for line in reader.lines().filter_map(|l| l.ok()) {
+        for line in reader.lines().map_while(Result::ok) {
             let json_str = match line.find('{') {
                 Some(idx) => &line[idx..],
                 None => continue,
@@ -2315,7 +2361,7 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
                 };
 
                 // Per-log unique id: "{project_hash}:{file_name}"
-                let id = format!("{}:{}", project_hash, name);
+                let id = format!("{project_hash}:{name}");
 
                 chats.push(RecentChat {
                     id,
@@ -2335,13 +2381,15 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
     }
 
     /// Search across all chat logs using filesystem scanning
-    pub async fn search_chats(&self, query: String, filters: Option<SearchFilters>) -> BackendResult<Vec<SearchResult>> {
-        use std::ffi::OsStr;
-        
+    pub async fn search_chats(
+        &self,
+        query: String,
+        filters: Option<SearchFilters>,
+    ) -> BackendResult<Vec<SearchResult>> {
         let query_lower = query.to_lowercase();
         let filters = filters.unwrap_or_default();
         let max_results = filters.max_results.unwrap_or(50);
-        
+
         // Use same pattern as get_recent_chats() - scan projects directory
         let home = std::env::var("HOME")
             .unwrap_or_else(|_| std::env::var("USERPROFILE").unwrap_or_default());
@@ -2354,29 +2402,40 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         }
 
         let mut results = Vec::new();
-        
+
         // Scan all project directories (same pattern as existing code)
         for entry in std::fs::read_dir(&projects_dir).map_err(BackendError::IoError)? {
             let entry = entry.map_err(BackendError::IoError)?;
             let project_hash = entry.file_name().to_string_lossy().to_string();
-            
+
             // Skip if project filter specified and doesn't match
-            if let Some(ref filter_hash) = filters.project_hash {
-                if &project_hash != filter_hash {
-                    continue;
-                }
+            if let Some(ref filter_hash) = filters.project_hash
+                && &project_hash != filter_hash
+            {
+                continue;
             }
-            
+
             // Search within this project's logs
-            self.search_project_logs(&entry.path(), &project_hash, &query_lower, &filters, &mut results).await?;
-            
+            self.search_project_logs(
+                &entry.path(),
+                &project_hash,
+                &query_lower,
+                &filters,
+                &mut results,
+            )
+            .await?;
+
             if results.len() >= max_results as usize {
                 break;
             }
         }
 
         // Sort by relevance score (descending)
-        results.sort_by(|a, b| b.relevance_score.partial_cmp(&a.relevance_score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.relevance_score
+                .partial_cmp(&a.relevance_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results.truncate(max_results as usize);
 
         Ok(results)
@@ -2394,33 +2453,37 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         for entry in std::fs::read_dir(project_path).map_err(BackendError::IoError)? {
             let entry = entry.map_err(BackendError::IoError)?;
             let file_name = entry.file_name().to_string_lossy().to_string();
-            
+
             // Only process RPC log files (existing pattern)
             if !(file_name.starts_with("rpc-log-") && file_name.ends_with(".log")) {
                 continue;
             }
 
             // Apply date filtering if specified
-            if let Some((start_date, end_date)) = &filters.date_range {
-                if let Some(timestamp_str) = file_name.strip_prefix("rpc-log-").and_then(|s| s.strip_suffix(".log")) {
-                    if let Ok(timestamp_millis) = timestamp_str.parse::<u64>() {
-                        let file_date = chrono::DateTime::from_timestamp_millis(timestamp_millis as i64);
-                        if let Some(file_dt) = file_date {
-                            if let (Ok(start_dt), Ok(end_dt)) = (
-                                chrono::DateTime::parse_from_rfc3339(start_date),
-                                chrono::DateTime::parse_from_rfc3339(end_date)
-                            ) {
-                                if file_dt < start_dt.with_timezone(&chrono::Utc) || file_dt > end_dt.with_timezone(&chrono::Utc) {
-                                    continue;
-                                }
-                            }
-                        }
-                    }
+            if let Some((start_date, end_date)) = &filters.date_range
+                && let Some(timestamp_str) = file_name
+                    .strip_prefix("rpc-log-")
+                    .and_then(|s| s.strip_suffix(".log"))
+                && let Ok(timestamp_millis) = timestamp_str.parse::<u64>()
+            {
+                let file_date = chrono::DateTime::from_timestamp_millis(timestamp_millis as i64);
+                if let Some(file_dt) = file_date
+                    && let (Ok(start_dt), Ok(end_dt)) = (
+                        chrono::DateTime::parse_from_rfc3339(start_date),
+                        chrono::DateTime::parse_from_rfc3339(end_date),
+                    )
+                    && (file_dt < start_dt.with_timezone(&chrono::Utc)
+                        || file_dt > end_dt.with_timezone(&chrono::Utc))
+                {
+                    continue;
                 }
             }
 
             // Search within this log file
-            if let Some(search_result) = self.search_single_log_file(&entry.path(), project_hash, &file_name, query).await? {
+            if let Some(search_result) = self
+                .search_single_log_file(&entry.path(), project_hash, &file_name, query)
+                .await?
+            {
                 results.push(search_result);
             }
         }
@@ -2439,7 +2502,7 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
 
         let file = std::fs::File::open(log_path).map_err(BackendError::IoError)?;
         let reader = std::io::BufReader::new(file);
-        
+
         let mut matches = Vec::new();
         let mut all_content = String::new();
         let mut line_number = 0u32;
@@ -2450,7 +2513,7 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
             let line = line.map_err(BackendError::IoError)?;
             line_number += 1;
             lines.push(line.clone());
-            
+
             // Extract JSON content (same pattern as existing code)
             let json_str = match line.find('{') {
                 Some(idx) => &line[idx..],
@@ -2458,27 +2521,29 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
             };
 
             // Parse sendUserMessage (same pattern)
-            if let Ok(req) = serde_json::from_str::<JsonRpcRequest>(json_str) {
-                if req.method == "sendUserMessage" {
-                    // Use full message text for searching (not just first 6 words)
-                    if let Some(message_text) = Self::extract_full_message_text(req.params) {
-                        all_content.push_str(&message_text);
-                        all_content.push(' ');
-                        
-                        // Check for query match in the full message content
-                        if message_text.to_lowercase().contains(query) {
-                            let context_before = if line_number > 1 { 
-                                lines.get((line_number - 2) as usize).cloned() 
-                            } else { None };
-                            let context_after = lines.get(line_number as usize).cloned();
-                            
-                            matches.push(MessageMatch {
-                                content_snippet: Self::create_snippet(&message_text, query, 100),
-                                line_number,
-                                context_before,
-                                context_after,
-                            });
-                        }
+            if let Ok(req) = serde_json::from_str::<JsonRpcRequest>(json_str)
+                && req.method == "sendUserMessage"
+            {
+                // Use full message text for searching (not just first 6 words)
+                if let Some(message_text) = Self::extract_full_message_text(req.params) {
+                    all_content.push_str(&message_text);
+                    all_content.push(' ');
+
+                    // Check for query match in the full message content
+                    if message_text.to_lowercase().contains(query) {
+                        let context_before = if line_number > 1 {
+                            lines.get((line_number - 2) as usize).cloned()
+                        } else {
+                            None
+                        };
+                        let context_after = lines.get(line_number as usize).cloned();
+
+                        matches.push(MessageMatch {
+                            content_snippet: Self::create_snippet(&message_text, query, 100),
+                            line_number,
+                            context_before,
+                            context_after,
+                        });
                     }
                 }
             }
@@ -2492,9 +2557,10 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         let relevance_score = Self::calculate_relevance_score(&all_content, query, matches.len());
 
         // Generate RecentChat info (reuse existing pattern)
-        let (message_count, first_user_text) = Self::extract_chat_data(Some(log_path.to_path_buf()));
-        let chat_id = format!("{}:{}", project_hash, file_name);
-        
+        let (message_count, first_user_text) =
+            Self::extract_chat_data(Some(log_path.to_path_buf()));
+        let chat_id = format!("{project_hash}:{file_name}");
+
         // Extract timestamp for started_at_iso (same pattern as existing code)
         let timestamp_str = file_name
             .strip_prefix("rpc-log-")
@@ -2502,7 +2568,7 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
             .unwrap_or("0");
         let timestamp_millis = timestamp_str.parse::<u64>().unwrap_or(0);
         let started_at_iso = chrono::DateTime::from_timestamp_millis(timestamp_millis as i64)
-            .unwrap_or_else(|| chrono::Utc::now().into())
+            .unwrap_or_else(chrono::Utc::now)
             .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
 
         let title = if let Some(t) = first_user_text {
@@ -2513,7 +2579,10 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
                 t.to_string()
             }
         } else {
-            format!("Conversation {}", &project_hash.chars().take(6).collect::<String>())
+            format!(
+                "Conversation {}",
+                &project_hash.chars().take(6).collect::<String>()
+            )
         };
 
         let recent_chat = RecentChat {
@@ -2534,16 +2603,16 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
     fn create_snippet(text: &str, query: &str, max_length: usize) -> String {
         let text_lower = text.to_lowercase();
         let query_lower = query.to_lowercase();
-        
+
         if let Some(pos) = text_lower.find(&query_lower) {
             let start = pos.saturating_sub(max_length / 3);
             let end = std::cmp::min(pos + query.len() + max_length / 3, text.len());
             let snippet = &text[start..end];
-            
+
             let prefix = if start > 0 { "..." } else { "" };
             let suffix = if end < text.len() { "..." } else { "" };
-            
-            format!("{}{}{}", prefix, snippet, suffix)
+
+            format!("{prefix}{snippet}{suffix}")
         } else {
             let end = std::cmp::min(max_length, text.len());
             format!("{}...", &text[..end])
@@ -2551,11 +2620,11 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
     }
 
     /// Calculate relevance score (private helper)
-    fn calculate_relevance_score(content: &str, query: &str, match_count: usize) -> f32 {
+    fn calculate_relevance_score(content: &str, _query: &str, match_count: usize) -> f32 {
         let content_length = content.len() as f32;
         let query_frequency = match_count as f32;
         let density = query_frequency / content_length.max(1.0);
-        
+
         // Simple scoring: frequency weight + density weight
         (query_frequency * 0.7) + (density * 1000.0 * 0.3)
     }
@@ -2591,12 +2660,11 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         // If a session already exists and is alive, reuse it.
         {
             let processes = self.session_manager.get_processes();
-            if let Ok(guard) = processes.lock() {
-                if let Some(existing) = guard.get(&session_id) {
-                    if existing.is_alive {
-                        return Ok(());
-                    }
-                }
+            if let Ok(guard) = processes.lock()
+                && let Some(existing) = guard.get(&session_id)
+                && existing.is_alive
+            {
+                return Ok(());
             }
         }
 
@@ -2725,7 +2793,7 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
                 let _ = self.emit_tool_call_update(&session_id, &update);
             }
             Err(e) => {
-                eprintln!("Failed to parse tool_call_id '{}' as u32: {}", tool_call_id, e);
+                eprintln!("Failed to parse tool_call_id '{tool_call_id}' as u32: {e}");
             }
         }
 
@@ -2813,11 +2881,8 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
             stdin
                 .write_all(prompt.as_bytes())
                 .await
-                .map_err(|e| BackendError::IoError(e))?;
-            stdin
-                .shutdown()
-                .await
-                .map_err(|e| BackendError::IoError(e))?;
+                .map_err(BackendError::IoError)?;
+            stdin.shutdown().await.map_err(BackendError::IoError)?;
         }
 
         // Wait for completion and get output
@@ -2849,8 +2914,7 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
 
         // Fallback if title is too long or empty
         let final_title = if title.is_empty() || title.len() > 50 {
-            let fallback = message.chars().take(30).collect::<String>();
-            fallback
+            message.chars().take(30).collect::<String>()
         } else {
             title
         };
@@ -2913,7 +2977,11 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
 
     /// Get an enriched project for a given sha256. Lazily creates project.json if missing using provided external_root_path.
     /// Also touches updated_at with a simple throttle.
-    pub async fn get_enriched_project(&self, sha256: String, external_root_path: String) -> BackendResult<EnrichedProject> {
+    pub async fn get_enriched_project(
+        &self,
+        sha256: String,
+        external_root_path: String,
+    ) -> BackendResult<EnrichedProject> {
         // Ensure metadata exists (lazy create) using provided external root
         let external = std::path::Path::new(&external_root_path);
         ensure_project_metadata(&sha256, Some(external))?;
@@ -2924,9 +2992,12 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
     }
 
     /// Get discussions (conversations) for a specific project
-    pub async fn get_project_discussions(&self, project_id: &str) -> BackendResult<Vec<RecentChat>> {
+    pub async fn get_project_discussions(
+        &self,
+        project_id: &str,
+    ) -> BackendResult<Vec<RecentChat>> {
         use std::ffi::OsStr;
-        use std::time::{SystemTime, UNIX_EPOCH};
+        use std::time::UNIX_EPOCH;
 
         // Resolve projects root
         let home = std::env::var("HOME")
@@ -2940,7 +3011,7 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
             .join(".gemini-desktop")
             .join("projects")
             .join(project_id);
-        
+
         if !project_path.exists() || !project_path.is_dir() {
             return Ok(vec![]);
         }
@@ -2973,7 +3044,7 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
                 .strip_prefix("rpc-log-")
                 .and_then(|s| s.strip_suffix(".log"))
                 .unwrap_or("0");
-            
+
             let timestamp_millis = timestamp_str.parse::<u64>().unwrap_or(0);
             let started_secs = timestamp_millis / 1000;
             let started_iso = chrono::DateTime::<chrono::Utc>::from(
@@ -2999,7 +3070,7 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
             };
 
             // Per-log unique id: "{project_id}:{file_name}"
-            let id = format!("{}:{}", project_id, name);
+            let id = format!("{project_id}:{name}");
 
             discussions.push(RecentChat {
                 id,
@@ -3077,7 +3148,7 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
             for i in 0..26 {
                 if (drives_bitmask & (1 << i)) != 0 {
                     let drive_letter = (b'A' + i) as char;
-                    let drive_path = format!("{}:\\", drive_letter);
+                    let drive_path = format!("{drive_letter}:\\");
 
                     // Get drive type to provide better information
                     let drive_type = unsafe {
@@ -3090,20 +3161,20 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
 
                     let (name, volume_type) = match drive_type {
                         3 => (
-                            format!("Local Disk ({}:)", drive_letter),
+                            format!("Local Disk ({drive_letter}:)"),
                             VolumeType::LocalDisk,
                         ), // DRIVE_FIXED
                         2 => (
-                            format!("Removable Disk ({}:)", drive_letter),
+                            format!("Removable Disk ({drive_letter}:)"),
                             VolumeType::RemovableDisk,
                         ), // DRIVE_REMOVABLE
                         4 => (
-                            format!("Network Drive ({}:)", drive_letter),
+                            format!("Network Drive ({drive_letter}:)"),
                             VolumeType::NetworkDrive,
                         ), // DRIVE_REMOTE
-                        5 => (format!("CD Drive ({}:)", drive_letter), VolumeType::CdDrive), // DRIVE_CDROM
-                        6 => (format!("RAM Disk ({}:)", drive_letter), VolumeType::RamDisk), // DRIVE_RAMDISK
-                        _ => (format!("{}:", drive_letter), VolumeType::LocalDisk),
+                        5 => (format!("CD Drive ({drive_letter}:)"), VolumeType::CdDrive), // DRIVE_CDROM
+                        6 => (format!("RAM Disk ({drive_letter}:)"), VolumeType::RamDisk), // DRIVE_RAMDISK
+                        _ => (format!("{drive_letter}:"), VolumeType::LocalDisk),
                     };
 
                     volumes.push(DirEntry {
@@ -3148,23 +3219,21 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
 
         if !path_obj.exists() {
             return Err(BackendError::SessionInitFailed(format!(
-                "Directory does not exist: {}",
-                path
+                "Directory does not exist: {path}"
             )));
         }
 
         if !path_obj.is_dir() {
             return Err(BackendError::SessionInitFailed(format!(
-                "Path is not a directory: {}",
-                path
+                "Path is not a directory: {path}"
             )));
         }
 
         let mut entries = Vec::new();
-        let read_dir = std::fs::read_dir(path_obj).map_err(|e| BackendError::IoError(e))?;
+        let read_dir = std::fs::read_dir(path_obj).map_err(BackendError::IoError)?;
 
         for entry in read_dir {
-            let entry = entry.map_err(|e| BackendError::IoError(e))?;
+            let entry = entry.map_err(BackendError::IoError)?;
             let file_name = entry.file_name().to_string_lossy().to_string();
             let full_path = entry.path().to_string_lossy().to_string();
 
@@ -3172,7 +3241,7 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
             let symlink_metadata = entry
                 .path()
                 .symlink_metadata()
-                .map_err(|e| BackendError::IoError(e))?;
+                .map_err(BackendError::IoError)?;
             let is_symlink = symlink_metadata.file_type().is_symlink();
 
             // Get symlink target if this is a symlink

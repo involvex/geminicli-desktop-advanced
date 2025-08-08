@@ -18,38 +18,13 @@ import {
   SelectValue,
 } from "./ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-import {
-  X,
-  MessageCircle,
-  Clock,
-  AlertTriangle,
-} from "lucide-react";
+import { X, MessageCircle, Clock, AlertTriangle } from "lucide-react";
 import { useState, useCallback } from "react";
 import { webApi, SearchResult, SearchFilters } from "../lib/webApi";
 import { SearchInput } from "./SearchInput";
 import { SearchResults } from "./SearchResults";
 import { useSidebar } from "./ui/sidebar";
-
-interface ProcessStatus {
-  conversation_id: string;
-  pid: number | null;
-  created_at: number;
-  is_alive: boolean;
-}
-
-interface Message {
-  id: string;
-  content: string;
-  sender: "user" | "assistant";
-  timestamp: Date;
-}
-
-interface Conversation {
-  id: string;
-  title: string;
-  messages: Message[];
-  lastUpdated: Date;
-}
+import type { Conversation, ProcessStatus } from "../types";
 
 interface ConversationListProps {
   conversations: Conversation[];
@@ -75,7 +50,7 @@ export function ConversationList({
   } | null>(null);
   const [selectedModel, setSelectedModel] =
     useState<string>("gemini-2.5-flash");
-  
+
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -86,7 +61,6 @@ export function ConversationList({
       (status) => status.conversation_id === conversationId
     );
   };
-
 
   const formatLastUpdated = (date: Date) => {
     const now = new Date();
@@ -101,28 +75,34 @@ export function ConversationList({
     return `${diffDays}d ago`;
   };
 
-  const handleSearch = useCallback(async (query: string, filters?: SearchFilters) => {
-    if (!query.trim()) {
-      setSearchResults([]);
-      return;
-    }
+  const handleSearch = useCallback(
+    async (query: string, filters?: SearchFilters) => {
+      if (!query.trim()) {
+        setSearchResults([]);
+        return;
+      }
 
-    setIsSearching(true);
-    try {
-      const results = __WEB__ 
-        ? await webApi.search_chats({ query, filters })
-        : await (async () => {
-            const { invoke } = await import("@tauri-apps/api/core");
-            return await invoke<SearchResult[]>("search_chats", { query, filters });
-          })();
-      setSearchResults(results);
-    } catch (error) {
-      console.error("Search failed:", error);
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
-  }, []); // Empty dependency array since this function doesn't depend on any props or state
+      setIsSearching(true);
+      try {
+        const results = __WEB__
+          ? await webApi.search_chats({ query, filters })
+          : await (async () => {
+              const { invoke } = await import("@tauri-apps/api/core");
+              return await invoke<SearchResult[]>("search_chats", {
+                query,
+                filters,
+              });
+            })();
+        setSearchResults(results);
+      } catch (error) {
+        console.error("Search failed:", error);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    },
+    []
+  ); // Empty dependency array since this function doesn't depend on any props or state
 
   return (
     <div className="h-full overflow-y-auto">
@@ -145,8 +125,9 @@ export function ConversationList({
           )}
         </div>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          {searchQuery.trim() ? `Searching in ${conversations.length} conversation${conversations.length !== 1 ? "s" : ""}` : 
-           `${conversations.length} conversation${conversations.length !== 1 ? "s" : ""}`}
+          {searchQuery.trim()
+            ? `Searching in ${conversations.length} conversation${conversations.length !== 1 ? "s" : ""}`
+            : `${conversations.length} conversation${conversations.length !== 1 ? "s" : ""}`}
         </p>
 
         {/* Search Input */}
@@ -194,13 +175,12 @@ export function ConversationList({
             </SelectContent>
           </Select>
         </div>
-
       </div>
 
       {/* Search Results or Conversation List */}
       <div className="p-3 space-y-2">
         {searchQuery.trim() ? (
-          <SearchResults 
+          <SearchResults
             results={searchResults}
             isSearching={isSearching}
             onConversationSelect={onConversationSelect}
@@ -349,7 +329,6 @@ export function ConversationList({
             })
         )}
       </div>
-
     </div>
   );
 }

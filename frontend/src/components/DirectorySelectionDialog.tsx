@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -17,7 +17,18 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table";
-import { Folder, File, ArrowUp, Home, Loader2, HardDrive, Usb, Network, Disc, Database } from "lucide-react";
+import {
+  Folder,
+  File,
+  ArrowUp,
+  Home,
+  Loader2,
+  HardDrive,
+  Usb,
+  Network,
+  Disc,
+  Database,
+} from "lucide-react";
 import { webApi, DirEntry } from "../lib/webApi";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +56,7 @@ export function DirectorySelectionDialog({
     if (open) {
       initializeWithHome();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const initializeWithHome = async () => {
@@ -170,7 +182,7 @@ export function DirectorySelectionDialog({
 
   const handlePathSubmit = async () => {
     if (!pathInput.trim()) return;
-    
+
     try {
       setEditingPath(false);
       setCurrentDirectory(pathInput.trim());
@@ -188,9 +200,9 @@ export function DirectorySelectionDialog({
   };
 
   const handlePathKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       handlePathSubmit();
-    } else if (e.key === 'Escape') {
+    } else if (e.key === "Escape") {
       handlePathCancel();
     }
   };
@@ -290,7 +302,7 @@ export function DirectorySelectionDialog({
                   autoFocus
                 />
               ) : (
-                <span 
+                <span
                   className="text-sm text-gray-600 dark:text-gray-300 flex-1 truncate cursor-text hover:bg-neutral-100 dark:hover:bg-neutral-700 px-1 py-0.5 rounded"
                   onClick={handlePathEdit}
                   title="Click to edit path"
@@ -328,9 +340,13 @@ export function DirectorySelectionDialog({
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-8 p-1.5 pl-3"></TableHead>
-                        <TableHead className="p-1.5 max-w-[10rem]">Name</TableHead>
+                        <TableHead className="p-1.5 max-w-[10rem]">
+                          Name
+                        </TableHead>
                         <TableHead className="w-24 p-1.5">Size</TableHead>
-                        <TableHead className="w-36 p-1.5">Date Modified</TableHead>
+                        <TableHead className="w-36 p-1.5">
+                          Date Modified
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -342,7 +358,9 @@ export function DirectorySelectionDialog({
                           >
                             {filter.trim()
                               ? "No items match the filter"
-                              : loading ? "Loading..." : "Directory is empty"}
+                              : loading
+                                ? "Loading..."
+                                : "Directory is empty"}
                           </TableCell>
                         </TableRow>
                       ) : (
@@ -355,7 +373,9 @@ export function DirectorySelectionDialog({
                                 : "cursor-default"
                             }
                             onClick={() =>
-                              entry.is_directory && !loading && navigateToDirectory(entry)
+                              entry.is_directory &&
+                              !loading &&
+                              navigateToDirectory(entry)
                             }
                           >
                             <TableCell className="p-1.5 pl-3">
@@ -383,7 +403,10 @@ export function DirectorySelectionDialog({
                               )}
                             </TableCell>
                             <TableCell className="p-1.5 max-w-[10rem] truncate">
-                              {entry.name}{entry.is_directory && currentDirectory !== "" ? '/' : ''}
+                              {entry.name}
+                              {entry.is_directory && currentDirectory !== ""
+                                ? "/"
+                                : ""}
                             </TableCell>
                             <TableCell className="text-sm text-gray-500 p-1.5">
                               {formatFileSize(entry.size)}

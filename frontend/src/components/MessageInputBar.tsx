@@ -35,10 +35,7 @@ export const MessageInputBar: React.FC<MessageInputBarProps> = ({
     <div className="sticky bottom-0 bg-white dark:bg-neutral-900 flex items-center border-t border-gray-200 dark:border-neutral-700">
       <div className="px-6 py-2 w-full">
         <div className="mx-auto">
-          <form
-            className="flex gap-3 items-end"
-            onSubmit={handleSendMessage}
-          >
+          <form className="flex gap-3 items-end" onSubmit={handleSendMessage}>
             <div className="flex-1 relative">
               <MentionInput
                 value={input}
@@ -60,10 +57,7 @@ export const MessageInputBar: React.FC<MessageInputBarProps> = ({
             </div>
             <Button
               type="submit"
-              disabled={
-                isCliInstalled === false ||
-                !input.trim()
-              }
+              disabled={isCliInstalled === false || !input.trim()}
               size="icon"
             >
               <Send />
@@ -110,19 +104,14 @@ export const MessageInputBar: React.FC<MessageInputBarProps> = ({
                   ))}
                   {cliIOLogs.length === 0 && (
                     <div className="text-center text-muted-foreground py-8">
-                      No CLI I/O logs available yet. Start a conversation
-                      to see the raw communication.
+                      No CLI I/O logs available yet. Start a conversation to see
+                      the raw communication.
                     </div>
                   )}
                 </div>
               </DialogContent>
             </Dialog>
-            <Button
-              type="button"
-              disabled={true}
-              size="icon"
-              variant="outline"
-            >
+            <Button type="button" disabled={true} size="icon" variant="outline">
               <ImagePlus />
             </Button>
           </form>

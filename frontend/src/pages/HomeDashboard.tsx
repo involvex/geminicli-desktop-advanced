@@ -16,9 +16,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "../components/ui/dialog";
-import { Card, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "../components/ui/card";
 import { Info, UserRound, FolderKanban } from "lucide-react";
 import { ModelContextProtocol } from "@/components/ModelContextProtocol";
+import { ToolCallConfirmationRequest } from "../utils/toolCallParser";
 
 export const HomeDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -33,7 +39,7 @@ export const HomeDashboard: React.FC = () => {
 
   return (
     <>
-      <CliWarnings 
+      <CliWarnings
         selectedModel={selectedModel}
         isCliInstalled={isCliInstalled}
       />
@@ -91,40 +97,69 @@ export const HomeDashboard: React.FC = () => {
                         <MessageContent
                           content={msgPart.text}
                           sender={message.sender}
-                          isStreaming={currentConversation?.isStreaming && index === currentConversation.messages.length - 1}
+                          isStreaming={
+                            currentConversation?.isStreaming &&
+                            index === currentConversation.messages.length - 1
+                          }
                         />
                       </div>
                     ) : msgPart.type === "toolCall" ? (
                       <>
                         {(() => {
-                          const hasConfirmation = confirmationRequests.has(msgPart.toolCall.id);
-                          const confirmationRequest = confirmationRequests.get(msgPart.toolCall.id);
-                          
+                          const hasConfirmation = confirmationRequests.has(
+                            msgPart.toolCall.id
+                          );
+                          const confirmationRequest = confirmationRequests.get(
+                            msgPart.toolCall.id
+                          );
+
                           // Force type assertion to debug the issue
-                          const confirmationRequestTyped = confirmationRequest as ToolCallConfirmationRequest | undefined;
-                          console.log('🎨 Rendering tool call in HomeDashboard:', {
-                            toolCallId: msgPart.toolCall.id,
-                            toolCallName: msgPart.toolCall.name,
-                            hasConfirmation,
-                            confirmationRequestExists: !!confirmationRequest,
-                            confirmationMapSize: confirmationRequests.size,
-                            confirmationMapKeys: Array.from(confirmationRequests.keys()),
-                            confirmationType: confirmationRequest?.confirmation?.type,
-                            // Debug the actual confirmation request object
-                            confirmationRequestRaw: confirmationRequest,
-                            confirmationContentExists: !!confirmationRequest?.content,
-                            confirmationContentType: confirmationRequest?.content?.type
-                          });
-                          
-                          console.log('🔥 About to pass confirmationRequest to ToolCallDisplay:', confirmationRequest);
-                          console.log('🔥 Typed version:', confirmationRequestTyped);
-                          
+                          const confirmationRequestTyped =
+                            confirmationRequest as
+                              | ToolCallConfirmationRequest
+                              | undefined;
+                          console.log(
+                            "🎨 Rendering tool call in HomeDashboard:",
+                            {
+                              toolCallId: msgPart.toolCall.id,
+                              toolCallName: msgPart.toolCall.name,
+                              hasConfirmation,
+                              confirmationRequestExists: !!confirmationRequest,
+                              confirmationMapSize: confirmationRequests.size,
+                              confirmationMapKeys: Array.from(
+                                confirmationRequests.keys()
+                              ),
+                              confirmationType:
+                                confirmationRequest?.confirmation?.type,
+                              // Debug the actual confirmation request object
+                              confirmationRequestRaw: confirmationRequest,
+                              confirmationContentExists:
+                                !!confirmationRequest?.content,
+                              confirmationContentType:
+                                confirmationRequest?.content?.type,
+                            }
+                          );
+
+                          console.log(
+                            "🔥 About to pass confirmationRequest to ToolCallDisplay:",
+                            confirmationRequest
+                          );
+                          console.log(
+                            "🔥 Typed version:",
+                            confirmationRequestTyped
+                          );
+
                           // Try with explicit undefined check
-                          const finalConfirmationRequest = confirmationRequest ? confirmationRequest : undefined;
-                          console.log('🔥 Final confirmation request:', finalConfirmationRequest);
-                          
+                          const finalConfirmationRequest = confirmationRequest
+                            ? confirmationRequest
+                            : undefined;
+                          console.log(
+                            "🔥 Final confirmation request:",
+                            finalConfirmationRequest
+                          );
+
                           return (
-                            <ToolCallDisplay 
+                            <ToolCallDisplay
                               key={`${msgPart.toolCall.id}-${hasConfirmation}-${Date.now()}`}
                               toolCall={msgPart.toolCall}
                               hasConfirmationRequest={hasConfirmation}
@@ -141,8 +176,7 @@ export const HomeDashboard: React.FC = () => {
                   {currentConversation.isStreaming &&
                     index === currentConversation.messages.length - 1 && (
                       <div className="text-gray-400 italic text-xs">
-                        <span className="animate-pulse">●</span>{" "}
-                        Generating...
+                        <span className="animate-pulse">●</span> Generating...
                       </div>
                     )}
 
@@ -205,7 +239,9 @@ export const HomeDashboard: React.FC = () => {
                 </div>
                 <div className="text-left">
                   <CardTitle className="text-base">Projects</CardTitle>
-                  <CardDescription>Manage your projects, view past discussions.</CardDescription>
+                  <CardDescription>
+                    Manage your projects, view past discussions.
+                  </CardDescription>
                 </div>
               </CardHeader>
             </Card>
@@ -225,7 +261,9 @@ export const HomeDashboard: React.FC = () => {
                       Coming soon
                     </span>
                   </div>
-                  <CardDescription>Manage MCP configuration and settings.</CardDescription>
+                  <CardDescription>
+                    Manage MCP configuration and settings.
+                  </CardDescription>
                 </div>
               </CardHeader>
             </Card>

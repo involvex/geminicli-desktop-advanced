@@ -7,10 +7,10 @@ interface DefaultRendererProps {
 
 export function DefaultRenderer({ toolCall }: DefaultRendererProps) {
   const result = toolCall.result;
-  
+
   // Handle different result types
   const renderResult = () => {
-    if (typeof result === 'string') {
+    if (typeof result === "string") {
       return (
         <pre className="bg-muted p-3 rounded text-sm overflow-x-auto whitespace-pre-wrap border">
           <code className="text-foreground">{result}</code>
@@ -18,9 +18,9 @@ export function DefaultRenderer({ toolCall }: DefaultRendererProps) {
       );
     }
 
-    if (result && typeof result === 'object') {
+    if (result && typeof result === "object") {
       // Handle common result patterns
-      if ('message' in result && result.message) {
+      if ("message" in result && result.message) {
         return (
           <div className="text-sm p-3 bg-muted/50 rounded border">
             {result.message}
@@ -28,18 +28,18 @@ export function DefaultRenderer({ toolCall }: DefaultRendererProps) {
         );
       }
 
-      if ('content' in result && result.content) {
+      if ("content" in result && result.content) {
         return (
           <div className="text-sm p-3 bg-muted/50 rounded whitespace-pre-wrap border">
-            {result.content}
+            {String(result.content)}
           </div>
         );
       }
 
-      if ('output' in result && result.output) {
+      if ("output" in result && result.output) {
         return (
           <pre className="bg-muted p-3 rounded text-sm overflow-x-auto whitespace-pre-wrap border">
-            <code className="text-foreground">{result.output}</code>
+            <code className="text-foreground">{String(result.output)}</code>
           </pre>
         );
       }
@@ -74,7 +74,12 @@ export function DefaultRenderer({ toolCall }: DefaultRendererProps) {
     if (typeof result === "string") {
       return result.substring(0, 50) + (result.length > 50 ? "..." : "");
     }
-    if (result && typeof result === 'object' && 'message' in result && result.message) {
+    if (
+      result &&
+      typeof result === "object" &&
+      "message" in result &&
+      result.message
+    ) {
       return String(result.message);
     }
     return "Completed successfully.";

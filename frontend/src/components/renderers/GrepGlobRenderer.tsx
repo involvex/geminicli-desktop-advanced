@@ -19,34 +19,34 @@ export function GrepGlobRenderer({ toolCall }: GrepGlobRendererProps) {
   const getSearchPattern = (): string => {
     // First try the label field (this should have the search pattern like '**/Cargo.toml')
     if (toolCall.label && toolCall.label.trim()) {
-      const cleanLabel = toolCall.label.replace(/['"]/g, '');
+      const cleanLabel = toolCall.label.replace(/['"]/g, "");
       return cleanLabel;
     }
-    
+
     // Fallback to generic "files"
     return "files";
   };
 
   // Get the summary message from the result
   const getSummary = (): string => {
-    if (typeof result === 'string') {
+    if (typeof result === "string") {
       return result;
     }
-    if (result && typeof result === 'object') {
-      if ('markdown' in result && result.markdown) {
+    if (result && typeof result === "object") {
+      if ("markdown" in result && result.markdown) {
         return result.markdown;
       }
-      if ('message' in result && result.message) {
+      if ("message" in result && result.message) {
         return result.message;
       }
     }
-    
+
     // Handle case where there's no result (empty search)
     if (!result) {
-      return 'No matches found';
+      return "No matches found";
     }
-    
-    return 'Search completed';
+
+    return "Search completed";
   };
 
   const searchPattern = getSearchPattern();
@@ -54,23 +54,21 @@ export function GrepGlobRenderer({ toolCall }: GrepGlobRendererProps) {
 
   return (
     <div className="mt-4">
-      <div 
+      <div
         className="flex items-center gap-2 text-sm px-2 py-1 cursor-pointer hover:bg-muted/50 rounded-lg transition-colors"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <Search className="h-4 w-4 text-blue-500" />
         <span>Searched </span>
         <span className="text-muted-foreground">{searchPattern}</span>
-        <ChevronRight 
+        <ChevronRight
           className={`h-4 w-4 text-muted-foreground transition-transform ${
-            isExpanded ? 'rotate-90' : ''
+            isExpanded ? "rotate-90" : ""
           }`}
         />
       </div>
       {isExpanded && (
-        <div className="ml-8 text-sm text-muted-foreground">
-          {summary}
-        </div>
+        <div className="ml-8 text-sm text-muted-foreground">{summary}</div>
       )}
     </div>
   );

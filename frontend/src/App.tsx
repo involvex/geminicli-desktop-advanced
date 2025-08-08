@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { Routes, Route, Outlet, Navigate } from "react-router-dom";
 import { api } from "./lib/api";
-import { AppSidebar, SidebarTrigger } from "./components/AppSidebar";
+import { AppSidebar } from "./components/AppSidebar";
 import { MessageInputBar } from "./components/MessageInputBar";
 import { AppHeader } from "./components/AppHeader";
 import { CliWarnings } from "./components/CliWarnings";
@@ -22,14 +22,15 @@ import { CliIO } from "./types";
 import "./index.css";
 
 function RootLayout() {
-  const [selectedModel, setSelectedModel] = useState<string>("gemini-2.5-flash");
+  const [selectedModel, setSelectedModel] =
+    useState<string>("gemini-2.5-flash");
   const [cliIOLogs, setCliIOLogs] = useState<CliIO[]>([]);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  
+
   // Custom hooks for cleaner code
   const isCliInstalled = useCliInstallation();
-  
+
   const {
     conversations,
     activeConversation,
@@ -39,7 +40,8 @@ function RootLayout() {
     createNewConversation,
   } = useConversationManager();
 
-  const { processStatuses, fetchProcessStatuses, handleKillProcess } = useProcessManager();
+  const { processStatuses, fetchProcessStatuses, handleKillProcess } =
+    useProcessManager();
 
   const {
     confirmationRequests,
@@ -56,11 +58,7 @@ function RootLayout() {
     updateConversation
   );
 
-  const {
-    input,
-    handleInputChange,
-    handleSendMessage,
-  } = useMessageHandler({
+  const { input, handleInputChange, handleSendMessage } = useMessageHandler({
     activeConversation,
     currentConversation,
     conversations,
@@ -73,38 +71,46 @@ function RootLayout() {
     fetchProcessStatuses,
   });
 
-  const handleConversationSelect = useCallback((conversationId: string) => {
-    setActiveConversation(conversationId);
-    setupEventListenerForConversation(conversationId);
-  }, [setActiveConversation, setupEventListenerForConversation]);
+  const handleConversationSelect = useCallback(
+    (conversationId: string) => {
+      setActiveConversation(conversationId);
+      setupEventListenerForConversation(conversationId);
+    },
+    [setActiveConversation, setupEventListenerForConversation]
+  );
 
   const handleModelChange = useCallback((model: string) => {
     setSelectedModel(model);
   }, []);
 
-  const startNewConversation = useCallback(async (
-    title: string,
-    workingDirectory?: string
-  ): Promise<string> => {
-    const convId = Date.now().toString();
-    createNewConversation(convId, title, [], false);
-    setActiveConversation(convId);
-    
-    if (workingDirectory) {
-      await api.invoke("start_session", {
-        sessionId: convId,
-        workingDirectory,
-        model: selectedModel,
-      });
-    }
-    
-    await setupEventListenerForConversation(convId);
-    return convId;
-  }, [selectedModel, createNewConversation, setActiveConversation, setupEventListenerForConversation]);
+  const startNewConversation = useCallback(
+    async (title: string, workingDirectory?: string): Promise<string> => {
+      const convId = Date.now().toString();
+      createNewConversation(convId, title, [], false);
+      setActiveConversation(convId);
+
+      if (workingDirectory) {
+        await api.invoke("start_session", {
+          sessionId: convId,
+          workingDirectory,
+          model: selectedModel,
+        });
+      }
+
+      await setupEventListenerForConversation(convId);
+      return convId;
+    },
+    [
+      selectedModel,
+      createNewConversation,
+      setActiveConversation,
+      setupEventListenerForConversation,
+    ]
+  );
 
   return (
     <AppSidebar
-      conversations={conversations as any}
+      conversations={conversations}
       activeConversation={activeConversation}
       processStatuses={processStatuses}
       onConversationSelect={handleConversationSelect}
@@ -115,39 +121,46 @@ function RootLayout() {
     >
       <SidebarInset>
         <AppHeader />
-        
+
         <div className="flex-1 flex flex-col bg-background min-h-0">
-          <CliWarnings selectedModel={selectedModel} isCliInstalled={isCliInstalled} />
-          
-          <ConversationContext.Provider value={{
-            conversations,
-            activeConversation,
-            currentConversation,
-            input,
-            isCliInstalled,
-            messagesContainerRef,
-            cliIOLogs,
-            handleInputChange,
-            handleSendMessage,
-            selectedModel,
-            startNewConversation,
-            handleConfirmToolCall,
-            confirmationRequests,
-          }}>
+          <CliWarnings
+            selectedModel={selectedModel}
+            isCliInstalled={isCliInstalled}
+          />
+
+          <ConversationContext.Provider
+            value={{
+              conversations,
+              activeConversation,
+              currentConversation,
+              input,
+              isCliInstalled,
+              messagesContainerRef,
+              cliIOLogs,
+              handleInputChange,
+              handleSendMessage,
+              selectedModel,
+              startNewConversation,
+              handleConfirmToolCall,
+              confirmationRequests,
+            }}
+          >
             <Outlet />
           </ConversationContext.Provider>
-          
-          {activeConversation && processStatuses.find(status => 
-            status.conversation_id === activeConversation && status.is_alive
-          ) && (
-            <MessageInputBar
-              input={input}
-              isCliInstalled={isCliInstalled}
-              cliIOLogs={cliIOLogs}
-              handleInputChange={handleInputChange}
-              handleSendMessage={handleSendMessage}
-            />
-          )}
+
+          {activeConversation &&
+            processStatuses.find(
+              (status) =>
+                status.conversation_id === activeConversation && status.is_alive
+            ) && (
+              <MessageInputBar
+                input={input}
+                isCliInstalled={isCliInstalled}
+                cliIOLogs={cliIOLogs}
+                handleInputChange={handleInputChange}
+                handleSendMessage={handleSendMessage}
+              />
+            )}
         </div>
       </SidebarInset>
     </AppSidebar>

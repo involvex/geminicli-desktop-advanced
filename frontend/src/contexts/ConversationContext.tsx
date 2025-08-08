@@ -1,5 +1,6 @@
 import React, { createContext, useContext } from "react";
-import { Conversation, CliIO, ToolCallConfirmationRequest } from "../types";
+import { Conversation, CliIO } from "../types";
+import { ToolCallConfirmationRequest } from "../utils/toolCallParser";
 
 // Context for sharing conversation state with child routes
 export interface ConversationContextType {
@@ -18,17 +19,24 @@ export interface ConversationContextType {
   ) => void;
   handleSendMessage: (e: React.FormEvent) => Promise<void>;
   selectedModel: string;
-  startNewConversation: (title: string, workingDirectory?: string) => Promise<string>;
+  startNewConversation: (
+    title: string,
+    workingDirectory?: string
+  ) => Promise<string>;
   handleConfirmToolCall: (toolCallId: string, outcome: string) => Promise<void>;
   confirmationRequests: Map<string, ToolCallConfirmationRequest>;
 }
 
-export const ConversationContext = createContext<ConversationContextType | undefined>(undefined);
+export const ConversationContext = createContext<
+  ConversationContextType | undefined
+>(undefined);
 
 export const useConversation = () => {
   const context = useContext(ConversationContext);
   if (context === undefined) {
-    throw new Error('useConversation must be used within a ConversationProvider');
+    throw new Error(
+      "useConversation must be used within a ConversationProvider"
+    );
   }
   return context;
 };

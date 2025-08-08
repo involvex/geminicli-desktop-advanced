@@ -10,37 +10,88 @@ declare global {
 
 // Abstraction layer for API calls
 export const api = {
-  async invoke<T>(command: string, args?: any): Promise<T> {
+  async invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
     if (__WEB__) {
       switch (command) {
         case "check_cli_installed":
           return webApi.check_cli_installed() as Promise<T>;
         case "send_message":
-          return webApi.send_message(args) as Promise<T>;
+          if (!args) throw new Error("Missing arguments for send_message");
+          return webApi.send_message(
+            args as {
+              sessionId: string;
+              message: string;
+              conversationHistory: string;
+              model?: string;
+            }
+          ) as Promise<T>;
         case "get_process_statuses":
           return webApi.get_process_statuses() as Promise<T>;
         case "kill_process":
-          return webApi.kill_process(args) as Promise<T>;
+          if (!args) throw new Error("Missing arguments for kill_process");
+          return webApi.kill_process(
+            args as { conversationId: string }
+          ) as Promise<T>;
         case "send_tool_call_confirmation_response":
+          if (!args)
+            throw new Error(
+              "Missing arguments for send_tool_call_confirmation_response"
+            );
           return webApi.send_tool_call_confirmation_response(
-            args
+            args as {
+              sessionId: string;
+              requestId: number;
+              toolCallId: string;
+              outcome: string;
+            }
           ) as Promise<T>;
         case "execute_confirmed_command":
-          return webApi.execute_confirmed_command(args) as Promise<T>;
+          if (!args)
+            throw new Error("Missing arguments for execute_confirmed_command");
+          return webApi.execute_confirmed_command(
+            args as unknown as string
+          ) as Promise<T>;
         case "generate_conversation_title":
-          return webApi.generate_conversation_title(args) as Promise<T>;
+          if (!args)
+            throw new Error(
+              "Missing arguments for generate_conversation_title"
+            );
+          return webApi.generate_conversation_title(
+            args as { message: string; model?: string }
+          ) as Promise<T>;
         case "validate_directory":
-          return webApi.validate_directory(args) as Promise<T>;
+          if (!args)
+            throw new Error("Missing arguments for validate_directory");
+          return webApi.validate_directory(
+            args as unknown as string
+          ) as Promise<T>;
         case "is_home_directory":
-          return webApi.is_home_directory(args) as Promise<T>;
+          if (!args) throw new Error("Missing arguments for is_home_directory");
+          return webApi.is_home_directory(
+            args as unknown as string
+          ) as Promise<T>;
         case "list_projects":
           return webApi.list_projects(args) as Promise<T>;
         case "get_project_discussions":
-          return webApi.get_project_discussions(args) as Promise<T>;
+          if (!args)
+            throw new Error("Missing arguments for get_project_discussions");
+          return webApi.get_project_discussions(
+            args as unknown as string
+          ) as Promise<T>;
         case "list_enriched_projects":
           return webApi.list_projects_enriched() as Promise<T>;
         case "start_session":
-          return webApi.start_session(args.sessionId, args.workingDirectory, args.model) as Promise<T>;
+          if (!args) throw new Error("Missing arguments for start_session");
+          const sessionArgs = args as {
+            sessionId: string;
+            workingDirectory: string;
+            model?: string;
+          };
+          return webApi.start_session(
+            sessionArgs.sessionId,
+            sessionArgs.workingDirectory,
+            sessionArgs.model
+          ) as Promise<T>;
         default:
           throw new Error(`Unknown command: ${command}`);
       }

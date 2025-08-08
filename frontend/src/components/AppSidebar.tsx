@@ -1,32 +1,12 @@
-import React from "react"
-import { ConversationList } from "./ConversationList"
+import React from "react";
+import { ConversationList } from "./ConversationList";
 import {
   Sidebar,
   SidebarContent,
   SidebarProvider,
   SidebarTrigger,
-} from "./ui/sidebar"
-
-interface ProcessStatus {
-  conversation_id: string;
-  pid: number | null;
-  created_at: number;
-  is_alive: boolean;
-}
-
-interface Message {
-  id: string;
-  content: string;
-  sender: "user" | "assistant";
-  timestamp: Date;
-}
-
-interface Conversation {
-  id: string;
-  title: string;
-  messages: Message[];
-  lastUpdated: Date;
-}
+} from "./ui/sidebar";
+import type { Conversation, ProcessStatus } from "../types";
 
 interface AppSidebarProps {
   conversations: Conversation[];

@@ -1,43 +1,51 @@
-export type ToolCallResult = {
-  files?: Array<{name: string, type: string, length?: number}>;
-  matches?: Array<unknown>;
-  total?: number; 
-  message?: string;
-  markdown?: string;
-  error?: string;
-  stderr?: string;
-  // Edit-specific result fields
-  file_path?: string;
-  old_string?: string;
-  new_string?: string;
-  edits?: Array<{
-    file_path: string;
-    old_string: string;
-    new_string: string;
-    line_start?: number;
-    line_end?: number;
-  }>;
-  additions?: number;
-  deletions?: number;
-  success?: boolean;
-} | string;
+export type ToolCallResult =
+  | {
+      files?: Array<{ name: string; type: string; length?: number }>;
+      matches?: Array<unknown>;
+      total?: number;
+      message?: string;
+      markdown?: string;
+      error?: string;
+      stderr?: string;
+      // Edit-specific result fields
+      file_path?: string;
+      old_string?: string;
+      new_string?: string;
+      edits?: Array<{
+        file_path: string;
+        old_string: string;
+        new_string: string;
+        line_start?: number;
+        line_end?: number;
+      }>;
+      additions?: number;
+      deletions?: number;
+      success?: boolean;
+    }
+  | string;
 
 // JSON-RPC confirmation request structure
 export interface ToolCallConfirmationContent {
-  type: 'diff' | 'command' | 'generic';
+  type: "diff" | "command" | "generic";
   path?: string;
   oldText?: string;
   newText?: string;
 }
 
 export interface ToolCallConfirmationRequest {
+  requestId: number;
+  sessionId: string;
+  toolCallId?: string | null;
   label: string;
   icon: string;
   content: ToolCallConfirmationContent;
   confirmation: {
-    type: 'edit' | 'command' | 'generic';
+    type: "edit" | "command" | "generic";
+    rootCommand?: string;
+    command?: string;
   };
-  locations?: Array<{ path: string }>;
+  locations: Array<{ path: string; line?: number; column?: number }>;
+  inputJsonRpc?: string;
 }
 
 export interface ToolCall {
@@ -59,66 +67,44 @@ export interface ParsedContent {
   toolCalls: ToolCall[];
 }
 
-import { logs } from '../lib/logger';
-
 export class ToolCallParser {
   private static toolCallCounter = 0;
 
   static parseGeminiOutput(output: string): ParsedContent {
     const toolCalls: ToolCall[] = [];
     let cleanedText = output;
-    
-    logs.info('ToolCallParser', `Starting to parse output (${output.length} chars)`, {
-      preview: output.substring(0, 300) + (output.length > 300 ? '...' : ''),
-      hasJsonRpc: output.includes('{"jsonrpc":"2.0"'),
-      hasRequestToolCallConfirmation: output.includes('requestToolCallConfirmation')
-    });
 
     // First, try to parse as JSON-RPC confirmation request
     try {
       // Look for the start of JSON-RPC and try to find the complete JSON object
       const startIndex = output.indexOf('{"jsonrpc":"2.0"');
-      logs.debug('ToolCallParser', `JSON-RPC search result: startIndex=${startIndex}`);
-      
+
       if (startIndex !== -1) {
         // Find the matching closing brace by counting braces
         let braceCount = 0;
         let endIndex = startIndex;
         for (let i = startIndex; i < output.length; i++) {
-          if (output[i] === '{') braceCount++;
-          if (output[i] === '}') braceCount--;
+          if (output[i] === "{") braceCount++;
+          if (output[i] === "}") braceCount--;
           if (braceCount === 0) {
             endIndex = i + 1;
             break;
           }
         }
-        
+
         const jsonRpcString = output.substring(startIndex, endIndex);
-        logs.debug('ToolCallParser', `Extracted JSON-RPC string (${jsonRpcString.length} chars)`, {
-          jsonPreview: jsonRpcString.substring(0, 200) + (jsonRpcString.length > 200 ? '...' : '')
-        });
-        
+
         const jsonRpcData = JSON.parse(jsonRpcString);
-        logs.debug('ToolCallParser', 'Successfully parsed JSON-RPC data', {
-          method: jsonRpcData.method,
-          id: jsonRpcData.id,
-          hasParams: !!jsonRpcData.params
-        });
-        
+
         if (jsonRpcData.method === "requestToolCallConfirmation") {
-          const confirmationRequest = jsonRpcData.params as ToolCallConfirmationRequest;
-          logs.info('ToolCallParser', 'Found requestToolCallConfirmation', {
-            label: confirmationRequest.label,
-            icon: confirmationRequest.icon,
-            contentType: confirmationRequest.content?.type,
-            contentPath: confirmationRequest.content?.path,
-            confirmationType: confirmationRequest.confirmation?.type,
-            locationsCount: confirmationRequest.locations?.length || 0
-          });
-          
+          const confirmationRequest =
+            jsonRpcData.params as ToolCallConfirmationRequest;
           const toolCall: ToolCall = {
             id: `tool_${++this.toolCallCounter}_${jsonRpcData.id || Date.now()}`,
-            name: confirmationRequest.confirmation.type === 'edit' ? 'edit_file' : 'tool_call',
+            name:
+              confirmationRequest.confirmation.type === "edit"
+                ? "edit_file"
+                : "tool_call",
             parameters: {
               file_path: confirmationRequest.content.path,
               old_string: confirmationRequest.content.oldText,
@@ -131,18 +117,16 @@ export class ToolCallParser {
             label: confirmationRequest.label,
             icon: confirmationRequest.icon,
           };
-          
-          logs.logToolCall('ToolCallParser', toolCall, 'JSON-RPC confirmation created');
+
           toolCalls.push(toolCall);
           // Remove the JSON-RPC from the text
           cleanedText = cleanedText.replace(jsonRpcString, "");
-          logs.info('ToolCallParser', 'Tool call added and JSON-RPC removed from text');
-        } else {
-          logs.warn('ToolCallParser', `JSON-RPC method is not requestToolCallConfirmation: ${jsonRpcData.method}`);
         }
       }
     } catch (e) {
-      logs.warn('ToolCallParser', 'Failed to parse as JSON-RPC format', { error: e.message });
+      console.warn("ToolCallParser", "Failed to parse as JSON-RPC format", {
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
 
     // Pattern to match tool calls in Gemini CLI output
@@ -191,8 +175,12 @@ export class ToolCallParser {
           }
 
           // Special handling for edit tools to ensure proper parameter extraction
-          if (toolName.toLowerCase().includes('edit')) {
-            parameters = this.enhanceEditParameters(toolName, parametersStr, parameters);
+          if (toolName.toLowerCase().includes("edit")) {
+            parameters = this.enhanceEditParameters(
+              toolName,
+              parametersStr,
+              parameters
+            );
           }
 
           const toolCall: ToolCall = {
@@ -219,18 +207,6 @@ export class ToolCallParser {
       text: cleanedText.trim(),
       toolCalls,
     };
-    
-    logs.info('ToolCallParser', `Parsing completed`, {
-      originalLength: output.length,
-      cleanedLength: result.text.length,
-      toolCallsFound: result.toolCalls.length,
-      toolCallNames: result.toolCalls.map(tc => tc.name),
-      toolCallStatuses: result.toolCalls.map(tc => tc.status)
-    });
-    
-    result.toolCalls.forEach((tc, index) => {
-      logs.logToolCall('ToolCallParser', tc, `final result #${index + 1}`);
-    });
 
     return result;
   }
@@ -290,12 +266,16 @@ export class ToolCallParser {
     };
   }
 
-  private static parseKeyValueParameters(parametersStr: string): Record<string, unknown> {
+  private static parseKeyValueParameters(
+    parametersStr: string
+  ): Record<string, unknown> {
     const parameters: Record<string, unknown> = {};
-    
+
     if (parametersStr.includes("=")) {
       // Handle both comma-separated and space-separated key=value pairs
-      const pairs = parametersStr.split(/,\s*(?=\w+\s*=)|(?<=\w+\s*=\s*(?:'[^']*'|"[^"]*"|[^,\s]+))\s+(?=\w+\s*=)/);
+      const pairs = parametersStr.split(
+        /,\s*(?=\w+\s*=)|(?<=\w+\s*=\s*(?:'[^']*'|"[^"]*"|[^,\s]+))\s+(?=\w+\s*=)/
+      );
       pairs.forEach((pair) => {
         const eqIndex = pair.indexOf("=");
         if (eqIndex > 0) {
@@ -306,38 +286,47 @@ export class ToolCallParser {
         }
       });
     }
-    
+
     return parameters;
   }
 
-  private static enhanceEditParameters(toolName: string, parametersStr: string, existingParams: Record<string, unknown>): Record<string, unknown> {
+  private static enhanceEditParameters(
+    toolName: string,
+    parametersStr: string,
+    existingParams: Record<string, unknown>
+  ): Record<string, unknown> {
     // For edit tools, ensure we properly extract file_path, old_string, new_string, etc.
     const parameters = { ...existingParams };
-    
+
     // Handle multi-edit format where edits might be an array
-    if (toolName.toLowerCase().includes('multi') && parametersStr.includes('edits')) {
+    if (
+      toolName.toLowerCase().includes("multi") &&
+      parametersStr.includes("edits")
+    ) {
       try {
         // Try to extract the edits array from the parameter string
         const editsMatch = parametersStr.match(/edits\s*=\s*(\[.*?\])/s);
         if (editsMatch) {
           parameters.edits = JSON.parse(editsMatch[1]);
         }
-      } catch (e) {
+      } catch {
         // If JSON parsing fails for edits, keep original parameters
       }
     }
-    
+
     // Ensure common edit parameters are properly extracted
-    const editFields = ['file_path', 'old_string', 'new_string', 'replace_all'];
-    editFields.forEach(field => {
+    const editFields = ["file_path", "old_string", "new_string", "replace_all"];
+    editFields.forEach((field) => {
       if (!parameters[field]) {
-        const fieldMatch = parametersStr.match(new RegExp(`${field}\\s*=\\s*(['"])(.*?)\\1`, 's'));
+        const fieldMatch = parametersStr.match(
+          new RegExp(`${field}\\s*=\\s*(['"])(.*?)\\1`, "s")
+        );
         if (fieldMatch) {
           parameters[field] = fieldMatch[2];
         }
       }
     });
-    
+
     return parameters;
   }
 }

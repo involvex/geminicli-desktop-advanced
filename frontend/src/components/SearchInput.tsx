@@ -2,7 +2,13 @@ import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Card, CardContent } from "./ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 import { Search, X, Filter, Calendar, Folder } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { SearchFilters } from "@/lib/webApi";
@@ -16,13 +22,13 @@ interface SearchInputProps {
   availableProjects?: Array<{ hash: string; name: string }>;
 }
 
-export function SearchInput({ 
-  value, 
-  onChange, 
-  onSearch, 
+export function SearchInput({
+  value,
+  onChange,
+  onSearch,
   isSearching = false,
   placeholder = "Search conversations...",
-  availableProjects = []
+  availableProjects = [],
 }: SearchInputProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<SearchFilters>({});
@@ -38,11 +44,11 @@ export function SearchInput({
     if (!value.trim()) {
       return;
     }
-    
+
     const timeoutId = setTimeout(() => {
       onSearchRef.current(value, filters);
     }, 300);
-    
+
     return () => clearTimeout(timeoutId);
   }, [value, filters]); // Removed onSearch from dependencies
 
@@ -51,12 +57,15 @@ export function SearchInput({
     setFilters({});
   };
 
-  const hasActiveFilters = filters.project_hash || filters.date_range || filters.max_results;
+  const hasActiveFilters =
+    filters.project_hash || filters.date_range || filters.max_results;
 
   return (
     <div className="space-y-2">
       <div className="relative">
-        <Search className={`absolute left-3 top-2.5 h-4 w-4 ${isSearching ? 'animate-pulse text-blue-500' : 'text-gray-400'}`} />
+        <Search
+          className={`absolute left-3 top-2.5 h-4 w-4 ${isSearching ? "animate-pulse text-blue-500" : "text-gray-400"}`}
+        />
         <Input
           type="text"
           placeholder={placeholder}
@@ -71,7 +80,9 @@ export function SearchInput({
             className="h-6 w-6 p-0"
             onClick={() => setShowFilters(!showFilters)}
           >
-            <Filter className={`h-4 w-4 ${showFilters || hasActiveFilters ? 'text-blue-500' : 'text-gray-400'}`} />
+            <Filter
+              className={`h-4 w-4 ${showFilters || hasActiveFilters ? "text-blue-500" : "text-gray-400"}`}
+            />
           </Button>
           {value && (
             <Button
@@ -85,7 +96,7 @@ export function SearchInput({
           )}
         </div>
       </div>
-      
+
       {/* Active Filters Display */}
       {hasActiveFilters && !showFilters && (
         <div className="flex flex-wrap gap-1">
@@ -97,7 +108,9 @@ export function SearchInput({
                 variant="ghost"
                 size="sm"
                 className="h-3 w-3 p-0 ml-1"
-                onClick={() => setFilters(prev => ({ ...prev, project_hash: undefined }))}
+                onClick={() =>
+                  setFilters((prev) => ({ ...prev, project_hash: undefined }))
+                }
               >
                 <X className="h-2 w-2" />
               </Button>
@@ -111,7 +124,9 @@ export function SearchInput({
                 variant="ghost"
                 size="sm"
                 className="h-3 w-3 p-0 ml-1"
-                onClick={() => setFilters(prev => ({ ...prev, date_range: undefined }))}
+                onClick={() =>
+                  setFilters((prev) => ({ ...prev, date_range: undefined }))
+                }
               >
                 <X className="h-2 w-2" />
               </Button>
@@ -124,7 +139,9 @@ export function SearchInput({
                 variant="ghost"
                 size="sm"
                 className="h-3 w-3 p-0 ml-1"
-                onClick={() => setFilters(prev => ({ ...prev, max_results: undefined }))}
+                onClick={() =>
+                  setFilters((prev) => ({ ...prev, max_results: undefined }))
+                }
               >
                 <X className="h-2 w-2" />
               </Button>
@@ -132,13 +149,15 @@ export function SearchInput({
           )}
         </div>
       )}
-      
+
       {/* Filters Panel - Similar to ConversationList directory section */}
       {showFilters && (
         <Card>
           <CardContent className="p-3 space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Search Filters</h4>
+              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Search Filters
+              </h4>
               <Button
                 variant="ghost"
                 size="sm"
@@ -148,7 +167,7 @@ export function SearchInput({
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            
+
             {/* Project Filter */}
             {availableProjects.length > 0 && (
               <div className="space-y-2">
@@ -157,10 +176,12 @@ export function SearchInput({
                 </label>
                 <Select
                   value={filters.project_hash || ""}
-                  onValueChange={(value) => setFilters(prev => ({ 
-                    ...prev, 
-                    project_hash: value || undefined 
-                  }))}
+                  onValueChange={(value) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      project_hash: value || undefined,
+                    }))
+                  }
                 >
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue placeholder="All projects" />
@@ -184,10 +205,12 @@ export function SearchInput({
               </label>
               <Select
                 value={filters.max_results?.toString() || "50"}
-                onValueChange={(value) => setFilters(prev => ({ 
-                  ...prev, 
-                  max_results: parseInt(value) 
-                }))}
+                onValueChange={(value) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    max_results: parseInt(value),
+                  }))
+                }
               >
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue />

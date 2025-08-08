@@ -32,7 +32,13 @@ async function handleLinkClick(href: string, event: React.MouseEvent) {
   }
 }
 
-export function MarkdownRenderer({ children, isStreaming = false }: { children: string; isStreaming?: boolean }) {
+export function MarkdownRenderer({
+  children,
+  isStreaming = false,
+}: {
+  children: string;
+  isStreaming?: boolean;
+}) {
   return (
     <div className="prose prose-stone prose-sm max-w-none dark:prose-invert text-sm break-words overflow-wrap-anywhere">
       <ReactMarkdown
@@ -123,12 +129,16 @@ export function MarkdownRenderer({ children, isStreaming = false }: { children: 
                       <div className="flex items-start">
                         <div className="text-black/40 dark:text-white/40 text-xs font-mono mr-4 select-none">
                           {language && (
-                            <div className="mb-2 text-xs opacity-60">{language}</div>
+                            <div className="mb-2 text-xs opacity-60">
+                              {language}
+                            </div>
                           )}
                         </div>
                         <div className="flex-1">
                           {content.trim()}
-                          <span className="inline-block w-2 h-4 bg-blue-500 animate-pulse ml-1">|</span>
+                          <span className="inline-block w-2 h-4 bg-blue-500 animate-pulse ml-1">
+                            |
+                          </span>
                         </div>
                       </div>
                     </div>
