@@ -81,7 +81,11 @@ You can run the app in development mode, or build it for production.  The deskto
  
 ## Contributing
 
-Contributions are welcome, although it's a bit raw still.
+Contributions are welcome!
+1. Fork the repo.
+2. Clone it, optionally create a new branch, and then and make your changes.
+3. Add tests.
+4. Commit your changes and open a PR.
 
 ## License
 
