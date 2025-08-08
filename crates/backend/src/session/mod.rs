@@ -647,3 +647,572 @@ async fn handle_cli_output_line(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    // use crate::events::MockEventEmitter; // Unused import removed
+    use serde_json::json;
+    // use std::sync::atomic::{AtomicU32, Ordering}; // Unused imports removed
+    use std::sync::Arc;
+    use std::time::Duration;
+    use tokio::time::timeout;
+
+    #[test]
+    fn test_persistent_session_struct() {
+        let session = PersistentSession {
+            conversation_id: "test-id".to_string(),
+            pid: Some(12345),
+            created_at: 1640995200,
+            is_alive: true,
+            stdin: None,
+            message_sender: None,
+            rpc_logger: Arc::new(NoOpRpcLogger),
+            child: None,
+        };
+
+        assert_eq!(session.conversation_id, "test-id");
+        assert_eq!(session.pid, Some(12345));
+        assert_eq!(session.created_at, 1640995200);
+        assert!(session.is_alive);
+        assert!(session.stdin.is_none());
+        assert!(session.message_sender.is_none());
+        assert!(session.child.is_none());
+    }
+
+    #[test]
+    fn test_process_status_serialization() {
+        let status = ProcessStatus {
+            conversation_id: "test-id".to_string(),
+            pid: Some(12345),
+            created_at: 1640995200,
+            is_alive: true,
+        };
+
+        let json = serde_json::to_string(&status).unwrap();
+        let deserialized: ProcessStatus = serde_json::from_str(&json).unwrap();
+        
+        assert_eq!(status.conversation_id, deserialized.conversation_id);
+        assert_eq!(status.pid, deserialized.pid);
+        assert_eq!(status.created_at, deserialized.created_at);
+        assert_eq!(status.is_alive, deserialized.is_alive);
+    }
+
+    #[test]
+    fn test_process_status_from_persistent_session() {
+        let session = PersistentSession {
+            conversation_id: "test-session".to_string(),
+            pid: Some(9876),
+            created_at: 1640995300,
+            is_alive: false,
+            stdin: None,
+            message_sender: None,
+            rpc_logger: Arc::new(NoOpRpcLogger),
+            child: None,
+        };
+
+        let status = ProcessStatus::from(&session);
+        assert_eq!(status.conversation_id, "test-session");
+        assert_eq!(status.pid, Some(9876));
+        assert_eq!(status.created_at, 1640995300);
+        assert!(!status.is_alive);
+    }
+
+    #[test]
+    fn test_session_manager_new() {
+        let manager = SessionManager::new();
+        let statuses = manager.get_process_statuses().unwrap();
+        assert!(statuses.is_empty());
+    }
+
+    #[test]
+    fn test_session_manager_default() {
+        let manager = SessionManager::default();
+        let statuses = manager.get_process_statuses().unwrap();
+        assert!(statuses.is_empty());
+    }
+
+    #[test]
+    fn test_session_manager_get_process_statuses() {
+        let manager = SessionManager::new();
+        
+        // Add a session directly to processes
+        {
+            let mut processes = manager.processes.lock().unwrap();
+            processes.insert("test-session".to_string(), PersistentSession {
+                conversation_id: "test-session".to_string(),
+                pid: Some(12345),
+                created_at: 1640995200,
+                is_alive: true,
+                stdin: None,
+                message_sender: None,
+                rpc_logger: Arc::new(NoOpRpcLogger),
+                child: None,
+            });
+        }
+
+        let statuses = manager.get_process_statuses().unwrap();
+        assert_eq!(statuses.len(), 1);
+        assert_eq!(statuses[0].conversation_id, "test-session");
+        assert_eq!(statuses[0].pid, Some(12345));
+        assert!(statuses[0].is_alive);
+    }
+
+    #[test]
+    fn test_session_manager_kill_process_nonexistent() {
+        let manager = SessionManager::new();
+        
+        // Killing a non-existent process should not error
+        let result = manager.kill_process("nonexistent");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_session_manager_kill_process_no_child_no_pid() {
+        let manager = SessionManager::new();
+        
+        // Add a session with no child and no pid
+        {
+            let mut processes = manager.processes.lock().unwrap();
+            processes.insert("test-session".to_string(), PersistentSession {
+                conversation_id: "test-session".to_string(),
+                pid: None,
+                created_at: 1640995200,
+                is_alive: true,
+                stdin: None,
+                message_sender: None,
+                rpc_logger: Arc::new(NoOpRpcLogger),
+                child: None,
+            });
+        }
+
+        let result = manager.kill_process("test-session");
+        assert!(result.is_ok());
+
+        // Verify the session state was updated
+        let statuses = manager.get_process_statuses().unwrap();
+        assert_eq!(statuses.len(), 1);
+        assert!(!statuses[0].is_alive);
+        assert!(statuses[0].pid.is_none());
+    }
+
+    #[test]
+    fn test_session_manager_get_processes() {
+        let manager = SessionManager::new();
+        let processes = manager.get_processes();
+        assert!(processes.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_send_response_to_cli_no_session() {
+        let processes: ProcessMap = Arc::new(Mutex::new(HashMap::new()));
+        
+        // Should not panic when session doesn't exist
+        send_response_to_cli(
+            "nonexistent",
+            123,
+            Some(json!({"status": "ok"})),
+            None,
+            &processes
+        ).await;
+    }
+
+    #[tokio::test]
+    async fn test_send_response_to_cli_with_session() {
+        let processes: ProcessMap = Arc::new(Mutex::new(HashMap::new()));
+        let (tx, mut rx) = mpsc::unbounded_channel::<String>();
+        
+        // Add session with message sender
+        {
+            let mut guard = processes.lock().unwrap();
+            guard.insert("test-session".to_string(), PersistentSession {
+                conversation_id: "test-session".to_string(),
+                pid: Some(12345),
+                created_at: 1640995200,
+                is_alive: true,
+                stdin: None,
+                message_sender: Some(tx),
+                rpc_logger: Arc::new(NoOpRpcLogger),
+                child: None,
+            });
+        }
+
+        send_response_to_cli(
+            "test-session",
+            123,
+            Some(json!({"status": "ok"})),
+            None,
+            &processes
+        ).await;
+
+        // Verify the response was sent
+        let response = timeout(Duration::from_millis(100), rx.recv()).await.unwrap().unwrap();
+        let parsed: JsonRpcResponse = serde_json::from_str(&response).unwrap();
+        assert_eq!(parsed.id, 123);
+        assert_eq!(parsed.result, Some(json!({"status": "ok"})));
+    }
+
+    #[tokio::test]
+    async fn test_handle_cli_output_line_invalid_json() {
+        let (tx, _rx) = mpsc::unbounded_channel::<InternalEvent>();
+        let mut tool_call_id = 1001u32;
+        let mut pending_requests = HashSet::new();
+
+        // Should not panic on invalid JSON
+        handle_cli_output_line(
+            "test-session",
+            "invalid json",
+            &tx,
+            &mut tool_call_id,
+            &mut pending_requests
+        ).await;
+
+        // tool_call_id should remain unchanged
+        assert_eq!(tool_call_id, 1001);
+    }
+
+    #[tokio::test]
+    async fn test_handle_cli_output_line_stream_assistant_message_chunk() {
+        let (tx, mut rx) = mpsc::unbounded_channel::<InternalEvent>();
+        let mut tool_call_id = 1001u32;
+        let mut pending_requests = HashSet::new();
+
+        let input = json!({
+            "method": "streamAssistantMessageChunk",
+            "params": {
+                "chunk": {
+                    "text": "Hello world",
+                    "thought": "I should respond"
+                }
+            }
+        }).to_string();
+
+        handle_cli_output_line(
+            "test-session",
+            &input,
+            &tx,
+            &mut tool_call_id,
+            &mut pending_requests
+        ).await;
+
+        // Should receive both thought and output events
+        let event1 = timeout(Duration::from_millis(100), rx.recv()).await.unwrap().unwrap();
+        let event2 = timeout(Duration::from_millis(100), rx.recv()).await.unwrap().unwrap();
+
+        match (&event1, &event2) {
+            (InternalEvent::GeminiThought { session_id, payload }, InternalEvent::GeminiOutput { .. }) |
+            (InternalEvent::GeminiOutput { .. }, InternalEvent::GeminiThought { session_id, payload }) => {
+                assert_eq!(session_id, "test-session");
+                assert_eq!(payload.thought, "I should respond");
+            },
+            _ => panic!("Expected thought and output events, got: {:?}, {:?}", event1, event2),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_handle_cli_output_line_push_tool_call() {
+        let (tx, mut rx) = mpsc::unbounded_channel::<InternalEvent>();
+        let mut tool_call_id = 1001u32;
+        let mut pending_requests = HashSet::new();
+
+        let input = json!({
+            "method": "pushToolCall",
+            "params": {
+                "label": "Test Tool",
+                "icon": "🔧",
+                "locations": ["file.txt"]
+            }
+        }).to_string();
+
+        handle_cli_output_line(
+            "test-session",
+            &input,
+            &tx,
+            &mut tool_call_id,
+            &mut pending_requests
+        ).await;
+
+        let event = timeout(Duration::from_millis(100), rx.recv()).await.unwrap().unwrap();
+        match event {
+            InternalEvent::ToolCall { session_id, payload } => {
+                assert_eq!(session_id, "test-session");
+                assert_eq!(payload.id, 1001);
+                assert_eq!(payload.name, "Test Tool");
+                assert_eq!(payload.icon, "🔧".to_string());
+                assert_eq!(payload.label, "Test Tool");
+                assert_eq!(payload.status, "pending");
+            },
+            _ => panic!("Expected ToolCall event, got: {:?}", event),
+        }
+
+        assert_eq!(tool_call_id, 1002); // Should increment
+    }
+
+    #[tokio::test]
+    async fn test_handle_cli_output_line_update_tool_call() {
+        let (tx, mut rx) = mpsc::unbounded_channel::<InternalEvent>();
+        let mut tool_call_id = 1001u32;
+        let mut pending_requests = HashSet::new();
+
+        let input = json!({
+            "method": "updateToolCall",
+            "params": {
+                "tool_call_id": 1001,
+                "status": "completed",
+                "content": "Tool execution complete"
+            }
+        }).to_string();
+
+        handle_cli_output_line(
+            "test-session",
+            &input,
+            &tx,
+            &mut tool_call_id,
+            &mut pending_requests
+        ).await;
+
+        let event = timeout(Duration::from_millis(100), rx.recv()).await.unwrap().unwrap();
+        match event {
+            InternalEvent::ToolCallUpdate { session_id, payload } => {
+                assert_eq!(session_id, "test-session");
+                assert_eq!(payload.tool_call_id, 1001);
+                assert_eq!(payload.status, "completed");
+                assert_eq!(payload.content, Some(serde_json::Value::String("Tool execution complete".to_string())));
+            },
+            _ => panic!("Expected ToolCallUpdate event, got: {:?}", event),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_handle_cli_output_line_request_tool_call_confirmation() {
+        let (tx, mut rx) = mpsc::unbounded_channel::<InternalEvent>();
+        let mut tool_call_id = 1001u32;
+        let mut pending_requests = HashSet::new();
+
+        let input = json!({
+            "id": 42,
+            "method": "requestToolCallConfirmation",
+            "params": {
+                "label": "Delete File",
+                "icon": "🗑️",
+                "content": "Are you sure?",
+                "confirmation": true,
+                "locations": ["file.txt"]
+            }
+        }).to_string();
+
+        handle_cli_output_line(
+            "test-session",
+            &input,
+            &tx,
+            &mut tool_call_id,
+            &mut pending_requests
+        ).await;
+
+        let event = timeout(Duration::from_millis(100), rx.recv()).await.unwrap().unwrap();
+        match event {
+            InternalEvent::ToolCallConfirmation { session_id, payload } => {
+                assert_eq!(session_id, "test-session");
+                assert_eq!(payload.request_id, 42);
+                assert_eq!(payload.session_id, "test-session");
+                assert_eq!(payload.label, "Delete File");
+                assert_eq!(payload.icon, "🗑️".to_string());
+                assert!(payload.content.is_some());
+                assert!(payload.confirmation.confirmation_type.len() > 0);
+                assert_eq!(payload.locations.len(), 1);
+                assert_eq!(payload.locations[0].path, "file.txt");
+            },
+            _ => panic!("Expected ToolCallConfirmation event, got: {:?}", event),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_handle_cli_output_line_pending_send_message_success() {
+        let (tx, mut rx) = mpsc::unbounded_channel::<InternalEvent>();
+        let mut tool_call_id = 1001u32;
+        let mut pending_requests = HashSet::new();
+        pending_requests.insert(123);
+
+        let input = json!({
+            "id": 123,
+            "result": {"status": "ok"}
+        }).to_string();
+
+        handle_cli_output_line(
+            "test-session",
+            &input,
+            &tx,
+            &mut tool_call_id,
+            &mut pending_requests
+        ).await;
+
+        let event = timeout(Duration::from_millis(100), rx.recv()).await.unwrap().unwrap();
+        match event {
+            InternalEvent::GeminiTurnFinished { session_id } => {
+                assert_eq!(session_id, "test-session");
+            },
+            _ => panic!("Expected GeminiTurnFinished event, got: {:?}", event),
+        }
+
+        assert!(!pending_requests.contains(&123)); // Should be removed
+    }
+
+    #[tokio::test]
+    async fn test_handle_cli_output_line_pending_send_message_error() {
+        let (tx, mut rx) = mpsc::unbounded_channel::<InternalEvent>();
+        let mut tool_call_id = 1001u32;
+        let mut pending_requests = HashSet::new();
+        pending_requests.insert(123);
+
+        let input = json!({
+            "id": 123,
+            "error": {"code": -1, "message": "Something went wrong"}
+        }).to_string();
+
+        handle_cli_output_line(
+            "test-session",
+            &input,
+            &tx,
+            &mut tool_call_id,
+            &mut pending_requests
+        ).await;
+
+        let event = timeout(Duration::from_millis(100), rx.recv()).await.unwrap().unwrap();
+        match event {
+            InternalEvent::Error { session_id, payload } => {
+                assert_eq!(session_id, "test-session");
+                assert!(payload.error.contains("Something went wrong"));
+            },
+            _ => panic!("Expected Error event, got: {:?}", event),
+        }
+
+        assert!(!pending_requests.contains(&123)); // Should be removed
+    }
+
+    #[tokio::test]
+    async fn test_handle_cli_output_line_unknown_method() {
+        let (tx, _rx) = mpsc::unbounded_channel::<InternalEvent>();
+        let mut tool_call_id = 1001u32;
+        let mut pending_requests = HashSet::new();
+
+        let input = json!({
+            "method": "unknownMethod",
+            "params": {}
+        }).to_string();
+
+        // Should not panic or produce events for unknown methods
+        handle_cli_output_line(
+            "test-session",
+            &input,
+            &tx,
+            &mut tool_call_id,
+            &mut pending_requests
+        ).await;
+
+        assert_eq!(tool_call_id, 1001); // Should remain unchanged
+    }
+
+    #[test]
+    fn test_json_rpc_request_creation() {
+        let request = JsonRpcRequest {
+            jsonrpc: "2.0".to_string(),
+            id: 1,
+            method: "initialize".to_string(),
+            params: json!({"protocolVersion": "0.0.9"}),
+        };
+
+        let serialized = serde_json::to_string(&request).unwrap();
+        let deserialized: JsonRpcRequest = serde_json::from_str(&serialized).unwrap();
+        
+        assert_eq!(request.jsonrpc, deserialized.jsonrpc);
+        assert_eq!(request.id, deserialized.id);
+        assert_eq!(request.method, deserialized.method);
+        assert_eq!(request.params, deserialized.params);
+    }
+
+    #[test]
+    fn test_json_rpc_response_creation() {
+        let response = JsonRpcResponse {
+            jsonrpc: "2.0".to_string(),
+            id: 1,
+            result: Some(json!({"status": "initialized"})),
+            error: None,
+        };
+
+        let serialized = serde_json::to_string(&response).unwrap();
+        let deserialized: JsonRpcResponse = serde_json::from_str(&serialized).unwrap();
+        
+        assert_eq!(response.jsonrpc, deserialized.jsonrpc);
+        assert_eq!(response.id, deserialized.id);
+        assert_eq!(response.result, deserialized.result);
+        assert!(deserialized.error.is_none());
+    }
+
+    // Note: Testing initialize_session and handle_session_io_internal would require
+    // complex mocking of external processes and async I/O. These functions are integration
+    // points that are better tested through end-to-end tests rather than unit tests.
+    // The core logic components have been tested above.
+
+    #[test] 
+    fn test_process_map_thread_safety() {
+        use std::thread;
+        
+        let processes: ProcessMap = Arc::new(Mutex::new(HashMap::new()));
+        let processes_clone = processes.clone();
+        
+        let handle = thread::spawn(move || {
+            let mut guard = processes_clone.lock().unwrap();
+            guard.insert("thread-test".to_string(), PersistentSession {
+                conversation_id: "thread-test".to_string(),
+                pid: Some(999),
+                created_at: 1640995200,
+                is_alive: true,
+                stdin: None,
+                message_sender: None,
+                rpc_logger: Arc::new(NoOpRpcLogger),
+                child: None,
+            });
+        });
+        
+        handle.join().unwrap();
+        
+        let guard = processes.lock().unwrap();
+        assert!(guard.contains_key("thread-test"));
+        assert_eq!(guard.get("thread-test").unwrap().pid, Some(999));
+    }
+
+    #[test]
+    fn test_session_manager_stress_add_remove() {
+        let manager = SessionManager::new();
+        
+        // Add multiple sessions
+        {
+            let mut processes = manager.processes.lock().unwrap();
+            for i in 0..10 {
+                processes.insert(format!("session-{}", i), PersistentSession {
+                    conversation_id: format!("session-{}", i),
+                    pid: Some(1000 + i as u32),
+                    created_at: 1640995200 + i as u64,
+                    is_alive: true,
+                    stdin: None,
+                    message_sender: None,
+                    rpc_logger: Arc::new(NoOpRpcLogger),
+                    child: None,
+                });
+            }
+        }
+        
+        let statuses = manager.get_process_statuses().unwrap();
+        assert_eq!(statuses.len(), 10);
+        
+        // Kill some sessions
+        for i in 0..5 {
+            manager.kill_process(&format!("session-{}", i)).unwrap();
+        }
+        
+        let statuses = manager.get_process_statuses().unwrap();
+        assert_eq!(statuses.len(), 10); // All still there but some not alive
+        let alive_count = statuses.iter().filter(|s| s.is_alive).count();
+        assert_eq!(alive_count, 5);
+    }
+}

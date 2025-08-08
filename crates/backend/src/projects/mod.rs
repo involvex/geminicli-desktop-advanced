@@ -455,3 +455,810 @@ pub async fn get_enriched_project(
     let external_root = Path::new(&external_root_path);
     Ok(make_enriched_project(&sha256, Some(external_root), true))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::time::Duration;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_project_list_item_serialization() {
+        let item = ProjectListItem {
+            id: "test-id".to_string(),
+            title: Some("Test Project".to_string()),
+            status: Some("active".to_string()),
+            created_at: Some("2023-01-01T00:00:00Z".to_string()),
+            updated_at: Some("2023-01-02T00:00:00Z".to_string()),
+            last_activity_at: Some("2023-01-03T00:00:00Z".to_string()),
+            log_count: Some(5),
+        };
+
+        let json = serde_json::to_string(&item).unwrap();
+        let deserialized: ProjectListItem = serde_json::from_str(&json).unwrap();
+        
+        assert_eq!(item.id, deserialized.id);
+        assert_eq!(item.title, deserialized.title);
+        assert_eq!(item.status, deserialized.status);
+        assert_eq!(item.created_at, deserialized.created_at);
+        assert_eq!(item.updated_at, deserialized.updated_at);
+        assert_eq!(item.last_activity_at, deserialized.last_activity_at);
+        assert_eq!(item.log_count, deserialized.log_count);
+    }
+
+    #[test]
+    fn test_project_list_item_serialization_with_none_values() {
+        let item = ProjectListItem {
+            id: "test-id".to_string(),
+            title: None,
+            status: None,
+            created_at: None,
+            updated_at: None,
+            last_activity_at: None,
+            log_count: None,
+        };
+
+        let json = serde_json::to_string(&item).unwrap();
+        assert!(!json.contains("title"));
+        assert!(!json.contains("status"));
+        assert!(!json.contains("createdAt"));
+        assert!(!json.contains("updatedAt"));
+        assert!(!json.contains("lastActivityAt"));
+        assert!(!json.contains("logCount"));
+        
+        let deserialized: ProjectListItem = serde_json::from_str(&json).unwrap();
+        assert_eq!(item.id, deserialized.id);
+        assert!(deserialized.title.is_none());
+        assert!(deserialized.status.is_none());
+    }
+
+    #[test]
+    fn test_projects_response_serialization() {
+        let response = ProjectsResponse {
+            items: vec![ProjectListItem {
+                id: "test".to_string(),
+                title: None,
+                status: None,
+                created_at: None,
+                updated_at: None,
+                last_activity_at: None,
+                log_count: None,
+            }],
+            total: 10,
+            limit: 5,
+            offset: 0,
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        let deserialized: ProjectsResponse = serde_json::from_str(&json).unwrap();
+        
+        assert_eq!(response.total, deserialized.total);
+        assert_eq!(response.limit, deserialized.limit);
+        assert_eq!(response.offset, deserialized.offset);
+        assert_eq!(response.items.len(), deserialized.items.len());
+    }
+
+    #[test]
+    fn test_project_metadata_default() {
+        let metadata = ProjectMetadata::default();
+        assert_eq!(metadata.path, PathBuf::new());
+        assert!(metadata.sha256.is_none());
+        assert!(metadata.friendly_name.is_none());
+        assert!(metadata.first_used.is_none());
+        assert!(metadata.updated_at.is_none());
+    }
+
+    #[test]
+    fn test_project_metadata_view_serialization() {
+        let view = ProjectMetadataView {
+            path: "/test/path".to_string(),
+            sha256: "abcd1234".to_string(),
+            friendly_name: "test-project".to_string(),
+            first_used: Some("2023-01-01T00:00:00Z".to_string()),
+            updated_at: Some("2023-01-02T00:00:00Z".to_string()),
+        };
+
+        let json = serde_json::to_string(&view).unwrap();
+        let deserialized: ProjectMetadataView = serde_json::from_str(&json).unwrap();
+        
+        assert_eq!(view.path, deserialized.path);
+        assert_eq!(view.sha256, deserialized.sha256);
+        assert_eq!(view.friendly_name, deserialized.friendly_name);
+        assert_eq!(view.first_used, deserialized.first_used);
+        assert_eq!(view.updated_at, deserialized.updated_at);
+    }
+
+    #[test]
+    fn test_touch_throttle_new() {
+        let throttle = TouchThrottle::new(Duration::from_secs(1));
+        assert_eq!(throttle.min_interval, Duration::from_secs(1));
+    }
+
+    #[test]
+    fn test_touch_throttle_default() {
+        let throttle = TouchThrottle::default();
+        assert_eq!(throttle.min_interval, Duration::default());
+    }
+
+    #[test]
+    fn test_touch_throttle_clone() {
+        let throttle1 = TouchThrottle::new(Duration::from_secs(5));
+        let throttle2 = throttle1.clone();
+        assert_eq!(throttle1.min_interval, throttle2.min_interval);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn test_derive_friendly_name_from_path_windows() {
+        let path = Path::new("C:\\Users\\test\\projects\\my-app");
+        let result = derive_friendly_name_from_path(path);
+        assert_eq!(result, "C-Users-test-projects-my-app");
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn test_derive_friendly_name_from_path_unix() {
+        let path = Path::new("/home/test/projects/my-app");
+        let result = derive_friendly_name_from_path(path);
+        assert_eq!(result, "home-test-projects-my-app");
+    }
+
+    #[test]
+    fn test_derive_friendly_name_from_path_empty_components() {
+        let path = Path::new("//test//project//");
+        let result = derive_friendly_name_from_path(path);
+        assert_eq!(result, "test-project");
+    }
+
+    #[test]
+    fn test_parse_millis_from_log_name_valid() {
+        assert_eq!(parse_millis_from_log_name("rpc-log-1640995200000.log"), Some(1640995200000));
+        assert_eq!(parse_millis_from_log_name("rpc-log-1640995200000.json"), Some(1640995200000));
+    }
+
+    #[test]
+    fn test_parse_millis_from_log_name_invalid() {
+        assert_eq!(parse_millis_from_log_name("invalid-name.log"), None);
+        assert_eq!(parse_millis_from_log_name("rpc-log-invalid.log"), None);
+        assert_eq!(parse_millis_from_log_name("rpc-log-123.txt"), None);
+        assert_eq!(parse_millis_from_log_name("rpc-log-"), None);
+    }
+
+    #[test]
+    fn test_now_fixed_offset() {
+        let now1 = now_fixed_offset();
+        std::thread::sleep(Duration::from_millis(1));
+        let now2 = now_fixed_offset();
+        assert!(now2 > now1);
+    }
+
+    #[test]
+    fn test_home_projects_root_with_home() {
+        unsafe {
+            std::env::set_var("HOME", "/test/home");
+        }
+        let result = home_projects_root();
+        assert!(result.is_some());
+        let path = result.unwrap();
+        assert_eq!(path, Path::new("/test/home/.gemini-desktop/projects"));
+        unsafe {
+            unsafe {
+            std::env::remove_var("HOME");
+        }
+        }
+    }
+
+    #[test]
+    fn test_home_projects_root_with_userprofile() {
+        unsafe {
+            unsafe {
+            std::env::remove_var("HOME");
+        }
+            std::env::set_var("USERPROFILE", "C:\\Users\\test");
+        }
+        let result = home_projects_root();
+        assert!(result.is_some());
+        let path = result.unwrap();
+        assert_eq!(path, Path::new("C:\\Users\\test\\.gemini-desktop\\projects"));
+        unsafe {
+            std::env::remove_var("USERPROFILE");
+        }
+    }
+
+    #[test]
+    fn test_home_projects_root_no_env_vars() {
+        unsafe {
+            unsafe {
+            std::env::remove_var("HOME");
+        }
+            std::env::remove_var("USERPROFILE");
+        }
+        let result = home_projects_root();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_projects_root_dir() {
+        unsafe {
+            std::env::set_var("HOME", "/test/home");
+        }
+        let result = projects_root_dir();
+        assert!(result.is_some());
+        unsafe {
+            unsafe {
+            std::env::remove_var("HOME");
+        }
+        }
+    }
+
+    #[test]
+    fn test_project_json_path() {
+        unsafe {
+            std::env::set_var("HOME", "/test/home");
+        }
+        let result = project_json_path("abcd1234");
+        assert!(result.is_some());
+        let path = result.unwrap();
+        assert_eq!(path, Path::new("/test/home/.gemini-desktop/projects/abcd1234/project.json"));
+        unsafe {
+            unsafe {
+            std::env::remove_var("HOME");
+        }
+        }
+    }
+
+    #[test]
+    fn test_project_json_path_no_root() {
+        unsafe {
+            unsafe {
+            std::env::remove_var("HOME");
+        }
+            std::env::remove_var("USERPROFILE");
+        }
+        let result = project_json_path("abcd1234");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_read_project_metadata_no_root() {
+        unsafe {
+            unsafe {
+            std::env::remove_var("HOME");
+        }
+            std::env::remove_var("USERPROFILE");
+        }
+        let result = read_project_metadata("test");
+        assert!(matches!(result, Err(BackendError::ProjectNotFound(_))));
+    }
+
+    #[test]
+    fn test_read_project_metadata_file_not_found() {
+        let temp_dir = TempDir::new().unwrap();
+        unsafe {
+            std::env::set_var("HOME", temp_dir.path());
+        }
+        
+        let result = read_project_metadata("nonexistent");
+        assert!(matches!(result, Err(BackendError::ProjectNotFound(_))));
+        
+        unsafe {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn test_read_project_metadata_success() {
+        let temp_dir = TempDir::new().unwrap();
+        unsafe {
+            std::env::set_var("HOME", temp_dir.path());
+        }
+        
+        // Create project directory and metadata file
+        let projects_dir = temp_dir.path().join(".gemini-desktop/projects/abcd1234");
+        fs::create_dir_all(&projects_dir).unwrap();
+        
+        let metadata = ProjectMetadata {
+            path: PathBuf::from("/test/path"),
+            sha256: Some("abcd1234".to_string()),
+            friendly_name: Some("test-project".to_string()),
+            first_used: None,
+            updated_at: None,
+        };
+        
+        let json_path = projects_dir.join("project.json");
+        let content = serde_json::to_string_pretty(&metadata).unwrap();
+        fs::write(&json_path, content).unwrap();
+        
+        let result = read_project_metadata("abcd1234").unwrap();
+        assert_eq!(result.path, PathBuf::from("/test/path"));
+        assert_eq!(result.sha256, Some("abcd1234".to_string()));
+        assert_eq!(result.friendly_name, Some("test-project".to_string()));
+        
+        unsafe {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn test_read_project_metadata_invalid_json() {
+        let temp_dir = TempDir::new().unwrap();
+        unsafe {
+            std::env::set_var("HOME", temp_dir.path());
+        }
+        
+        // Create project directory and invalid metadata file
+        let projects_dir = temp_dir.path().join(".gemini-desktop/projects/abcd1234");
+        fs::create_dir_all(&projects_dir).unwrap();
+        
+        let json_path = projects_dir.join("project.json");
+        fs::write(&json_path, "invalid json").unwrap();
+        
+        let result = read_project_metadata("abcd1234");
+        assert!(matches!(result, Err(BackendError::JsonError(_))));
+        
+        unsafe {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn test_write_project_metadata_no_root() {
+        unsafe {
+            unsafe {
+            std::env::remove_var("HOME");
+        }
+            std::env::remove_var("USERPROFILE");
+        }
+        
+        let metadata = ProjectMetadata::default();
+        let result = write_project_metadata("test", &metadata);
+        assert!(matches!(result, Err(BackendError::ProjectNotFound(_))));
+    }
+
+    #[test]
+    fn test_write_project_metadata_success() {
+        let temp_dir = TempDir::new().unwrap();
+        unsafe {
+            std::env::set_var("HOME", temp_dir.path());
+        }
+        
+        let metadata = ProjectMetadata {
+            path: PathBuf::from("/test/path"),
+            sha256: Some("abcd1234".to_string()),
+            friendly_name: Some("test-project".to_string()),
+            first_used: None,
+            updated_at: None,
+        };
+        
+        let result = write_project_metadata("abcd1234", &metadata);
+        assert!(result.is_ok());
+        
+        // Verify the file was created
+        let projects_dir = temp_dir.path().join(".gemini-desktop/projects/abcd1234");
+        let json_path = projects_dir.join("project.json");
+        assert!(json_path.exists());
+        
+        // Verify content
+        let content = fs::read_to_string(&json_path).unwrap();
+        let read_metadata: ProjectMetadata = serde_json::from_str(&content).unwrap();
+        assert_eq!(read_metadata.path, metadata.path);
+        assert_eq!(read_metadata.sha256, metadata.sha256);
+        
+        unsafe {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn test_to_view() {
+        let metadata = ProjectMetadata {
+            path: PathBuf::from("/test/path"),
+            sha256: Some("abcd1234".to_string()),
+            friendly_name: Some("custom-name".to_string()),
+            first_used: Some(now_fixed_offset()),
+            updated_at: Some(now_fixed_offset()),
+        };
+        
+        let canonical_root = Path::new("/canonical/path");
+        let view = to_view(&metadata, canonical_root, "sha256");
+        
+        assert_eq!(view.path, "/test/path");
+        assert_eq!(view.sha256, "abcd1234");
+        assert_eq!(view.friendly_name, "custom-name");
+        assert!(view.first_used.is_some());
+        assert!(view.updated_at.is_some());
+    }
+
+    #[test]
+    fn test_to_view_with_defaults() {
+        let metadata = ProjectMetadata {
+            path: PathBuf::from("/test/path"),
+            sha256: None,
+            friendly_name: None,
+            first_used: None,
+            updated_at: None,
+        };
+        
+        let canonical_root = Path::new("/canonical/path");
+        let view = to_view(&metadata, canonical_root, "fallback_sha");
+        
+        assert_eq!(view.path, "/test/path");
+        assert_eq!(view.sha256, "fallback_sha");
+        assert_eq!(view.friendly_name, derive_friendly_name_from_path(canonical_root));
+        assert!(view.first_used.is_none());
+        assert!(view.updated_at.is_none());
+    }
+
+    #[test]
+    fn test_ensure_project_metadata_existing() {
+        let temp_dir = TempDir::new().unwrap();
+        unsafe {
+            std::env::set_var("HOME", temp_dir.path());
+        }
+        
+        // Create existing metadata
+        let metadata = ProjectMetadata {
+            path: PathBuf::from("/existing/path"),
+            sha256: Some("existing".to_string()),
+            friendly_name: Some("existing-project".to_string()),
+            first_used: None,
+            updated_at: None,
+        };
+        
+        let projects_dir = temp_dir.path().join(".gemini-desktop/projects/existing");
+        fs::create_dir_all(&projects_dir).unwrap();
+        let json_path = projects_dir.join("project.json");
+        let content = serde_json::to_string_pretty(&metadata).unwrap();
+        fs::write(&json_path, content).unwrap();
+        
+        let result = ensure_project_metadata("existing", None).unwrap();
+        assert_eq!(result.path, PathBuf::from("/existing/path"));
+        assert_eq!(result.sha256, Some("existing".to_string()));
+        
+        unsafe {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn test_ensure_project_metadata_create_new() {
+        let temp_dir = TempDir::new().unwrap();
+        unsafe {
+            std::env::set_var("HOME", temp_dir.path());
+        }
+        
+        let external_root = Path::new("/new/project");
+        let result = ensure_project_metadata("newsha256", Some(external_root)).unwrap();
+        
+        assert_eq!(result.path, PathBuf::from("/new/project"));
+        assert_eq!(result.sha256, Some("newsha256".to_string()));
+        assert!(result.friendly_name.is_some());
+        assert!(result.first_used.is_some());
+        assert!(result.updated_at.is_some());
+        
+        unsafe {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn test_ensure_project_metadata_error_no_external() {
+        let temp_dir = TempDir::new().unwrap();
+        unsafe {
+            std::env::set_var("HOME", temp_dir.path());
+        }
+        
+        let result = ensure_project_metadata("nonexistent", None);
+        assert!(matches!(result, Err(BackendError::ProjectNotFound(_))));
+        
+        unsafe {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn test_maybe_touch_updated_at_nonexistent_project() {
+        let temp_dir = TempDir::new().unwrap();
+        unsafe {
+            std::env::set_var("HOME", temp_dir.path());
+        }
+        
+        let throttle = TouchThrottle::new(Duration::from_millis(100));
+        let result = maybe_touch_updated_at("nonexistent", &throttle);
+        assert!(result.is_ok()); // Should not fail for nonexistent projects
+        
+        unsafe {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn test_maybe_touch_updated_at_throttled() {
+        let temp_dir = TempDir::new().unwrap();
+        unsafe {
+            std::env::set_var("HOME", temp_dir.path());
+        }
+        
+        // Create project metadata
+        let metadata = ProjectMetadata {
+            path: PathBuf::from("/test/path"),
+            sha256: Some("test".to_string()),
+            friendly_name: Some("test-project".to_string()),
+            first_used: None,
+            updated_at: None,
+        };
+        
+        write_project_metadata("test", &metadata).unwrap();
+        
+        let throttle = TouchThrottle::new(Duration::from_secs(1));
+        
+        // First touch should succeed
+        let result1 = maybe_touch_updated_at("test", &throttle);
+        assert!(result1.is_ok());
+        
+        // Immediate second touch should be throttled (no error, just skipped)
+        let result2 = maybe_touch_updated_at("test", &throttle);
+        assert!(result2.is_ok());
+        
+        unsafe {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn test_make_enriched_project_existing_metadata() {
+        let temp_dir = TempDir::new().unwrap();
+        unsafe {
+            std::env::set_var("HOME", temp_dir.path());
+        }
+        
+        // Create project metadata
+        let metadata = ProjectMetadata {
+            path: PathBuf::from("/existing/path"),
+            sha256: Some("existing".to_string()),
+            friendly_name: Some("existing-project".to_string()),
+            first_used: None,
+            updated_at: None,
+        };
+        
+        write_project_metadata("existing", &metadata).unwrap();
+        
+        let result = make_enriched_project("existing", None, false);
+        assert_eq!(result.sha256, "existing");
+        assert_eq!(result.root_path, PathBuf::from("/existing/path"));
+        assert_eq!(result.metadata.friendly_name, "existing-project");
+        
+        unsafe {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn test_make_enriched_project_with_external_root() {
+        let temp_dir = TempDir::new().unwrap();
+        unsafe {
+            std::env::set_var("HOME", temp_dir.path());
+        }
+        
+        let external_root = Path::new("/external/root");
+        let result = make_enriched_project("newproject", Some(external_root), false);
+        
+        assert_eq!(result.sha256, "newproject");
+        assert_eq!(result.root_path, PathBuf::from("/external/root"));
+        
+        unsafe {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn test_make_enriched_project_create_if_missing() {
+        let temp_dir = TempDir::new().unwrap();
+        unsafe {
+            std::env::set_var("HOME", temp_dir.path());
+        }
+        
+        let external_root = Path::new("/new/project");
+        let result = make_enriched_project("newsha", Some(external_root), true);
+        
+        assert_eq!(result.sha256, "newsha");
+        assert_eq!(result.root_path, PathBuf::from("/new/project"));
+        assert!(result.metadata.friendly_name.len() > 0);
+        
+        unsafe {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn test_list_projects_no_home() {
+        unsafe {
+            unsafe {
+            std::env::remove_var("HOME");
+        }
+            std::env::remove_var("USERPROFILE");
+        }
+        
+        let result = list_projects(10, 0).unwrap();
+        assert_eq!(result.items.len(), 0);
+        assert_eq!(result.total, 0);
+        assert_eq!(result.limit, 10);
+        assert_eq!(result.offset, 0);
+    }
+
+    #[test]
+    fn test_list_projects_empty_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        unsafe {
+            std::env::set_var("HOME", temp_dir.path());
+        }
+        
+        // Create projects directory but leave it empty
+        let projects_dir = temp_dir.path().join(".gemini-desktop/projects");
+        fs::create_dir_all(&projects_dir).unwrap();
+        
+        let result = list_projects(10, 0).unwrap();
+        assert_eq!(result.items.len(), 0);
+        assert_eq!(result.total, 0);
+        
+        unsafe {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn test_list_projects_with_valid_projects() {
+        let temp_dir = TempDir::new().unwrap();
+        unsafe {
+            std::env::set_var("HOME", temp_dir.path());
+        }
+        
+        let projects_dir = temp_dir.path().join(".gemini-desktop/projects");
+        fs::create_dir_all(&projects_dir).unwrap();
+        
+        // Create valid project directory (64-char hex)
+        let valid_sha = "a".repeat(64);
+        let project_dir = projects_dir.join(&valid_sha);
+        fs::create_dir_all(&project_dir).unwrap();
+        
+        // Create a log file
+        let log_file = project_dir.join("rpc-log-1640995200000.log");
+        fs::write(&log_file, "test log content").unwrap();
+        
+        // Create invalid directory (not 64-char hex)
+        let invalid_dir = projects_dir.join("invalid");
+        fs::create_dir_all(&invalid_dir).unwrap();
+        
+        let result = list_projects(10, 0).unwrap();
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.total, 1);
+        assert_eq!(result.items[0].id, valid_sha);
+        assert_eq!(result.items[0].status, Some("active".to_string()));
+        assert_eq!(result.items[0].log_count, Some(1));
+        
+        unsafe {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn test_list_projects_pagination() {
+        let temp_dir = TempDir::new().unwrap();
+        unsafe {
+            std::env::set_var("HOME", temp_dir.path());
+        }
+        
+        let projects_dir = temp_dir.path().join(".gemini-desktop/projects");
+        fs::create_dir_all(&projects_dir).unwrap();
+        
+        // Create 3 project directories
+        for i in 0..3 {
+            let sha = format!("{:064x}", i);
+            let project_dir = projects_dir.join(&sha);
+            fs::create_dir_all(&project_dir).unwrap();
+        }
+        
+        // Test first page
+        let result = list_projects(2, 0).unwrap();
+        assert_eq!(result.items.len(), 2);
+        assert_eq!(result.total, 3);
+        assert_eq!(result.limit, 2);
+        assert_eq!(result.offset, 0);
+        
+        // Test second page
+        let result = list_projects(2, 2).unwrap();
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.total, 3);
+        assert_eq!(result.limit, 2);
+        assert_eq!(result.offset, 2);
+        
+        unsafe {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn test_list_enriched_projects_empty() {
+        let temp_dir = TempDir::new().unwrap();
+        unsafe {
+            std::env::set_var("HOME", temp_dir.path());
+        }
+        
+        let projects_dir = temp_dir.path().join(".gemini-desktop/projects");
+        fs::create_dir_all(&projects_dir).unwrap();
+        
+        let result = list_enriched_projects().unwrap();
+        assert_eq!(result.len(), 0);
+        
+        unsafe {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn test_list_enriched_projects_with_projects() {
+        let temp_dir = TempDir::new().unwrap();
+        unsafe {
+            std::env::set_var("HOME", temp_dir.path());
+        }
+        
+        let projects_dir = temp_dir.path().join(".gemini-desktop/projects");
+        fs::create_dir_all(&projects_dir).unwrap();
+        
+        // Create project directory
+        let sha = "a".repeat(64);
+        let project_dir = projects_dir.join(&sha);
+        fs::create_dir_all(&project_dir).unwrap();
+        
+        let result = list_enriched_projects().unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].sha256, sha);
+        
+        unsafe {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_enriched_project() {
+        let temp_dir = TempDir::new().unwrap();
+        unsafe {
+            std::env::set_var("HOME", temp_dir.path());
+        }
+        
+        let result = get_enriched_project(
+            "testsha256".to_string(),
+            "/test/external/root".to_string(),
+        ).await.unwrap();
+        
+        assert_eq!(result.sha256, "testsha256");
+        assert_eq!(result.root_path, PathBuf::from("/test/external/root"));
+        
+        unsafe {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn test_enriched_project_serialization() {
+        let project = EnrichedProject {
+            sha256: "testsha".to_string(),
+            root_path: PathBuf::from("/test/path"),
+            metadata: ProjectMetadataView {
+                path: "/test/path".to_string(),
+                sha256: "testsha".to_string(),
+                friendly_name: "test-project".to_string(),
+                first_used: None,
+                updated_at: None,
+            },
+        };
+
+        let json = serde_json::to_string(&project).unwrap();
+        let deserialized: EnrichedProject = serde_json::from_str(&json).unwrap();
+        
+        assert_eq!(project.sha256, deserialized.sha256);
+        assert_eq!(project.root_path, deserialized.root_path);
+        assert_eq!(project.metadata.path, deserialized.metadata.path);
+    }
+}

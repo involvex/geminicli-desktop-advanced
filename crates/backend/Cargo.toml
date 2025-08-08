@@ -13,3 +13,11 @@ chrono = { version = "0.4", features = ["serde"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.60.2", features = ["Win32_Storage_FileSystem"] }
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3.0"
+mockall = "0.13"
+proptest = "1.0"
+serial_test = "3.0"
+cargo-tarpaulin = "0.31"
