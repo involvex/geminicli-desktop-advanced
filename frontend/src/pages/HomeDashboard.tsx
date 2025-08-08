@@ -95,11 +95,46 @@ export const HomeDashboard: React.FC = () => {
                         />
                       </div>
                     ) : msgPart.type === "toolCall" ? (
-                      <ToolCallDisplay 
-                        toolCall={msgPart.toolCall}
-                        hasConfirmationRequest={confirmationRequests.has(msgPart.toolCall.id)}
-                        onConfirm={handleConfirmToolCall}
-                      />
+                      <>
+                        {(() => {
+                          const hasConfirmation = confirmationRequests.has(msgPart.toolCall.id);
+                          const confirmationRequest = confirmationRequests.get(msgPart.toolCall.id);
+                          
+                          // Force type assertion to debug the issue
+                          const confirmationRequestTyped = confirmationRequest as ToolCallConfirmationRequest | undefined;
+                          console.log('🎨 Rendering tool call in HomeDashboard:', {
+                            toolCallId: msgPart.toolCall.id,
+                            toolCallName: msgPart.toolCall.name,
+                            hasConfirmation,
+                            confirmationRequestExists: !!confirmationRequest,
+                            confirmationMapSize: confirmationRequests.size,
+                            confirmationMapKeys: Array.from(confirmationRequests.keys()),
+                            confirmationType: confirmationRequest?.confirmation?.type,
+                            // Debug the actual confirmation request object
+                            confirmationRequestRaw: confirmationRequest,
+                            confirmationContentExists: !!confirmationRequest?.content,
+                            confirmationContentType: confirmationRequest?.content?.type
+                          });
+                          
+                          console.log('🔥 About to pass confirmationRequest to ToolCallDisplay:', confirmationRequest);
+                          console.log('🔥 Typed version:', confirmationRequestTyped);
+                          
+                          // Try with explicit undefined check
+                          const finalConfirmationRequest = confirmationRequest ? confirmationRequest : undefined;
+                          console.log('🔥 Final confirmation request:', finalConfirmationRequest);
+                          
+                          return (
+                            <ToolCallDisplay 
+                              key={`${msgPart.toolCall.id}-${hasConfirmation}-${Date.now()}`}
+                              toolCall={msgPart.toolCall}
+                              hasConfirmationRequest={hasConfirmation}
+                              confirmationRequest={finalConfirmationRequest}
+                              confirmationRequests={confirmationRequests}
+                              onConfirm={handleConfirmToolCall}
+                            />
+                          );
+                        })()}
+                      </>
                     ) : null
                   )}
 

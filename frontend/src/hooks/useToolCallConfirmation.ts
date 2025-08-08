@@ -22,8 +22,12 @@ export const useToolCallConfirmation = ({
     toolCallId: string,
     outcome: string
   ) => {
+    
     const confirmationRequest = confirmationRequests.get(toolCallId);
-    if (!confirmationRequest) return;
+    if (!confirmationRequest) {
+      return;
+    }
+
 
     try {
       await api.invoke("send_tool_call_confirmation_response", {
@@ -42,7 +46,10 @@ export const useToolCallConfirmation = ({
                 msgPart.type === "toolCall" &&
                 msgPart.toolCall.id === toolCallId
               ) {
+                // PRESERVE the confirmation request data when changing status
+                const preservedConfirmationRequest = msgPart.toolCall.confirmationRequest || confirmationRequest;
                 msgPart.toolCall.status = "running";
+                msgPart.toolCall.confirmationRequest = preservedConfirmationRequest;
                 return;
               }
             }
@@ -73,7 +80,7 @@ export const useToolCallConfirmation = ({
         return newMap;
       });
     } catch (error) {
-      console.error("Failed to send confirmation response:", error);
+      console.error("Failed to send tool call confirmation:", error);
     }
   }, [confirmationRequests, activeConversation, updateConversation]);
 

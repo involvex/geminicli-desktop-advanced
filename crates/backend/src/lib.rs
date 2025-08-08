@@ -1,5 +1,5 @@
 use chrono::{DateTime, FixedOffset, Local, SecondsFormat, Utc};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, File, OpenOptions};
@@ -12,6 +12,25 @@ use thiserror::Error;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader as AsyncBufReader};
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 use tokio::sync::mpsc;
+
+// Helper function to deserialize a string or number to u32
+fn deserialize_string_or_number<'de, D>(deserializer: D) -> Result<u32, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrNumber {
+        String(String),
+        Number(u32),
+    }
+    
+    match StringOrNumber::deserialize(deserializer)? {
+        StringOrNumber::String(s) => s.parse::<u32>()
+            .map_err(|_| serde::de::Error::custom(format!("invalid u32 string: {}", s))),
+        StringOrNumber::Number(n) => Ok(n),
+    }
+}
 
 // =====================================
 // Internal Event Communication System
@@ -218,6 +237,7 @@ pub struct PushToolCallResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateToolCallParams {
     #[serde(rename = "toolCallId")]
+    #[serde(deserialize_with = "deserialize_string_or_number")]
     pub tool_call_id: u32,
     pub status: String,
     pub content: Option<serde_json::Value>,
@@ -2674,7 +2694,7 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
         );
 
         let response_data = RequestToolCallConfirmationResult {
-            id: tool_call_id,
+            id: tool_call_id.clone(),
             outcome,
         };
 
@@ -2691,6 +2711,23 @@ impl<E: EventEmitter + 'static> GeminiBackend<E> {
             &dummy_event_tx,
         )
         .await;
+
+        // After sending confirmation to CLI, proactively emit a tool call update event
+        match tool_call_id.parse::<u32>() {
+            Ok(tool_call_id_num) => {
+                let update = ToolCallUpdate {
+                    tool_call_id: tool_call_id_num,
+                    status: "completed".to_string(),
+                    content: Some(serde_json::json!({
+                        "markdown": "Tool call completed after user confirmation"
+                    })),
+                };
+                let _ = self.emit_tool_call_update(&session_id, &update);
+            }
+            Err(e) => {
+                eprintln!("Failed to parse tool_call_id '{}' as u32: {}", tool_call_id, e);
+            }
+        }
 
         Ok(())
     }
