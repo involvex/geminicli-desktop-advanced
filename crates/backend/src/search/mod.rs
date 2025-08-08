@@ -60,11 +60,12 @@ fn generate_title_from_messages(log_path: &Path) -> String {
         }
 
         if !first_user_message.is_empty() {
-            if first_user_message.len() > 50 {
-                format!("{}...", &first_user_message[..50])
-            } else {
-                first_user_message
+            let mut title = first_user_message;
+            if title.len() > 50 {
+                title.truncate(50);
+                title.push_str("...");
             }
+            title
         } else {
             "Chat Session".to_string()
         }
@@ -292,8 +293,10 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
+    use serial_test::serial;
 
     #[test]
+    #[serial]
     fn test_recent_chat_serialization() {
         let chat = RecentChat {
             id: "test/log.log".to_string(),
@@ -312,6 +315,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_message_match_serialization() {
         let match_item = MessageMatch {
             content_snippet: "test content".to_string(),
@@ -330,6 +334,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_search_result_serialization() {
         let result = SearchResult {
             chat: RecentChat {
@@ -356,6 +361,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_search_filters_default() {
         let filters = SearchFilters::default();
         assert!(filters.date_range.is_none());
@@ -364,6 +370,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_search_filters_serialization() {
         let filters = SearchFilters {
             date_range: Some(("2023-01-01".to_string(), "2023-01-31".to_string())),
@@ -380,12 +387,14 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_parse_timestamp_from_filename_valid() {
         assert_eq!(parse_timestamp_from_filename("rpc-log-1640995200000.log"), Some(1640995200000));
         assert_eq!(parse_timestamp_from_filename("rpc-log-123456789.log"), Some(123456789));
     }
 
     #[test]
+    #[serial]
     fn test_parse_timestamp_from_filename_invalid() {
         assert_eq!(parse_timestamp_from_filename("invalid.log"), None);
         assert_eq!(parse_timestamp_from_filename("rpc-log-invalid.log"), None);
@@ -394,6 +403,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_generate_title_from_messages_with_user_message() {
         let temp_dir = TempDir::new().unwrap();
         let log_path = temp_dir.path().join("test.log");
@@ -406,6 +416,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_generate_title_from_messages_long_message() {
         let temp_dir = TempDir::new().unwrap();
         let log_path = temp_dir.path().join("test.log");
@@ -419,6 +430,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_generate_title_from_messages_no_user_message() {
         let temp_dir = TempDir::new().unwrap();
         let log_path = temp_dir.path().join("test.log");
@@ -431,6 +443,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_generate_title_from_messages_file_not_found() {
         let temp_dir = TempDir::new().unwrap();
         let log_path = temp_dir.path().join("nonexistent.log");
@@ -440,6 +453,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_count_messages_in_log_with_messages() {
         let temp_dir = TempDir::new().unwrap();
         let log_path = temp_dir.path().join("test.log");
@@ -455,6 +469,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_count_messages_in_log_no_messages() {
         let temp_dir = TempDir::new().unwrap();
         let log_path = temp_dir.path().join("test.log");
@@ -468,6 +483,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_count_messages_in_log_file_not_found() {
         let temp_dir = TempDir::new().unwrap();
         let log_path = temp_dir.path().join("nonexistent.log");
@@ -477,6 +493,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_get_recent_chats_no_home() {
         unsafe {
             std::env::remove_var("HOME");
@@ -494,6 +511,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_get_recent_chats_empty_directory() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -513,6 +531,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_get_recent_chats_with_logs() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -540,6 +559,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_get_recent_chats_sorts_by_date() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -570,6 +590,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_get_recent_chats_limits_to_20() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -598,6 +619,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_search_chats_empty_query() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -616,6 +638,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_search_chats_with_matches() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -646,6 +669,7 @@ Another line with different content"#;
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_search_chats_case_insensitive() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -670,6 +694,7 @@ Another line with different content"#;
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_search_chats_with_project_filter() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -704,6 +729,7 @@ Another line with different content"#;
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_search_chats_with_max_results_filter() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -737,6 +763,7 @@ Another line with different content"#;
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_search_chats_sorts_by_relevance() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -770,6 +797,7 @@ Another line with different content"#;
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_search_chats_truncates_long_snippets() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -796,6 +824,7 @@ Another line with different content"#;
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_get_project_discussions_nonexistent_project() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -811,6 +840,7 @@ Another line with different content"#;
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_get_project_discussions_with_logs() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -840,6 +870,7 @@ Another line with different content"#;
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_get_project_discussions_ignores_invalid_files() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {

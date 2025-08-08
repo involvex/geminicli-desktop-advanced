@@ -104,7 +104,10 @@ fn derive_friendly_name_from_path(path: &Path) -> String {
     let s = path.display().to_string();
     #[cfg(windows)]
     {
-        let replaced = s.replace('\\', "-").replace(':', "");
+        // Normalize both backslashes and forward slashes on Windows
+        let replaced = s
+            .replace(['\\', '/'], "-")
+            .replace(':', "");
         replaced
             .split('-')
             .filter(|p| !p.is_empty())
@@ -462,8 +465,10 @@ mod tests {
     use std::fs;
     use std::time::Duration;
     use tempfile::TempDir;
+    use serial_test::serial;
 
     #[test]
+    #[serial]
     fn test_project_list_item_serialization() {
         let item = ProjectListItem {
             id: "test-id".to_string(),
@@ -488,6 +493,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_project_list_item_serialization_with_none_values() {
         let item = ProjectListItem {
             id: "test-id".to_string(),
@@ -514,6 +520,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_projects_response_serialization() {
         let response = ProjectsResponse {
             items: vec![ProjectListItem {
@@ -540,6 +547,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_project_metadata_default() {
         let metadata = ProjectMetadata::default();
         assert_eq!(metadata.path, PathBuf::new());
@@ -550,6 +558,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_project_metadata_view_serialization() {
         let view = ProjectMetadataView {
             path: "/test/path".to_string(),
@@ -570,18 +579,21 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_touch_throttle_new() {
         let throttle = TouchThrottle::new(Duration::from_secs(1));
         assert_eq!(throttle.min_interval, Duration::from_secs(1));
     }
 
     #[test]
+    #[serial]
     fn test_touch_throttle_default() {
         let throttle = TouchThrottle::default();
         assert_eq!(throttle.min_interval, Duration::default());
     }
 
     #[test]
+    #[serial]
     fn test_touch_throttle_clone() {
         let throttle1 = TouchThrottle::new(Duration::from_secs(5));
         let throttle2 = throttle1.clone();
@@ -590,6 +602,7 @@ mod tests {
 
     #[cfg(windows)]
     #[test]
+    #[serial]
     fn test_derive_friendly_name_from_path_windows() {
         let path = Path::new("C:\\Users\\test\\projects\\my-app");
         let result = derive_friendly_name_from_path(path);
@@ -598,6 +611,7 @@ mod tests {
 
     #[cfg(not(windows))]
     #[test]
+    #[serial]
     fn test_derive_friendly_name_from_path_unix() {
         let path = Path::new("/home/test/projects/my-app");
         let result = derive_friendly_name_from_path(path);
@@ -605,6 +619,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_derive_friendly_name_from_path_empty_components() {
         let path = Path::new("//test//project//");
         let result = derive_friendly_name_from_path(path);
@@ -612,12 +627,14 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_parse_millis_from_log_name_valid() {
         assert_eq!(parse_millis_from_log_name("rpc-log-1640995200000.log"), Some(1640995200000));
         assert_eq!(parse_millis_from_log_name("rpc-log-1640995200000.json"), Some(1640995200000));
     }
 
     #[test]
+    #[serial]
     fn test_parse_millis_from_log_name_invalid() {
         assert_eq!(parse_millis_from_log_name("invalid-name.log"), None);
         assert_eq!(parse_millis_from_log_name("rpc-log-invalid.log"), None);
@@ -626,6 +643,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_now_fixed_offset() {
         let now1 = now_fixed_offset();
         std::thread::sleep(Duration::from_millis(1));
@@ -634,6 +652,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_home_projects_root_with_home() {
         unsafe {
             std::env::set_var("HOME", "/test/home");
@@ -650,6 +669,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_home_projects_root_with_userprofile() {
         unsafe {
             unsafe {
@@ -667,6 +687,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_home_projects_root_no_env_vars() {
         unsafe {
             unsafe {
@@ -679,6 +700,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_projects_root_dir() {
         unsafe {
             std::env::set_var("HOME", "/test/home");
@@ -693,6 +715,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_project_json_path() {
         unsafe {
             std::env::set_var("HOME", "/test/home");
@@ -709,6 +732,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_project_json_path_no_root() {
         unsafe {
             unsafe {
@@ -721,6 +745,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_read_project_metadata_no_root() {
         unsafe {
             unsafe {
@@ -733,6 +758,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_read_project_metadata_file_not_found() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -748,6 +774,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_read_project_metadata_success() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -781,6 +808,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_read_project_metadata_invalid_json() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -803,6 +831,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_write_project_metadata_no_root() {
         unsafe {
             unsafe {
@@ -817,6 +846,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_write_project_metadata_success() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -851,6 +881,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_to_view() {
         let metadata = ProjectMetadata {
             path: PathBuf::from("/test/path"),
@@ -871,6 +902,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_to_view_with_defaults() {
         let metadata = ProjectMetadata {
             path: PathBuf::from("/test/path"),
@@ -891,6 +923,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_ensure_project_metadata_existing() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -922,6 +955,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_ensure_project_metadata_create_new() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -943,6 +977,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_ensure_project_metadata_error_no_external() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -958,6 +993,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_maybe_touch_updated_at_nonexistent_project() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -974,6 +1010,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_maybe_touch_updated_at_throttled() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -1007,6 +1044,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_make_enriched_project_existing_metadata() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -1035,6 +1073,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_make_enriched_project_with_external_root() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -1053,6 +1092,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_make_enriched_project_create_if_missing() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -1072,6 +1112,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_list_projects_no_home() {
         unsafe {
             unsafe {
@@ -1088,6 +1129,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_list_projects_empty_directory() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -1108,6 +1150,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_list_projects_with_valid_projects() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -1143,6 +1186,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_list_projects_pagination() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -1179,6 +1223,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_list_enriched_projects_empty() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -1197,6 +1242,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_list_enriched_projects_with_projects() {
         let temp_dir = TempDir::new().unwrap();
         unsafe {
@@ -1206,10 +1252,12 @@ mod tests {
         let projects_dir = temp_dir.path().join(".gemini-desktop/projects");
         fs::create_dir_all(&projects_dir).unwrap();
         
-        // Create project directory
+        // Create project directory and add a log so it is treated as a valid project
         let sha = "a".repeat(64);
         let project_dir = projects_dir.join(&sha);
         fs::create_dir_all(&project_dir).unwrap();
+        let log_file = project_dir.join("rpc-log-1640995200000.log");
+        fs::write(&log_file, "{}").unwrap();
         
         let result = list_enriched_projects().unwrap();
         assert_eq!(result.len(), 1);

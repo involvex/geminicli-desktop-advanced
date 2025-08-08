@@ -1,4 +1,5 @@
 use crate::events::ToolCallLocation;
+use serde::de::{Deserializer, Error as DeError};
 use crate::rpc::deserialize_string_or_number;
 use serde::{Deserialize, Serialize};
 
@@ -29,6 +30,7 @@ pub struct AssistantChunk {
 pub struct PushToolCallParams {
     pub icon: String,
     pub label: String,
+    #[serde(deserialize_with = "deserialize_locations")]
     pub locations: Vec<ToolCallLocation>,
 }
 
@@ -40,6 +42,7 @@ pub struct PushToolCallResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateToolCallParams {
     #[serde(rename = "toolCallId")]
+    #[serde(alias = "tool_call_id")]
     #[serde(deserialize_with = "deserialize_string_or_number")]
     pub tool_call_id: u32,
     pub status: String,
@@ -50,9 +53,80 @@ pub struct UpdateToolCallParams {
 pub struct RequestToolCallConfirmationParams {
     pub label: String,
     pub icon: String,
+    #[serde(default, deserialize_with = "deserialize_content")]
     pub content: Option<crate::events::ToolCallConfirmationContent>,
+    #[serde(deserialize_with = "deserialize_confirmation")]
     pub confirmation: crate::events::ToolCallConfirmation,
+    #[serde(deserialize_with = "deserialize_locations")]
     pub locations: Vec<ToolCallLocation>,
+}
+
+// Support both ["path1", "path2"] and [{"path": "path1"}, ...]
+fn deserialize_locations<'de, D>(deserializer: D) -> Result<Vec<ToolCallLocation>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum LocOrStr {
+        Str(String),
+        Obj(ToolCallLocation),
+    }
+
+    let raw: Vec<LocOrStr> = Vec::<LocOrStr>::deserialize(deserializer)?;
+    Ok(raw
+        .into_iter()
+        .map(|v| match v {
+            LocOrStr::Str(s) => ToolCallLocation { path: s },
+            LocOrStr::Obj(o) => o,
+        })
+        .collect())
+}
+
+fn deserialize_content<'de, D>(deserializer: D) -> Result<Option<crate::events::ToolCallConfirmationContent>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum ContentOrStringOrNull {
+        Null,
+        Str(String),
+        Obj(crate::events::ToolCallConfirmationContent),
+    }
+
+    match ContentOrStringOrNull::deserialize(deserializer)? {
+        ContentOrStringOrNull::Null => Ok(None),
+        ContentOrStringOrNull::Str(s) => Ok(Some(crate::events::ToolCallConfirmationContent {
+            content_type: "text".to_string(),
+            path: None,
+            old_text: None,
+            new_text: Some(s),
+        })),
+        ContentOrStringOrNull::Obj(o) => Ok(Some(o)),
+    }
+}
+
+fn deserialize_confirmation<'de, D>(deserializer: D) -> Result<crate::events::ToolCallConfirmation, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum ConfirmOrBool {
+        Bool(bool),
+        Obj(crate::events::ToolCallConfirmation),
+    }
+
+    match ConfirmOrBool::deserialize(deserializer)? {
+        ConfirmOrBool::Obj(o) => Ok(o),
+        ConfirmOrBool::Bool(true) => Ok(crate::events::ToolCallConfirmation {
+            confirmation_type: "simple".to_string(),
+            root_command: None,
+            command: None,
+        }),
+        ConfirmOrBool::Bool(false) => Err(DeError::custom("confirmation false is unsupported")),
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
