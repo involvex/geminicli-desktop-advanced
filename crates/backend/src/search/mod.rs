@@ -103,6 +103,11 @@ pub async fn get_recent_chats() -> BackendResult<Vec<RecentChat>> {
         for project in projects.flatten() {
             if project.path().is_dir() {
                 let project_hash = project.file_name().to_string_lossy().to_string();
+                
+                // Only process valid 64-character hexadecimal project directories
+                if project_hash.len() != 64 || !project_hash.chars().all(|c| c.is_ascii_hexdigit()) {
+                    continue;
+                }
 
                 if let Ok(logs) = std::fs::read_dir(project.path()) {
                     for log_entry in logs.flatten() {
@@ -143,6 +148,11 @@ pub async fn search_chats(
     query: String,
     filters: Option<SearchFilters>,
 ) -> BackendResult<Vec<SearchResult>> {
+    // Return empty results for empty query
+    if query.trim().is_empty() {
+        return Ok(vec![]);
+    }
+
     let home = std::env::var("HOME")
         .unwrap_or_else(|_| std::env::var("USERPROFILE").unwrap_or_else(|_| ".".to_string()));
 
@@ -158,6 +168,11 @@ pub async fn search_chats(
         for project in projects.flatten() {
             if project.path().is_dir() {
                 let project_hash = project.file_name().to_string_lossy().to_string();
+                
+                // Only process valid 64-character hexadecimal project directories
+                if project_hash.len() != 64 || !project_hash.chars().all(|c| c.is_ascii_hexdigit()) {
+                    continue;
+                }
 
                 if let Some(ref f) = filters
                     && let Some(ref filter_hash) = f.project_hash
@@ -291,19 +306,16 @@ pub async fn get_project_discussions(project_id: &str) -> BackendResult<Vec<Rece
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::{EnvGuard, TestDirManager, builders::*};
     use std::fs;
     use tempfile::TempDir;
-    use serial_test::serial;
 
     #[test]
-    #[serial]
     fn test_recent_chat_serialization() {
-        let chat = RecentChat {
-            id: "test/log.log".to_string(),
-            title: "Test Chat".to_string(),
-            started_at_iso: "2023-01-01T00:00:00Z".to_string(),
-            message_count: 5,
-        };
+        let chat = RecentChatBuilder::new("test/log.log")
+            .with_title("Test Chat")
+            .with_message_count(5)
+            .build();
 
         let json = serde_json::to_string(&chat).unwrap();
         let deserialized: RecentChat = serde_json::from_str(&json).unwrap();
@@ -315,7 +327,6 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_message_match_serialization() {
         let match_item = MessageMatch {
             content_snippet: "test content".to_string(),
@@ -334,15 +345,12 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_search_result_serialization() {
         let result = SearchResult {
-            chat: RecentChat {
-                id: "test/log.log".to_string(),
-                title: "Test Chat".to_string(),
-                started_at_iso: "2023-01-01T00:00:00Z".to_string(),
-                message_count: 5,
-            },
+            chat: RecentChatBuilder::new("test/log.log")
+                .with_title("Test Chat")
+                .with_message_count(5)
+                .build(),
             matches: vec![MessageMatch {
                 content_snippet: "test content".to_string(),
                 line_number: 42,
@@ -361,7 +369,6 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_search_filters_default() {
         let filters = SearchFilters::default();
         assert!(filters.date_range.is_none());
@@ -370,7 +377,6 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_search_filters_serialization() {
         let filters = SearchFilters {
             date_range: Some(("2023-01-01".to_string(), "2023-01-31".to_string())),
@@ -387,14 +393,12 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_parse_timestamp_from_filename_valid() {
         assert_eq!(parse_timestamp_from_filename("rpc-log-1640995200000.log"), Some(1640995200000));
         assert_eq!(parse_timestamp_from_filename("rpc-log-123456789.log"), Some(123456789));
     }
 
     #[test]
-    #[serial]
     fn test_parse_timestamp_from_filename_invalid() {
         assert_eq!(parse_timestamp_from_filename("invalid.log"), None);
         assert_eq!(parse_timestamp_from_filename("rpc-log-invalid.log"), None);
@@ -403,7 +407,6 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_generate_title_from_messages_with_user_message() {
         let temp_dir = TempDir::new().unwrap();
         let log_path = temp_dir.path().join("test.log");
@@ -416,7 +419,6 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_generate_title_from_messages_long_message() {
         let temp_dir = TempDir::new().unwrap();
         let log_path = temp_dir.path().join("test.log");
@@ -430,7 +432,6 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_generate_title_from_messages_no_user_message() {
         let temp_dir = TempDir::new().unwrap();
         let log_path = temp_dir.path().join("test.log");
@@ -443,7 +444,6 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_generate_title_from_messages_file_not_found() {
         let temp_dir = TempDir::new().unwrap();
         let log_path = temp_dir.path().join("nonexistent.log");
@@ -453,7 +453,6 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_count_messages_in_log_with_messages() {
         let temp_dir = TempDir::new().unwrap();
         let log_path = temp_dir.path().join("test.log");
@@ -469,7 +468,6 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_count_messages_in_log_no_messages() {
         let temp_dir = TempDir::new().unwrap();
         let log_path = temp_dir.path().join("test.log");
@@ -483,7 +481,6 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_count_messages_in_log_file_not_found() {
         let temp_dir = TempDir::new().unwrap();
         let log_path = temp_dir.path().join("nonexistent.log");
@@ -493,167 +490,117 @@ mod tests {
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_get_recent_chats_no_home() {
-        unsafe {
-            std::env::remove_var("HOME");
-            std::env::remove_var("USERPROFILE");
-            std::env::set_var("HOME", ".");
-        }
+        let mut env_guard = EnvGuard::new();
+        env_guard.remove("HOME");
+        env_guard.remove("USERPROFILE");
+        env_guard.set("HOME", ".");
         
         // Should not fail, but may return empty results if no projects directory exists
         let result = get_recent_chats().await;
         assert!(result.is_ok());
-        
-        unsafe {
-            std::env::remove_var("HOME");
-        }
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_get_recent_chats_empty_directory() {
-        let temp_dir = TempDir::new().unwrap();
-        unsafe {
-            std::env::set_var("HOME", temp_dir.path());
-        }
+        let test_dir_manager = TestDirManager::new().unwrap();
+        let mut env_guard = EnvGuard::new();
+        env_guard.set("HOME", test_dir_manager.path().to_string_lossy());
         
         // Create projects directory but leave it empty
-        let projects_dir = temp_dir.path().join(".gemini-desktop/projects");
-        fs::create_dir_all(&projects_dir).unwrap();
+        let _projects_dir = test_dir_manager.create_projects_structure().unwrap();
         
         let result = get_recent_chats().await.unwrap();
         assert_eq!(result.len(), 0);
-        
-        unsafe {
-            std::env::remove_var("HOME");
-        }
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_get_recent_chats_with_logs() {
-        let temp_dir = TempDir::new().unwrap();
-        unsafe {
-            std::env::set_var("HOME", temp_dir.path());
-        }
-        
-        let projects_dir = temp_dir.path().join(".gemini-desktop/projects");
-        let project_dir = projects_dir.join("test_project_hash");
-        fs::create_dir_all(&project_dir).unwrap();
+        let test_dir_manager = TestDirManager::new().unwrap();
+        let mut env_guard = EnvGuard::new();
+        env_guard.set("HOME", test_dir_manager.path().to_string_lossy());
         
         // Create a log file with valid name and content
-        let log_file = project_dir.join("rpc-log-1640995200000.log");
-        let content = r#"{"method":"sendUserMessage","params":{"text":"Test message"}}"#;
-        fs::write(&log_file, content).unwrap();
+        let valid_project_hash = "c".repeat(64); // Use 64-character hex string
+        let _log_file = test_dir_manager.create_log_file(
+            &valid_project_hash,
+            1640995200000,
+            r#"{"method":"sendUserMessage","params":{"text":"Test message"}}"#
+        ).unwrap();
         
         let result = get_recent_chats().await.unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].title, "Test message");
         assert_eq!(result[0].message_count, 1);
-        assert!(result[0].id.contains("test_project_hash"));
-        
-        unsafe {
-            std::env::remove_var("HOME");
-        }
+        assert!(result[0].id.contains(&valid_project_hash));
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_get_recent_chats_sorts_by_date() {
-        let temp_dir = TempDir::new().unwrap();
-        unsafe {
-            std::env::set_var("HOME", temp_dir.path());
-        }
-        
-        let projects_dir = temp_dir.path().join(".gemini-desktop/projects");
-        let project_dir = projects_dir.join("test_project");
-        fs::create_dir_all(&project_dir).unwrap();
-        
-        // Create multiple log files with different timestamps
-        let older_log = project_dir.join("rpc-log-1640995100000.log");
-        let newer_log = project_dir.join("rpc-log-1640995200000.log");
+        let test_dir_manager = TestDirManager::new().unwrap();
+        let mut env_guard = EnvGuard::new();
+        env_guard.set("HOME", test_dir_manager.path().to_string_lossy());
         
         let content = r#"{"method":"sendUserMessage","params":{"text":"Test"}}"#;
-        fs::write(&older_log, content).unwrap();
-        fs::write(&newer_log, content).unwrap();
+        let valid_project_hash = "d".repeat(64); // Use 64-character hex string
+        
+        // Create multiple log files with different timestamps
+        test_dir_manager.create_log_file(&valid_project_hash, 1640995100000, content).unwrap();
+        test_dir_manager.create_log_file(&valid_project_hash, 1640995200000, content).unwrap();
         
         let result = get_recent_chats().await.unwrap();
         assert_eq!(result.len(), 2);
         // Newer chat should be first
         assert!(result[0].id.contains("1640995200000"));
         assert!(result[1].id.contains("1640995100000"));
-        
-        unsafe {
-            std::env::remove_var("HOME");
-        }
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_get_recent_chats_limits_to_20() {
-        let temp_dir = TempDir::new().unwrap();
-        unsafe {
-            std::env::set_var("HOME", temp_dir.path());
-        }
-        
-        let projects_dir = temp_dir.path().join(".gemini-desktop/projects");
-        let project_dir = projects_dir.join("test_project");
-        fs::create_dir_all(&project_dir).unwrap();
+        let test_dir_manager = TestDirManager::new().unwrap();
+        let mut env_guard = EnvGuard::new();
+        env_guard.set("HOME", test_dir_manager.path().to_string_lossy());
         
         let content = r#"{"method":"sendUserMessage","params":{"text":"Test"}}"#;
+        let valid_project_hash = "e".repeat(64); // Use 64-character hex string
         
         // Create 25 log files
         for i in 0..25 {
             let timestamp = 1640995200000u64 + i as u64;
-            let log_file = project_dir.join(format!("rpc-log-{}.log", timestamp));
-            fs::write(&log_file, content).unwrap();
+            test_dir_manager.create_log_file(&valid_project_hash, timestamp, content).unwrap();
         }
         
         let result = get_recent_chats().await.unwrap();
         assert_eq!(result.len(), 20); // Should be limited to 20
-        
-        unsafe {
-            std::env::remove_var("HOME");
-        }
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_search_chats_empty_query() {
-        let temp_dir = TempDir::new().unwrap();
-        unsafe {
-            std::env::set_var("HOME", temp_dir.path());
-        }
+        let test_dir_manager = TestDirManager::new().unwrap();
+        let mut env_guard = EnvGuard::new();
+        env_guard.set("HOME", test_dir_manager.path().to_string_lossy());
         
-        let projects_dir = temp_dir.path().join(".gemini-desktop/projects");
-        fs::create_dir_all(&projects_dir).unwrap();
+        // Create a log file with content that would match if query wasn't empty
+        let content = r#"{"method":"sendUserMessage","params":{"text":"Hello world"}}"#;
+        let valid_project_hash = "f".repeat(64); // Use 64-character hex string
+        test_dir_manager.create_log_file(&valid_project_hash, 1640995200000, content).unwrap();
         
         let result = search_chats("".to_string(), None).await.unwrap();
-        assert_eq!(result.len(), 0);
-        
-        unsafe {
-            std::env::remove_var("HOME");
-        }
+        assert_eq!(result.len(), 0); // Empty query should return no results
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_search_chats_with_matches() {
-        let temp_dir = TempDir::new().unwrap();
-        unsafe {
-            std::env::set_var("HOME", temp_dir.path());
-        }
+        let test_dir_manager = TestDirManager::new().unwrap();
+        let mut env_guard = EnvGuard::new();
+        env_guard.set("HOME", test_dir_manager.path().to_string_lossy());
         
-        let projects_dir = temp_dir.path().join(".gemini-desktop/projects");
-        let project_dir = projects_dir.join("test_project");
-        fs::create_dir_all(&project_dir).unwrap();
-        
-        let log_file = project_dir.join("rpc-log-1640995200000.log");
         let content = r#"{"method":"sendUserMessage","params":{"text":"Hello world"}}
 This line contains search term
 Another line with different content"#;
-        fs::write(&log_file, content).unwrap();
+        
+        let valid_project_hash = "1".repeat(64); // Use 64-character hex string
+        test_dir_manager.create_log_file(&valid_project_hash, 1640995200000, content).unwrap();
         
         let result = search_chats("search term".to_string(), None).await.unwrap();
         assert_eq!(result.len(), 1);
@@ -662,48 +609,34 @@ Another line with different content"#;
         assert_eq!(result[0].matches[0].line_number, 2);
         assert!(result[0].matches[0].context_before.is_some());
         assert!(result[0].matches[0].context_after.is_some());
-        
-        unsafe {
-            std::env::remove_var("HOME");
-        }
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_search_chats_case_insensitive() {
-        let temp_dir = TempDir::new().unwrap();
-        unsafe {
-            std::env::set_var("HOME", temp_dir.path());
-        }
+        let test_dir_manager = TestDirManager::new().unwrap();
+        let mut env_guard = EnvGuard::new();
+        env_guard.set("HOME", test_dir_manager.path().to_string_lossy());
         
-        let projects_dir = temp_dir.path().join(".gemini-desktop/projects");
-        let project_dir = projects_dir.join("test_project");
-        fs::create_dir_all(&project_dir).unwrap();
-        
-        let log_file = project_dir.join("rpc-log-1640995200000.log");
         let content = "This line contains SEARCH TERM";
-        fs::write(&log_file, content).unwrap();
+        let valid_project_hash = "2".repeat(64); // Use 64-character hex string
+        test_dir_manager.create_log_file(&valid_project_hash, 1640995200000, content).unwrap();
         
         let result = search_chats("search term".to_string(), None).await.unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].matches.len(), 1);
-        
-        unsafe {
-            std::env::remove_var("HOME");
-        }
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_search_chats_with_project_filter() {
         let temp_dir = TempDir::new().unwrap();
-        unsafe {
-            std::env::set_var("HOME", temp_dir.path());
-        }
+        let mut env_guard = EnvGuard::new();
+        env_guard.set("HOME", temp_dir.path().to_str().unwrap());
         
         let projects_dir = temp_dir.path().join(".gemini-desktop/projects");
-        let project1_dir = projects_dir.join("project1");
-        let project2_dir = projects_dir.join("project2");
+        let project1_hash = "5".repeat(64); // Use 64-character hex string
+        let project2_hash = "6".repeat(64); // Use 64-character hex string
+        let project1_dir = projects_dir.join(&project1_hash);
+        let project2_dir = projects_dir.join(&project2_hash);
         fs::create_dir_all(&project1_dir).unwrap();
         fs::create_dir_all(&project2_dir).unwrap();
         
@@ -715,29 +648,24 @@ Another line with different content"#;
         fs::write(&log2, content).unwrap();
         
         let filters = SearchFilters {
-            project_hash: Some("project1".to_string()),
+            project_hash: Some(project1_hash.clone()),
             ..Default::default()
         };
         
         let result = search_chats("search term".to_string(), Some(filters)).await.unwrap();
         assert_eq!(result.len(), 1);
-        assert!(result[0].chat.id.contains("project1"));
-        
-        unsafe {
-            std::env::remove_var("HOME");
-        }
+        assert!(result[0].chat.id.contains(&project1_hash));
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_search_chats_with_max_results_filter() {
         let temp_dir = TempDir::new().unwrap();
-        unsafe {
-            std::env::set_var("HOME", temp_dir.path());
-        }
+        let mut env_guard = EnvGuard::new();
+        env_guard.set("HOME", temp_dir.path().to_str().unwrap());
         
         let projects_dir = temp_dir.path().join(".gemini-desktop/projects");
-        let project_dir = projects_dir.join("test_project");
+        let valid_project_hash = "7".repeat(64); // Use 64-character hex string
+        let project_dir = projects_dir.join(&valid_project_hash);
         fs::create_dir_all(&project_dir).unwrap();
         
         let content = "This contains the search term";
@@ -756,22 +684,17 @@ Another line with different content"#;
         
         let result = search_chats("search term".to_string(), Some(filters)).await.unwrap();
         assert_eq!(result.len(), 2);
-        
-        unsafe {
-            std::env::remove_var("HOME");
-        }
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_search_chats_sorts_by_relevance() {
         let temp_dir = TempDir::new().unwrap();
-        unsafe {
-            std::env::set_var("HOME", temp_dir.path());
-        }
+        let mut env_guard = EnvGuard::new();
+        env_guard.set("HOME", temp_dir.path().to_str().unwrap());
         
         let projects_dir = temp_dir.path().join(".gemini-desktop/projects");
-        let project_dir = projects_dir.join("test_project");
+        let valid_project_hash = "4".repeat(64); // Use 64-character hex string
+        let project_dir = projects_dir.join(&valid_project_hash);
         fs::create_dir_all(&project_dir).unwrap();
         
         // Create log with 1 match
@@ -790,22 +713,17 @@ Another line with different content"#;
         assert_eq!(result[0].matches.len(), 2);
         assert_eq!(result[1].matches.len(), 1);
         assert!(result[0].relevance_score > result[1].relevance_score);
-        
-        unsafe {
-            std::env::remove_var("HOME");
-        }
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_search_chats_truncates_long_snippets() {
         let temp_dir = TempDir::new().unwrap();
-        unsafe {
-            std::env::set_var("HOME", temp_dir.path());
-        }
+        let mut env_guard = EnvGuard::new();
+        env_guard.set("HOME", temp_dir.path().to_str().unwrap());
         
         let projects_dir = temp_dir.path().join(".gemini-desktop/projects");
-        let project_dir = projects_dir.join("test_project");
+        let valid_project_hash = "3".repeat(64); // Use 64-character hex string
+        let project_dir = projects_dir.join(&valid_project_hash);
         fs::create_dir_all(&project_dir).unwrap();
         
         let log_file = project_dir.join("rpc-log-1640995200000.log");
@@ -817,38 +735,27 @@ Another line with different content"#;
         assert_eq!(result[0].matches.len(), 1);
         assert!(result[0].matches[0].content_snippet.ends_with("..."));
         assert!(result[0].matches[0].content_snippet.len() <= 203); // 200 + "..."
-        
-        unsafe {
-            std::env::remove_var("HOME");
-        }
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_get_project_discussions_nonexistent_project() {
         let temp_dir = TempDir::new().unwrap();
-        unsafe {
-            std::env::set_var("HOME", temp_dir.path());
-        }
+        let mut env_guard = EnvGuard::new();
+        env_guard.set("HOME", temp_dir.path().to_str().unwrap());
         
         let result = get_project_discussions("nonexistent").await.unwrap();
         assert_eq!(result.len(), 0);
-        
-        unsafe {
-            std::env::remove_var("HOME");
-        }
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_get_project_discussions_with_logs() {
         let temp_dir = TempDir::new().unwrap();
-        unsafe {
-            std::env::set_var("HOME", temp_dir.path());
-        }
+        let mut env_guard = EnvGuard::new();
+        env_guard.set("HOME", temp_dir.path().to_str().unwrap());
         
         let projects_dir = temp_dir.path().join(".gemini-desktop/projects");
-        let project_dir = projects_dir.join("test_project");
+        let valid_project_hash = "8".repeat(64); // Use 64-character hex string
+        let project_dir = projects_dir.join(&valid_project_hash);
         fs::create_dir_all(&project_dir).unwrap();
         
         // Create log files
@@ -858,27 +765,22 @@ Another line with different content"#;
         fs::write(&log1, content).unwrap();
         fs::write(&log2, content).unwrap();
         
-        let result = get_project_discussions("test_project").await.unwrap();
+        let result = get_project_discussions(&valid_project_hash).await.unwrap();
         assert_eq!(result.len(), 2);
         // Should be sorted by date descending
         assert!(result[0].id.contains("1640995200000"));
         assert!(result[1].id.contains("1640995100000"));
-        
-        unsafe {
-            std::env::remove_var("HOME");
-        }
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_get_project_discussions_ignores_invalid_files() {
         let temp_dir = TempDir::new().unwrap();
-        unsafe {
-            std::env::set_var("HOME", temp_dir.path());
-        }
+        let mut env_guard = EnvGuard::new();
+        env_guard.set("HOME", temp_dir.path().to_str().unwrap());
         
         let projects_dir = temp_dir.path().join(".gemini-desktop/projects");
-        let project_dir = projects_dir.join("test_project");
+        let valid_project_hash = "9".repeat(64); // Use 64-character hex string
+        let project_dir = projects_dir.join(&valid_project_hash);
         fs::create_dir_all(&project_dir).unwrap();
         
         // Create valid log file
@@ -892,11 +794,7 @@ Another line with different content"#;
         let invalid_log = project_dir.join("rpc-log-invalid.log");
         fs::write(&invalid_log, "invalid").unwrap();
         
-        let result = get_project_discussions("test_project").await.unwrap();
+        let result = get_project_discussions(&valid_project_hash).await.unwrap();
         assert_eq!(result.len(), 1); // Only the valid log should be included
-        
-        unsafe {
-            std::env::remove_var("HOME");
-        }
     }
 }

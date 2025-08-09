@@ -24,3 +24,6 @@ frontend/*.local
 *.sw?
 
 target
+
+# Gemini Desktop test artifacts
+.gemini-desktop/

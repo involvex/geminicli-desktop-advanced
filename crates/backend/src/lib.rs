@@ -9,6 +9,10 @@ pub mod security;
 pub mod session;
 pub mod types;
 
+// Test utilities (only available in test builds)
+#[cfg(test)]
+pub mod test_utils;
+
 // Re-exports
 pub use cli::{
     AssistantChunk, CommandResult, MessageChunk, PushToolCallParams, PushToolCallResult,

@@ -1161,10 +1161,268 @@ mod tests {
         assert!(deserialized.error.is_none());
     }
 
-    // Note: Testing initialize_session and handle_session_io_internal would require
-    // complex mocking of external processes and async I/O. These functions are integration
-    // points that are better tested through end-to-end tests rather than unit tests.
-    // The core logic components have been tested above.
+    // Integration tests for critical session management functions
+    // These tests address the integration test gaps identified in the audit
+
+    #[tokio::test]
+    async fn test_initialize_session_integration() {
+        use crate::events::MockEventEmitter;
+        use crate::test_utils::{EnvGuard, TestDirManager};
+        use tempfile::TempDir;
+        
+        let mut env_guard = EnvGuard::new();
+        let temp_dir = TempDir::new().unwrap();
+        env_guard.set_temp_home(&temp_dir);
+        
+        let test_dir_manager = TestDirManager::new().unwrap();
+        let working_dir = test_dir_manager.create_unique_subdir("test_session").unwrap();
+        
+        let emitter = MockEventEmitter::new();
+        let session_manager = SessionManager::new();
+        
+        // Test session initialization with mock emitter
+        // Note: This will fail if gemini CLI is not installed, but tests the integration logic
+        let result = initialize_session(
+            "test-session-123".to_string(),
+            working_dir.to_string_lossy().to_string(),
+            "gemini-2.5-flash".to_string(),
+            emitter.clone(),
+            &session_manager,
+        ).await;
+        
+        // The result may fail due to missing CLI, but we can test the error handling
+        match result {
+            Ok((sender, _logger)) => {
+                // If successful, verify the session was created
+                let statuses = session_manager.get_process_statuses().unwrap();
+                assert_eq!(statuses.len(), 1);
+                assert_eq!(statuses[0].conversation_id, "test-session-123");
+                assert!(statuses[0].is_alive);
+                
+                // Test that we can send a message (will be queued)
+                let test_message = "test message";
+                let send_result = sender.send(test_message.to_string());
+                assert!(send_result.is_ok());
+            },
+            Err(e) => {
+                // Expected if gemini CLI is not available
+                // Verify it's the expected error type
+                match e {
+                    crate::types::BackendError::SessionInitFailed(_) => {
+                        // This is expected when CLI is not available
+                        println!("Session init failed as expected (CLI not available): {}", e);
+                    },
+                    _ => panic!("Unexpected error type: {}", e),
+                }
+            }
+        }
+        
+        // Verify events were emitted during initialization attempt
+        assert!(emitter.total_events() > 0);
+        assert!(emitter.has_event("cli-io-test-session-123"));
+    }
+
+    #[tokio::test]
+    async fn test_session_manager_integration() {
+        use crate::rpc::NoOpRpcLogger;
+        use std::sync::Arc;
+        
+        let session_manager = SessionManager::new();
+        
+        // Test adding a mock session
+        {
+            let mut processes = session_manager.processes.lock().unwrap();
+            processes.insert("integration-test".to_string(), PersistentSession {
+                conversation_id: "integration-test".to_string(),
+                pid: Some(12345),
+                created_at: 1640995200,
+                is_alive: true,
+                stdin: None,
+                message_sender: None,
+                rpc_logger: Arc::new(NoOpRpcLogger),
+                child: None,
+            });
+        }
+        
+        // Test process status retrieval
+        let statuses = session_manager.get_process_statuses().unwrap();
+        assert_eq!(statuses.len(), 1);
+        assert_eq!(statuses[0].conversation_id, "integration-test");
+        assert!(statuses[0].is_alive);
+        
+        // Test process killing
+        let kill_result = session_manager.kill_process("integration-test");
+        assert!(kill_result.is_ok());
+        
+        // Verify process was marked as not alive
+        let statuses_after_kill = session_manager.get_process_statuses().unwrap();
+        assert_eq!(statuses_after_kill.len(), 1);
+        assert!(!statuses_after_kill[0].is_alive);
+    }
+
+    #[tokio::test]
+    async fn test_handle_cli_output_line_integration() {
+        use crate::events::MockEventEmitter;
+        use tokio::sync::mpsc;
+        use std::collections::HashSet;
+        
+        let _emitter = MockEventEmitter::new();
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let mut tool_call_id = 1001u32;
+        let mut pending_requests = HashSet::new();
+        
+        // Test complete workflow with multiple message types
+        let messages = vec![
+            // Tool call push
+            r#"{"method":"pushToolCall","params":{"label":"Test Tool","icon":"🔧","locations":[{"path":"test.rs"}]}}"#,
+            // Tool call update
+            r#"{"method":"updateToolCall","params":{"tool_call_id":1001,"status":"completed","content":{"result":"success"}}}"#,
+            // Assistant message chunk
+            r#"{"method":"streamAssistantMessageChunk","params":{"chunk":{"text":"Hello","thought":"Thinking"}}}"#,
+            // Tool call confirmation request
+            r#"{"id":42,"method":"requestToolCallConfirmation","params":{"label":"Confirm","icon":"❓","content":{"type":"edit"},"confirmation":{"type":"simple"},"locations":[{"path":"test.rs"}]}}"#,
+        ];
+        
+        for message in messages {
+            handle_cli_output_line(
+                "integration-test",
+                message,
+                &tx,
+                &mut tool_call_id,
+                &mut pending_requests,
+            ).await;
+        }
+        
+        // Collect all events
+        let mut events = Vec::new();
+        while let Ok(event) = rx.try_recv() {
+            events.push(event);
+        }
+        
+        // Verify we received the expected events (should be at least 4, but could be more due to async timing)
+        assert!(events.len() >= 4);
+        
+        // Verify event types
+        match &events[0] {
+            crate::events::InternalEvent::ToolCall { session_id, payload } => {
+                assert_eq!(session_id, "integration-test");
+                assert_eq!(payload.id, 1001);
+                assert_eq!(payload.label, "Test Tool");
+            },
+            _ => panic!("Expected ToolCall event"),
+        }
+        
+        match &events[1] {
+            crate::events::InternalEvent::ToolCallUpdate { session_id, payload } => {
+                assert_eq!(session_id, "integration-test");
+                assert_eq!(payload.tool_call_id, 1001);
+                assert_eq!(payload.status, "completed");
+            },
+            _ => panic!("Expected ToolCallUpdate event"),
+        }
+        
+        // Verify tool_call_id was incremented
+        assert_eq!(tool_call_id, 1002);
+    }
+
+    #[tokio::test]
+    async fn test_send_response_to_cli_integration() {
+        use crate::rpc::{NoOpRpcLogger, JsonRpcResponse};
+        use tokio::sync::mpsc;
+        use std::sync::Arc;
+        
+        let processes: ProcessMap = Arc::new(Mutex::new(HashMap::new()));
+        let (tx, mut rx) = mpsc::unbounded_channel::<String>();
+        
+        // Set up a mock session with message sender
+        {
+            let mut guard = processes.lock().unwrap();
+            guard.insert("integration-test".to_string(), PersistentSession {
+                conversation_id: "integration-test".to_string(),
+                pid: Some(12345),
+                created_at: 1640995200,
+                is_alive: true,
+                stdin: None,
+                message_sender: Some(tx),
+                rpc_logger: Arc::new(NoOpRpcLogger),
+                child: None,
+            });
+        }
+        
+        // Test sending a response
+        send_response_to_cli(
+            "integration-test",
+            123,
+            Some(serde_json::json!({"status": "success"})),
+            None,
+            &processes,
+        ).await;
+        
+        // Verify the response was sent
+        let response_json = rx.recv().await.unwrap();
+        let response: JsonRpcResponse = serde_json::from_str(&response_json).unwrap();
+        
+        assert_eq!(response.id, 123);
+        assert_eq!(response.result, Some(serde_json::json!({"status": "success"})));
+        assert!(response.error.is_none());
+    }
+
+    #[test]
+    fn test_session_thread_safety() {
+        use std::thread;
+        use std::sync::Arc;
+        use crate::rpc::NoOpRpcLogger;
+        
+        let session_manager = SessionManager::new();
+        let session_manager = Arc::new(session_manager);
+        
+        let mut handles = vec![];
+        
+        // Spawn multiple threads that add and remove sessions
+        for i in 0..10 {
+            let manager = Arc::clone(&session_manager);
+            let handle = thread::spawn(move || {
+                let session_id = format!("thread-session-{}", i);
+                
+                // Add session
+                {
+                    let mut processes = manager.processes.lock().unwrap();
+                    processes.insert(session_id.clone(), PersistentSession {
+                        conversation_id: session_id.clone(),
+                        pid: Some(1000 + i as u32),
+                        created_at: 1640995200 + i as u64,
+                        is_alive: true,
+                        stdin: None,
+                        message_sender: None,
+                        rpc_logger: Arc::new(NoOpRpcLogger),
+                        child: None,
+                    });
+                }
+                
+                // Get status
+                let statuses = manager.get_process_statuses().unwrap();
+                assert!(statuses.iter().any(|s| s.conversation_id == session_id));
+                
+                // Kill session
+                manager.kill_process(&session_id).unwrap();
+            });
+            handles.push(handle);
+        }
+        
+        // Wait for all threads to complete
+        for handle in handles {
+            handle.join().unwrap();
+        }
+        
+        // Verify final state
+        let final_statuses = session_manager.get_process_statuses().unwrap();
+        assert_eq!(final_statuses.len(), 10);
+        
+        // All sessions should be marked as not alive
+        for status in final_statuses {
+            assert!(!status.is_alive);
+        }
+    }
 
     #[test] 
     fn test_process_map_thread_safety() {

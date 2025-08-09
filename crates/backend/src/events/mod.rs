@@ -128,11 +128,130 @@ pub struct ToolCallConfirmation {
 }
 
 #[cfg(test)]
-pub struct MockEventEmitter;
+use std::sync::{Arc, Mutex};
+#[cfg(test)]
+use std::collections::HashMap;
+
+/// Enhanced MockEventEmitter for comprehensive testing
+///
+/// This replaces the simple MockEventEmitter to address the integration test gaps
+/// identified in the audit. It captures events for verification and provides
+/// utilities for testing event emission patterns.
+#[cfg(test)]
+#[derive(Debug)]
+pub struct MockEventEmitter {
+    events: Arc<Mutex<Vec<(String, serde_json::Value)>>>,
+    event_counts: Arc<Mutex<HashMap<String, usize>>>,
+}
+
+#[cfg(test)]
+impl MockEventEmitter {
+    /// Create a new MockEventEmitter
+    pub fn new() -> Self {
+        Self {
+            events: Arc::new(Mutex::new(Vec::new())),
+            event_counts: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    /// Get all captured events
+    pub fn get_events(&self) -> Vec<(String, serde_json::Value)> {
+        self.events.lock().unwrap().clone()
+    }
+
+    /// Get events by name
+    pub fn get_events_by_name(&self, event_name: &str) -> Vec<serde_json::Value> {
+        self.events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(name, _)| name == event_name)
+            .map(|(_, payload)| payload.clone())
+            .collect()
+    }
+
+    /// Get the count of events by name
+    pub fn get_event_count(&self, event_name: &str) -> usize {
+        self.event_counts
+            .lock()
+            .unwrap()
+            .get(event_name)
+            .copied()
+            .unwrap_or(0)
+    }
+
+    /// Get total number of events emitted
+    pub fn total_events(&self) -> usize {
+        self.events.lock().unwrap().len()
+    }
+
+    /// Clear all captured events
+    pub fn clear(&self) {
+        self.events.lock().unwrap().clear();
+        self.event_counts.lock().unwrap().clear();
+    }
+
+    /// Check if a specific event was emitted
+    pub fn has_event(&self, event_name: &str) -> bool {
+        self.get_event_count(event_name) > 0
+    }
+
+    /// Wait for a specific number of events (useful for async testing)
+    pub fn wait_for_events(&self, expected_count: usize, timeout_ms: u64) -> bool {
+        use std::time::{Duration, Instant};
+        let start = Instant::now();
+        let timeout = Duration::from_millis(timeout_ms);
+        
+        while start.elapsed() < timeout {
+            if self.total_events() >= expected_count {
+                return true;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        false
+    }
+
+    /// Get the last event of a specific type
+    pub fn get_last_event(&self, event_name: &str) -> Option<serde_json::Value> {
+        self.events
+            .lock()
+            .unwrap()
+            .iter()
+            .rev()
+            .find(|(name, _)| name == event_name)
+            .map(|(_, payload)| payload.clone())
+    }
+
+    /// Verify event sequence (events in order)
+    pub fn verify_event_sequence(&self, expected_events: &[&str]) -> bool {
+        let events = self.events.lock().unwrap();
+        if events.len() < expected_events.len() {
+            return false;
+        }
+        
+        for (i, expected) in expected_events.iter().enumerate() {
+            if &events[i].0 != expected {
+                return false;
+            }
+        }
+        true
+    }
+}
 
 #[cfg(test)]
 impl EventEmitter for MockEventEmitter {
-    fn emit<S: Serialize + Clone>(&self, _event: &str, _payload: S) -> BackendResult<()> {
+    fn emit<S: Serialize + Clone>(&self, event: &str, payload: S) -> BackendResult<()> {
+        // Serialize the payload to JSON for storage and comparison
+        let json_payload = serde_json::to_value(payload)
+            .map_err(|e| crate::types::BackendError::JsonError(e.to_string()))?;
+        
+        // Store the event
+        self.events.lock().unwrap().push((event.to_string(), json_payload));
+        
+        // Update event count
+        let mut counts = self.event_counts.lock().unwrap();
+        *counts.entry(event.to_string()).or_insert(0) += 1;
+        
         Ok(())
     }
 }
@@ -140,7 +259,17 @@ impl EventEmitter for MockEventEmitter {
 #[cfg(test)]
 impl Clone for MockEventEmitter {
     fn clone(&self) -> Self {
-        MockEventEmitter
+        Self {
+            events: Arc::clone(&self.events),
+            event_counts: Arc::clone(&self.event_counts),
+        }
+    }
+}
+
+#[cfg(test)]
+impl Default for MockEventEmitter {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -596,7 +725,7 @@ mod tests {
 
     #[test]
     fn test_mock_event_emitter() {
-        let emitter = MockEventEmitter;
+        let emitter = MockEventEmitter::new();
         let cloned_emitter = emitter.clone();
         
         // Test that emit works without panicking
@@ -614,6 +743,69 @@ mod tests {
         };
         let result = emitter.emit("cli-io", payload);
         assert!(result.is_ok());
+
+        // Test event capture functionality
+        assert_eq!(emitter.total_events(), 3);
+        assert_eq!(emitter.get_event_count("test-event"), 1);
+        assert_eq!(emitter.get_event_count("test-event-2"), 1);
+        assert_eq!(emitter.get_event_count("cli-io"), 1);
+        
+        // Test event retrieval
+        let events = emitter.get_events();
+        assert_eq!(events.len(), 3);
+        assert_eq!(events[0].0, "test-event");
+        
+        // Test event filtering
+        let cli_events = emitter.get_events_by_name("cli-io");
+        assert_eq!(cli_events.len(), 1);
+        
+        // Test has_event
+        assert!(emitter.has_event("test-event"));
+        assert!(!emitter.has_event("nonexistent-event"));
+        
+        // Test clear functionality
+        emitter.clear();
+        assert_eq!(emitter.total_events(), 0);
+        assert!(!emitter.has_event("test-event"));
+    }
+
+    #[test]
+    fn test_mock_event_emitter_advanced_features() {
+        let emitter = MockEventEmitter::new();
+        
+        // Test event sequence
+        emitter.emit("event-1", "payload-1").unwrap();
+        emitter.emit("event-2", "payload-2").unwrap();
+        emitter.emit("event-1", "payload-3").unwrap();
+        
+        // Test sequence verification
+        assert!(emitter.verify_event_sequence(&["event-1", "event-2"]));
+        assert!(!emitter.verify_event_sequence(&["event-2", "event-1"]));
+        
+        // Test last event retrieval
+        let last_event_1 = emitter.get_last_event("event-1");
+        assert!(last_event_1.is_some());
+        assert_eq!(last_event_1.unwrap(), json!("payload-3"));
+        
+        let last_event_2 = emitter.get_last_event("event-2");
+        assert!(last_event_2.is_some());
+        assert_eq!(last_event_2.unwrap(), json!("payload-2"));
+        
+        // Test nonexistent event
+        let nonexistent = emitter.get_last_event("nonexistent");
+        assert!(nonexistent.is_none());
+    }
+
+    #[test]
+    fn test_mock_event_emitter_wait_for_events() {
+        let emitter = MockEventEmitter::new();
+        
+        // Test immediate success
+        emitter.emit("test", "payload").unwrap();
+        assert!(emitter.wait_for_events(1, 100));
+        
+        // Test timeout (should be fast since we're not actually waiting)
+        assert!(!emitter.wait_for_events(10, 50));
     }
 
     #[test]
@@ -622,7 +814,7 @@ mod tests {
             emitter.emit("test", "payload")
         }
         
-        let mock_emitter = MockEventEmitter;
+        let mock_emitter = MockEventEmitter::new();
         let result = test_emitter(mock_emitter);
         assert!(result.is_ok());
     }

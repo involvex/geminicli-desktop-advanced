@@ -17,7 +17,14 @@
     "lint:tauri:warnings": "cd ../crates/backend && cargo clippy",
     "check": "pnpm check:frontend && pnpm check:tauri",
     "check:frontend": "tsc --noEmit",
-    "check:tauri": "cd ../crates/backend && cargo check"
+    "check:tauri": "cd ../crates/backend && cargo check",
+    "test": "pnpm test:backend",
+    "test:backend": "cd ../crates/backend && cargo nextest run --lib --test-threads=1",
+    "test:backend:projects": "cd ../crates/backend && cargo nextest run --lib projects::tests:: --test-threads=1",
+    "test:backend:search": "cd ../crates/backend && cargo nextest run --lib search::tests:: --test-threads=1",
+    "test:backend:concurrent": "cd ../crates/backend && cargo nextest run --lib",
+    "test:backend:verbose": "cd ../crates/backend && cargo nextest run --lib --test-threads=1 --verbose",
+    "test:backend:fallback": "cd ../crates/backend && cargo test --lib -- --test-threads=1"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
