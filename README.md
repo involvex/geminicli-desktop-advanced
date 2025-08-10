@@ -13,13 +13,14 @@ A powerful, modern desktop and web UI for Gemini CLI.  Built with Tauri and web 
 - Send messages to/from Gemini and receive responses
 - Handle tool call requests
 - Markdown support ([#1](https://github.com/Piebald-AI/gemini-desktop/issues/1))
+- Automatic chat history saving ([#2](https://github.com/Piebald-AI/gemini-desktop/issues/2)).  Note: See related PRs [#4401](https://github.com/google-gemini/gemini-cli/pull/4401) and [#4609](https://github.com/google-gemini/gemini-cli/pull/4609) on the Gemini CLI repo.
+- More advanced tool call support
 
 ### Planned
 
-- Automatic chat history saving ([#2](https://github.com/Piebald-AI/gemini-desktop/issues/2)).  Note: See related PRs [#4401](https://github.com/google-gemini/gemini-cli/pull/4401) and [#4609](https://github.com/google-gemini/gemini-cli/pull/4609) on the Gemini CLI repo.
 - MCP server management
 - Token/cost information
-- More advanced tool call support
+- LLxprt/Qwen Coder integration ([#24](https://github.com/Piebald-AI/gemini-desktop/issues/24))
 
 ## How it works
 
