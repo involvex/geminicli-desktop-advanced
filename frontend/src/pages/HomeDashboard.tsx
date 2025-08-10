@@ -1,7 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useConversation } from "../contexts/ConversationContext";
-import { CliWarnings } from "../components/common/CliWarnings";
 import { MessageContent } from "../components/conversation/MessageContent";
 import { ThinkingBlock } from "../components/conversation/ThinkingBlock";
 import { ToolCallDisplay } from "../components/common/ToolCallDisplay";
@@ -39,11 +38,6 @@ export const HomeDashboard: React.FC = () => {
 
   return (
     <>
-      <CliWarnings
-        selectedModel={selectedModel}
-        isCliInstalled={isCliInstalled}
-      />
-
       {currentConversation ? (
         <div
           ref={messagesContainerRef}
