@@ -1,4 +1,4 @@
-name: Release & Publish
+name: Release & Build
 
 on:
   push:
@@ -6,35 +6,52 @@ on:
       - 'v*'
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
+  build-and-release:
+    strategy:
+      matrix:
+        platform: [windows-latest, ubuntu-latest, macos-latest]
+    
+    runs-on: ${{ matrix.platform }}
     permissions:
       contents: write
-      id-token: write
-
+      
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install pnpm
+      - uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        
+      - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10.13.1
-
+          
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22.x
+          node-version: 22
           cache: pnpm
-          registry-url: https://registry.npmjs.org
-
+          
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Build project
+        
+      - name: Build Tauri app
         run: pnpm tauri build
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
+          name: ${{ matrix.platform }}-build
+          path: |
+            target/release/bundle/
+            target/release/gemini-desktop*
+            
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        if: matrix.platform == 'windows-latest'
+        with:
+          files: |
+            target/release/bundle/**/*
+            target/release/gemini-desktop.exe
           generate_release_notes: true
+          draft: false

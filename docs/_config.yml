@@ -1,0 +1,18 @@
+title: Gemini Desktop
+description: A powerful, modern desktop and web UI for Gemini CLI
+theme: minima
+url: https://involvex.github.io
+baseurl: /geminicli-desktop-advanced
+
+markdown: kramdown
+highlighter: rouge
+
+plugins:
+  - jekyll-feed
+  - jekyll-sitemap
+
+header_pages:
+  - README.md
+
+github:
+  repository_url: https://github.com/involvex/geminicli-desktop-advanced

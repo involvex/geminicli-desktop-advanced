@@ -45,3 +45,19 @@ frontend-dev-web $GEMINI_DESKTOP_WEB="true":
 build-web $GEMINI_DESKTOP_WEB="true":
     cd frontend ; pnpm build
     cd crates/server ; cargo build --release
+
+### RELEASE
+
+[group('release')]
+release version:
+    git add .
+    git commit -m "🚀 Release {{version}}"
+    git tag -a {{version}} -m "Release {{version}}"
+    git push origin main --tags
+
+[group('release')]
+docs:
+    cd frontend && pnpm build
+    mkdir -p docs-build
+    cp -r docs/* docs-build/
+    cp -r frontend/dist/* docs-build/
