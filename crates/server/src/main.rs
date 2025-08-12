@@ -1,8 +1,8 @@
 use include_dir::{Dir, include_dir};
 use rocket::{
-    Shutdown, State, get,
+    Shutdown, State, get, post, put, delete,
     http::{ContentType, Status},
-    post, routes,
+    routes,
     serde::json::Json,
 };
 use rocket_ws::{Message, Stream, WebSocket};
@@ -540,6 +540,149 @@ async fn list_volumes(state: &State<AppState>) -> Result<Json<Vec<DirEntry>>, St
 }
 
 // =====================================
+// Server Management Routes
+// =====================================
+
+#[get("/servers")]
+async fn list_servers() -> Result<Json<Vec<backend::servers::Server>>, Status> {
+    match backend::servers::list_servers() {
+        Ok(servers) => Ok(Json(servers)),
+        Err(_) => Err(Status::InternalServerError),
+    }
+}
+
+#[post("/servers", data = "<server>")]
+async fn add_server(server: Json<backend::servers::Server>) -> Result<Json<Vec<backend::servers::Server>>, Status> {
+    match backend::servers::add_server(server.into_inner()) {
+        Ok(servers) => Ok(Json(servers)),
+        Err(_) => Err(Status::InternalServerError),
+    }
+}
+
+#[derive(Deserialize)]
+struct ServerRequest {
+    name: String,
+    port: u16,
+    model: String,
+    working_directory: String,
+}
+
+#[post("/servers", data = "<request>", rank = 2)]
+async fn add_server_from_request(request: Json<ServerRequest>) -> Result<Json<Vec<backend::servers::Server>>, Status> {
+    let req = request.into_inner();
+    let server = backend::servers::Server::new(req.name, req.port, req.model, req.working_directory);
+    match backend::servers::add_server(server) {
+        Ok(servers) => Ok(Json(servers)),
+        Err(_) => Err(Status::InternalServerError),
+    }
+}
+
+#[put("/servers/<_id>", data = "<server>")]
+async fn edit_server(_id: &str, server: Json<backend::servers::Server>) -> Result<Json<Vec<backend::servers::Server>>, Status> {
+    match backend::servers::edit_server(server.into_inner()) {
+        Ok(servers) => Ok(Json(servers)),
+        Err(_) => Err(Status::InternalServerError),
+    }
+}
+
+#[delete("/servers/<id>")]
+async fn delete_server(id: &str) -> Result<Json<Vec<backend::servers::Server>>, Status> {
+    match backend::servers::delete_server(id.to_string()) {
+        Ok(servers) => Ok(Json(servers)),
+        Err(_) => Err(Status::InternalServerError),
+    }
+}
+
+#[post("/servers/<id>/start")]
+async fn start_server(id: &str) -> Result<Json<Vec<backend::servers::Server>>, Status> {
+    match backend::servers::start_server(id.to_string()).await {
+        Ok(servers) => Ok(Json(servers)),
+        Err(_) => Err(Status::InternalServerError),
+    }
+}
+
+#[post("/servers/<id>/stop")]
+async fn stop_server(id: &str) -> Result<Json<Vec<backend::servers::Server>>, Status> {
+    match backend::servers::stop_server(id.to_string()).await {
+        Ok(servers) => Ok(Json(servers)),
+        Err(_) => Err(Status::InternalServerError),
+    }
+}
+
+#[get("/models")]
+async fn get_available_models() -> Result<Json<Vec<String>>, Status> {
+    let models = vec![
+        "gemini-2.0-flash-exp".to_string(),
+        "gemini-2.5-pro".to_string(),
+        "gemini-2.5-flash".to_string(),
+        "gemini-2.5-flash-lite".to_string(),
+        "gemini-1.5-pro".to_string(),
+        "gemini-1.5-flash".to_string(),
+    ];
+    Ok(Json(models))
+}
+
+#[derive(Serialize)]
+struct McpServer {
+    name: String,
+    description: String,
+    url: String,
+    category: String,
+    stars: u32,
+}
+
+#[get("/mcp-servers?<query>")]
+async fn search_mcp_servers(query: Option<String>) -> Result<Json<Vec<McpServer>>, Status> {
+    let servers = vec![
+        McpServer {
+            name: "filesystem".to_string(),
+            description: "File system operations and management".to_string(),
+            url: "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem".to_string(),
+            category: "filesystem".to_string(),
+            stars: 1250,
+        },
+        McpServer {
+            name: "git".to_string(),
+            description: "Git repository operations and version control".to_string(),
+            url: "https://github.com/modelcontextprotocol/servers/tree/main/src/git".to_string(),
+            category: "development".to_string(),
+            stars: 890,
+        },
+        McpServer {
+            name: "postgres".to_string(),
+            description: "PostgreSQL database operations".to_string(),
+            url: "https://github.com/modelcontextprotocol/servers/tree/main/src/postgres".to_string(),
+            category: "database".to_string(),
+            stars: 670,
+        },
+        McpServer {
+            name: "sqlite".to_string(),
+            description: "SQLite database operations".to_string(),
+            url: "https://github.com/modelcontextprotocol/servers/tree/main/src/sqlite".to_string(),
+            category: "database".to_string(),
+            stars: 540,
+        },
+        McpServer {
+            name: "brave-search".to_string(),
+            description: "Web search using Brave Search API".to_string(),
+            url: "https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search".to_string(),
+            category: "search".to_string(),
+            stars: 420,
+        },
+    ];
+    
+    let filtered = if let Some(q) = query {
+        servers.into_iter()
+            .filter(|s| s.name.contains(&q) || s.description.contains(&q) || s.category.contains(&q))
+            .collect()
+    } else {
+        servers
+    };
+    
+    Ok(Json(filtered))
+}
+
+// =====================================
 // WebSocket Route Handler
 // =====================================
 
@@ -657,6 +800,14 @@ fn rocket() -> _ {
             list_projects_enriched,
             get_enriched_project_http,
             get_project_discussions,
+            list_servers,
+            add_server,
+            edit_server,
+            delete_server,
+            start_server,
+            stop_server,
+            get_available_models,
+            search_mcp_servers,
         ],
     )
 }

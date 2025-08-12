@@ -30,7 +30,7 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
-    host: host || false,
+    host: "0.0.0.0",
     hmr: host
       ? {
           protocol: "ws",
@@ -40,11 +40,11 @@ export default defineConfig({
       : undefined,
     proxy: {
       "/api": {
-        target: "http://0.0.0.0:1420",
+        target: "http://0.0.0.0:1858",
         changeOrigin: true,
       },
       "/api/ws": {
-        target: "ws://0.0.0.0:1420",
+        target: "ws://0.0.0.0:1858",
         changeOrigin: true,
         ws: true,
       },

@@ -1,0 +1,114 @@
+/* VS Code Dark Theme */
+.vscode-dark {
+  --background: 30 30 30;
+  --foreground: 204 204 204;
+  --card: 37 37 38;
+  --card-foreground: 204 204 204;
+  --popover: 37 37 38;
+  --popover-foreground: 204 204 204;
+  --primary: 0 122 204;
+  --primary-foreground: 255 255 255;
+  --secondary: 51 51 51;
+  --secondary-foreground: 204 204 204;
+  --muted: 51 51 51;
+  --muted-foreground: 153 153 153;
+  --accent: 51 51 51;
+  --accent-foreground: 204 204 204;
+  --destructive: 244 71 71;
+  --destructive-foreground: 255 255 255;
+  --border: 51 51 51;
+  --input: 51 51 51;
+  --ring: 0 122 204;
+}
+
+/* GitHub Dark Theme */
+.github-dark {
+  --background: 13 17 23;
+  --foreground: 230 237 243;
+  --card: 22 27 34;
+  --card-foreground: 230 237 243;
+  --popover: 22 27 34;
+  --popover-foreground: 230 237 243;
+  --primary: 35 134 54;
+  --primary-foreground: 255 255 255;
+  --secondary: 33 38 45;
+  --secondary-foreground: 230 237 243;
+  --muted: 33 38 45;
+  --muted-foreground: 125 133 144;
+  --accent: 33 38 45;
+  --accent-foreground: 230 237 243;
+  --destructive: 248 81 73;
+  --destructive-foreground: 255 255 255;
+  --border: 33 38 45;
+  --input: 33 38 45;
+  --ring: 35 134 54;
+}
+
+/* Monokai Theme */
+.monokai {
+  --background: 39 40 34;
+  --foreground: 248 248 242;
+  --card: 46 47 43;
+  --card-foreground: 248 248 242;
+  --popover: 46 47 43;
+  --popover-foreground: 248 248 242;
+  --primary: 166 226 46;
+  --primary-foreground: 39 40 34;
+  --secondary: 73 72 62;
+  --secondary-foreground: 248 248 242;
+  --muted: 73 72 62;
+  --muted-foreground: 117 113 94;
+  --accent: 73 72 62;
+  --accent-foreground: 248 248 242;
+  --destructive: 249 38 114;
+  --destructive-foreground: 248 248 242;
+  --border: 73 72 62;
+  --input: 73 72 62;
+  --ring: 166 226 46;
+}
+/* Material Dark Theme */
+.material-dark {
+  --background: 18 18 18;
+  --foreground: 255 255 255;
+  --card: 30 30 30;
+  --card-foreground: 255 255 255;
+  --popover: 30 30 30;
+  --popover-foreground: 255 255 255;
+  --primary: 98 0 238;
+  --primary-foreground: 255 255 255;
+  --secondary: 45 45 45;
+  --secondary-foreground: 255 255 255;
+  --muted: 45 45 45;
+  --muted-foreground: 158 158 158;
+  --accent: 45 45 45;
+  --accent-foreground: 255 255 255;
+  --destructive: 244 67 54;
+  --destructive-foreground: 255 255 255;
+  --border: 45 45 45;
+  --input: 45 45 45;
+  --ring: 98 0 238;
+}
+  --input: 45 45 45;
+
+/* High Contrast Dark Theme */
+.high-contrast-dark {
+  --background: 0 0 0;
+  --foreground: 255 255 255;
+  --card: 0 0 0;
+  --card-foreground: 255 255 255;
+  --popover: 0 0 0;
+  --popover-foreground: 255 255 255;
+  --primary: 0 255 0;
+  --primary-foreground: 0 0 0;
+  --secondary: 51 51 51;
+  --secondary-foreground: 255 255 255;
+  --muted: 51 51 51;
+  --muted-foreground: 255 255 255;
+  --accent: 51 51 51;
+  --accent-foreground: 255 255 255;
+  --destructive: 255 0 0;
+  --destructive-foreground: 255 255 255;
+  --border: 255 255 255;
+  --input: 0 0 0;
+  --ring: 0 255 0;
+}

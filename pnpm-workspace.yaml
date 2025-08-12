@@ -1,0 +1,13 @@
+packages:
+  - frontend
+  - crates/backend
+  - crates/server
+  - crates/tauri-app
+
+onlyBuiltDependencies:
+  - '@tailwindcss/oxide'
+  - esbuild
+
+overrides:
+  '@babel/runtime@<7.26.10': '>=7.26.10'
+  prismjs@<1.30.0: '>=1.30.0'

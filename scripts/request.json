@@ -1,0 +1,29 @@
+{
+  "instances": [
+    {
+      "messages": [
+        {
+          "author": "user",
+          "content": [
+            {
+              "text": "describe this project as github page."
+            },
+            {
+              "file_data": {
+                "file_uri": "gs://implementation_summary.md",
+                "mime_type": "text/markdown"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "parameters": {
+    "temperature": 0.4,
+    "maxOutputTokens": 1024,
+    "topP": 0.8,
+    "topK": 40
+  }
+}
+// gcloud ai endpoints predict 1961954254952333312 --project=57386476101 --location=us-central1 --json-request.json

@@ -1,0 +1,34 @@
+{
+  "name": "geminicli-desktop-advanced",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Involvex/geminicli-desktop-advanced.git"
+  },
+  "author": {
+    "name": "Involvex",
+    "email": "lukaswill97@gmail.com"
+  },
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "format": "pnpm -r format",
+    "lint": "pnpm -r lint",
+    "check": "pnpm -r check",
+    "test": "pnpm -r test",
+    "ghpages": "node scripts/ghpages.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1"
+  },
+  "build": {
+    "appId": "geminicli-desktop-advanced",
+    "productName": "Gemini Desktop Advanced",
+    "buildVersion": "0.1.0",
+    "directories": {
+      "output": "targets/build",
+      "buildResources": "assets/"
+    },
+    "icon": "assets/icon.png",
+    "artifactName": "Gemini cli Desktop Advanced"
+  }
+}

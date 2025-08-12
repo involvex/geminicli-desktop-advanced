@@ -4,6 +4,7 @@ import { api } from "./lib/api";
 import { AppSidebar } from "./components/layout/AppSidebar";
 import { MessageInputBar } from "./components/conversation/MessageInputBar";
 import { AppHeader } from "./components/layout/AppHeader";
+import { AppFooter } from "./components/layout/AppFooter";
 import { CliWarnings } from "./components/common/CliWarnings";
 import { SidebarInset } from "./components/ui/sidebar";
 import { ConversationContext } from "./contexts/ConversationContext";
@@ -17,6 +18,10 @@ import ChatPage from "./pages/Chat";
 import FileBrowserPage from "./pages/FileBrowser";
 import SettingsPage from "./pages/Settings";
 import ProjectBuilderPage from "./pages/ProjectBuilder";
+import McpBrowserPage from "./pages/McpBrowser";
+import ThemeBuilderPage from "./pages/ThemeBuilder";
+import ModelManagerPage from "./pages/ModelManager";
+import { PersistentChat } from "./components/chat/PersistentChat";
 
 // Hooks
 import { useConversationManager } from "./hooks/useConversationManager";
@@ -130,7 +135,7 @@ function RootLayout() {
       <SidebarInset>
         <AppHeader />
 
-        <div className="flex-1 flex flex-col bg-background min-h-0">
+        <div className="flex-1 flex flex-col bg-background min-h-0 pb-12">
           <CliWarnings
             selectedModel={selectedModel}
             isCliInstalled={isCliInstalled}
@@ -171,7 +176,9 @@ function RootLayout() {
               />
             )}
         </div>
+        <AppFooter />
       </SidebarInset>
+      <PersistentChat />
     </AppSidebar>
   );
 }
@@ -190,6 +197,9 @@ function App() {
         <Route path="files" element={<FileBrowserPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="project-builder" element={<ProjectBuilderPage />} />
+        <Route path="mcp-browser" element={<McpBrowserPage />} />
+        <Route path="theme-builder" element={<ThemeBuilderPage />} />
+        <Route path="model-manager" element={<ModelManagerPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

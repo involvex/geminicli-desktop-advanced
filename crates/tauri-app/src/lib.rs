@@ -3,6 +3,9 @@
 mod event_emitter;
 mod state;
 mod commands;
+mod settings;
+mod tray;
+mod hotkeys;
 
 use std::sync::Arc;
 use backend::GeminiBackend;
@@ -15,7 +18,11 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+
         .setup(|app| {
+            // Load settings
+            let settings = settings::load_settings();
+            
             let emitter = TauriEventEmitter::new(app.handle().clone());
             let backend = GeminiBackend::new(emitter);
             
@@ -24,7 +31,34 @@ pub fn run() {
             };
             app.manage(app_state);
             
+            // Create system tray
+            if let Err(e) = tray::create_tray(&app.handle()) {
+                eprintln!("Failed to create system tray: {}", e);
+            }
+            
+            // Register global hotkeys
+            if let Err(e) = hotkeys::register_hotkeys(&app.handle(), &settings) {
+                eprintln!("Failed to register hotkeys: {}", e);
+            }
+            
+            // Show window if not starting minimized
+            if !settings.ui.start_minimized {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                }
+            }
+            
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // Load settings to check close_to_tray preference
+                let settings = settings::load_settings();
+                if settings.ui.close_to_tray {
+                    window.hide().unwrap();
+                    api.prevent_close();
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::check_cli_installed,
@@ -54,7 +88,11 @@ pub fn run() {
             commands::edit_server,
             commands::delete_server,
             commands::start_server,
-            commands::stop_server
+            commands::stop_server,
+            commands::get_settings,
+            commands::save_settings,
+            commands::take_screenshot,
+            commands::import_file
         ]);
 
     builder

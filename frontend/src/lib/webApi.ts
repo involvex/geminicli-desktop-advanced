@@ -1,4 +1,5 @@
 import axios from "axios";
+import { Server } from "../types";
 
 // Create axios client with base URL /api
 const apiClient = axios.create({
@@ -262,34 +263,95 @@ export const webApi = {
   },
 
   // Server management functions
-  async list_servers(): Promise<any[]> {
-    const response = await apiClient.get<any[]>("/servers");
+  async list_servers(): Promise<Server[]> {
+    const response = await apiClient.get<Server[]>("/servers");
     return response.data;
   },
 
-  async add_server(server: any): Promise<any[]> {
-    const response = await apiClient.post<any[]>("/servers", server);
+  async add_server(server: Record<string, unknown>): Promise<Server[]> {
+    const response = await apiClient.post<Server[]>("/servers", server);
     return response.data;
   },
 
-  async edit_server(server: any): Promise<any[]> {
-    const response = await apiClient.put<any[]>(`/servers/${server.id}`, server);
+  async edit_server(server: Record<string, unknown>): Promise<Server[]> {
+    const response = await apiClient.put<Server[]>(`/servers/${(server as { id: string }).id}`, server);
     return response.data;
   },
 
-  async delete_server(params: { id: string }): Promise<any[]> {
-    const response = await apiClient.delete<any[]>(`/servers/${params.id}`);
+  async delete_server(params: { id: string }): Promise<Server[]> {
+    const response = await apiClient.delete<Server[]>(`/servers/${params.id}`);
     return response.data;
   },
 
-  async start_server(params: { id: string }): Promise<any[]> {
-    const response = await apiClient.post<any[]>(`/servers/${params.id}/start`);
+  async start_server(params: { id: string }): Promise<Server[]> {
+    const response = await apiClient.post<Server[]>(`/servers/${params.id}/start`);
     return response.data;
   },
 
-  async stop_server(params: { id: string }): Promise<any[]> {
-    const response = await apiClient.post<any[]>(`/servers/${params.id}/stop`);
+  async stop_server(params: { id: string }): Promise<Server[]> {
+    const response = await apiClient.post<Server[]>(`/servers/${params.id}/stop`);
     return response.data;
+  },
+
+  async get_available_models(): Promise<string[]> {
+    const response = await apiClient.get<string[]>("/models");
+    return response.data;
+  },
+
+  async search_mcp_servers(query?: string): Promise<McpServer[]> {
+    const response = await apiClient.get<McpServer[]>("/mcp-servers", {
+      params: query ? { query } : {},
+    });
+    return response.data;
+  },
+
+  async get_popular_mcp_servers(limit?: number): Promise<McpServer[]> {
+    const response = await apiClient.get<McpServer[]>("/mcp-servers/popular", {
+      params: limit ? { limit } : {},
+    });
+    return response.data;
+  },
+
+  async get_mcp_categories(): Promise<string[]> {
+    const response = await apiClient.get<string[]>("/mcp-categories");
+    return response.data;
+  },
+
+  async auto_discover_models(): Promise<Record<string, ModelInfo[]>> {
+    const response = await apiClient.get<Record<string, ModelInfo[]>>("/models/discover");
+    return response.data;
+  },
+
+  async get_model_sources(): Promise<ModelSource[]> {
+    const response = await apiClient.get<ModelSource[]>("/model-sources");
+    return response.data;
+  },
+
+  async save_theme(theme: Record<string, unknown>): Promise<void> {
+    await apiClient.post("/themes", theme);
+  },
+
+  async load_theme(params: { name: string }): Promise<CustomTheme> {
+    const response = await apiClient.get<CustomTheme>(`/themes/${params.name}`);
+    return response.data;
+  },
+
+  async list_themes(): Promise<string[]> {
+    const response = await apiClient.get<string[]>("/themes");
+    return response.data;
+  },
+
+  async delete_theme(params: { name: string }): Promise<void> {
+    await apiClient.delete(`/themes/${params.name}`);
+  },
+
+  async get_theme_presets(): Promise<ThemePreset[]> {
+    const response = await apiClient.get<ThemePreset[]>("/theme-presets");
+    return response.data;
+  },
+
+  async export_theme_css(params: { theme: Record<string, unknown>; outputPath: string }): Promise<void> {
+    await apiClient.post("/themes/export", params);
   },
 };
 
@@ -348,6 +410,65 @@ export interface EnrichedProject {
   sha256: string;
   root_path: string;
   metadata: ProjectMetadata;
+}
+
+export interface McpServer {
+  name: string;
+  description: string;
+  url: string;
+  category: string;
+  stars: number;
+  repository?: string;
+  language?: string;
+  install_command?: string;
+  config_example?: string;
+  tags: string[];
+}
+
+export interface ModelInfo {
+  name: string;
+  provider: string;
+  description: string;
+  context_length?: number;
+  capabilities: string[];
+  is_available: boolean;
+}
+
+export interface ModelSource {
+  name: string;
+  url: string;
+  api_key_required: boolean;
+}
+
+export interface ThemeColors {
+  background: string;
+  foreground: string;
+  primary: string;
+  secondary: string;
+  accent: string;
+  muted: string;
+  border: string;
+  card: string;
+  popover: string;
+  destructive: string;
+  warning: string;
+  success: string;
+}
+
+export interface CustomTheme {
+  name: string;
+  description?: string;
+  author?: string;
+  version: string;
+  colors: ThemeColors;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ThemePreset {
+  name: string;
+  description: string;
+  colors: ThemeColors;
 }
 
 // export async function list_projects(params?: { limit?: number; offset?: number }): Promise<ProjectsResponse> {

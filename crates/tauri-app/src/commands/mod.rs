@@ -1,7 +1,9 @@
 use tauri::{AppHandle, State};
 use backend::{ProcessStatus, DirEntry, RecentChat, ProjectsResponse, EnrichedProject, 
-              SearchResult, SearchFilters, Server};
+              SearchResult, SearchFilters};
+use backend::servers::Server;
 use crate::state::AppState;
+use crate::settings::AppSettings;
 
 #[tauri::command]
 pub async fn check_cli_installed(state: State<'_, AppState>) -> Result<bool, String> {
@@ -265,7 +267,7 @@ pub async fn add_server(
     model: String,
     working_directory: Option<String>,
 ) -> Result<Vec<Server>, String> {
-    let server = backend::Server::new(name, port, model, working_directory.unwrap_or_default());
+    let server = backend::servers::Server::new(name, port, model, working_directory.unwrap_or_default());
     backend::servers::add_server(server).map_err(|e| e.to_string())
 }
 
@@ -277,7 +279,7 @@ pub async fn edit_server(
     model: String,
     working_directory: String,
 ) -> Result<Vec<Server>, String> {
-    let server = backend::Server {
+    let server = backend::servers::Server {
         id,
         name,
         port,
@@ -302,4 +304,35 @@ pub async fn start_server(id: String) -> Result<Vec<Server>, String> {
 #[tauri::command]
 pub async fn stop_server(id: String) -> Result<Vec<Server>, String> {
     backend::servers::stop_server(id).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_settings() -> Result<AppSettings, String> {
+    Ok(crate::settings::load_settings())
+}
+
+#[tauri::command]
+pub async fn save_settings(settings: AppSettings, app_handle: AppHandle) -> Result<(), String> {
+    crate::settings::save_settings(&settings).map_err(|e| e.to_string())?;
+    
+    // Re-register hotkeys with new settings
+    if let Err(e) = crate::hotkeys::register_hotkeys(&app_handle, &settings) {
+        eprintln!("Failed to register hotkeys: {}", e);
+    }
+    
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn take_screenshot() -> Result<String, String> {
+    // This would integrate with a screenshot library
+    // For now, just return a placeholder
+    Ok("Screenshot functionality not yet implemented".to_string())
+}
+
+#[tauri::command]
+pub async fn import_file() -> Result<String, String> {
+    // This would open a file dialog and import the selected file
+    // For now, just return a placeholder
+    Ok("File import functionality not yet implemented".to_string())
 }

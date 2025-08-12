@@ -2,14 +2,19 @@
 pub mod cli;
 pub mod events;
 pub mod filesystem;
+pub mod mcp_registry;
+pub mod models;
 pub mod projects;
 pub mod rpc;
 pub mod search;
 pub mod security;
 pub mod session;
+pub mod servers;
+pub mod themes;
 pub mod types;
 
-pub mod servers;
+// Extension methods
+mod lib_extension;
 
 // Test utilities (only available in test builds)
 #[cfg(test)]
@@ -27,6 +32,8 @@ pub use events::{
     ToolCallEvent, ToolCallLocation, ToolCallUpdate,
 };
 pub use filesystem::{DirEntry, VolumeType};
+pub use mcp_registry::{McpServerInfo, get_mcp_categories, get_popular_mcp_servers, search_mcp_servers};
+pub use models::{ModelInfo, ModelSource, auto_discover_models, get_gemini_models, get_model_sources};
 pub use projects::{
     EnrichedProject, ProjectListItem, ProjectMetadata, ProjectMetadataView, ProjectsResponse,
     TouchThrottle, ensure_project_metadata, list_enriched_projects, list_projects,
@@ -39,6 +46,7 @@ pub use servers::{
     Server, add_server, delete_server, edit_server, list_servers, start_server, stop_server,
 };
 pub use session::{PersistentSession, ProcessStatus, SessionManager, initialize_session};
+pub use themes::{CustomTheme, ThemeColors, ThemePreset, delete_theme, export_theme_css, generate_theme_css, get_theme_presets, list_themes, load_theme, save_theme};
 pub use types::{BackendError, BackendResult};
 
 // Standard library imports

@@ -21,7 +21,7 @@ import {
   CardTitle,
   CardDescription,
 } from "../components/ui/card";
-import { Info, UserRound, FolderKanban, Puzzle, Terminal, MessageSquare, FolderPlus } from "lucide-react";
+import { Info, UserRound, FolderKanban, Puzzle, Terminal, MessageSquare, FolderPlus, Palette, Cpu, Search } from "lucide-react";
 import { ModelContextProtocol } from "@/components/common/ModelContextProtocol";
 import { ToolCallConfirmationRequest } from "../utils/toolCallParser";
 
@@ -219,7 +219,7 @@ export const HomeDashboard: React.FC = () => {
           </p>
 
           {/* Dashboard tiles */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 w-full max-w-4xl">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full max-w-6xl">
             {/* Gemini CLI Projects Card */}
             <Card
               className="cursor-pointer transition-colors hover:bg-accent w-full"
@@ -345,6 +345,60 @@ export const HomeDashboard: React.FC = () => {
               </CardHeader>
             </Card>
             
+            {/* Model Manager Card */}
+            <Card
+              className="cursor-pointer transition-colors hover:bg-accent w-full"
+              onClick={() => navigate("/model-manager")}
+            >
+              <CardHeader className="flex flex-row items-center gap-3">
+                <div className="shrink-0 h-6 w-6 flex items-center justify-center">
+                  <Cpu className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div className="text-left">
+                  <CardTitle className="text-base">Model Manager</CardTitle>
+                  <CardDescription>
+                    Discover and manage AI models from various sources.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
+            
+            {/* MCP Browser Card */}
+            <Card
+              className="cursor-pointer transition-colors hover:bg-accent w-full"
+              onClick={() => navigate("/mcp-browser")}
+            >
+              <CardHeader className="flex flex-row items-center gap-3">
+                <div className="shrink-0 h-6 w-6 flex items-center justify-center">
+                  <Search className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div className="text-left">
+                  <CardTitle className="text-base">MCP Browser</CardTitle>
+                  <CardDescription>
+                    Discover and explore Model Context Protocol servers.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
+            
+            {/* Theme Builder Card */}
+            <Card
+              className="cursor-pointer transition-colors hover:bg-accent w-full"
+              onClick={() => navigate("/theme-builder")}
+            >
+              <CardHeader className="flex flex-row items-center gap-3">
+                <div className="shrink-0 h-6 w-6 flex items-center justify-center">
+                  <Palette className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div className="text-left">
+                  <CardTitle className="text-base">Theme Builder</CardTitle>
+                  <CardDescription>
+                    Create and customize your own themes with live preview.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
+            
             {/* Settings Card */}
             <Card
               className="cursor-pointer transition-colors hover:bg-accent w-full"
@@ -357,7 +411,7 @@ export const HomeDashboard: React.FC = () => {
                 <div className="text-left">
                   <CardTitle className="text-base">Settings</CardTitle>
                   <CardDescription>
-                    Configure themes, models, and application settings.
+                    Configure application settings and preferences.
                   </CardDescription>
                 </div>
               </CardHeader>

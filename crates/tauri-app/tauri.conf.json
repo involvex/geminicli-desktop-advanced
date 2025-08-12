@@ -5,7 +5,7 @@
   "identifier": "com.piebald.gemini-desktop",
   "build": {
     "beforeDevCommand": "pnpm dev",
-    "devUrl": "http://0.0.0.0:1820",
+    "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "pnpm build",
     "frontendDist": "../../frontend/dist"
   },
@@ -14,9 +14,15 @@
       {
         "title": "Gemini Desktop",
         "width": 1280,
-        "height": 720
+        "height": 720,
+        "visible": false
       }
     ],
+    "trayIcon": {
+      "iconPath": "icons/icon.ico",
+      "iconAsTemplate": false,
+      "menuOnLeftClick": false
+    },
     "security": {
       "csp": null,
       "capabilities": [
@@ -28,6 +34,12 @@
             "core:default",
             "core:event:allow-listen",
             "core:event:default",
+            "core:tray:default",
+            "core:window:allow-show",
+            "core:window:allow-hide",
+            "core:window:allow-close",
+            "core:window:allow-set-focus",
+            "core:window:allow-is-visible",
             "dialog:allow-open",
             "dialog:default",
             "opener:default"

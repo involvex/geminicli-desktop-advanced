@@ -25,6 +25,11 @@ frontend/*.local
 .env
 .claude/
 target
+*lock*
+**lock**/*
+Cache/
+target/CACHDIR.tag
 
 # Gemini Desktop test artifacts
 .gemini-desktop/
+node_modules

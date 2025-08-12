@@ -11,6 +11,7 @@ build-all: build build-web
 
 deps:
     cd frontend ; pnpm install
+    cd crates/backend ; cargo build
 
 ### DESKTOP
 

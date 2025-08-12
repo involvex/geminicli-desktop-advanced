@@ -33,7 +33,7 @@ export function AppSidebar({
 }: AppSidebarProps) {
   return (
     <SidebarProvider defaultOpen={true} open={open} onOpenChange={onOpenChange}>
-      <Sidebar side="left" collapsible="offcanvas">
+      <Sidebar side="right" collapsible="offcanvas">
         <SidebarContent className="p-0">
           <ConversationList
             conversations={conversations}
