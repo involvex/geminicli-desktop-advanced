@@ -10,6 +10,13 @@ import { ConversationContext } from "./contexts/ConversationContext";
 import { HomeDashboard } from "./pages/HomeDashboard";
 import ProjectsPage from "./pages/Projects";
 import ProjectDetailPage from "./pages/ProjectDetail";
+import ServersPage from "./pages/Servers";
+import ExtensionsPage from "./pages/Extensions";
+import CommandBuilderPage from "./pages/CommandBuilder";
+import ChatPage from "./pages/Chat";
+import FileBrowserPage from "./pages/FileBrowser";
+import SettingsPage from "./pages/Settings";
+import ProjectBuilderPage from "./pages/ProjectBuilder";
 
 // Hooks
 import { useConversationManager } from "./hooks/useConversationManager";
@@ -20,6 +27,7 @@ import { useConversationEvents } from "./hooks/useConversationEvents";
 import { useCliInstallation } from "./hooks/useCliInstallation";
 import { CliIO } from "./types";
 import "./index.css";
+import "./styles/themes.css";
 
 function RootLayout() {
   const [selectedModel, setSelectedModel] =
@@ -159,6 +167,7 @@ function RootLayout() {
                 cliIOLogs={cliIOLogs}
                 handleInputChange={handleInputChange}
                 handleSendMessage={handleSendMessage}
+                selectedModel={selectedModel}
               />
             )}
         </div>
@@ -174,6 +183,13 @@ function App() {
         <Route index element={<HomeDashboard />} />
         <Route path="projects" element={<ProjectsPage />} />
         <Route path="projects/:id" element={<ProjectDetailPage />} />
+        <Route path="servers" element={<ServersPage />} />
+        <Route path="extensions" element={<ExtensionsPage />} />
+        <Route path="command-builder" element={<CommandBuilderPage />} />
+        <Route path="chat" element={<ChatPage />} />
+        <Route path="files" element={<FileBrowserPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+        <Route path="project-builder" element={<ProjectBuilderPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

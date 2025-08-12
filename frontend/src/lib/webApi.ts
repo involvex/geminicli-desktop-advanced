@@ -260,6 +260,37 @@ export const webApi = {
       await apiClient.get<EnrichedProject[]>("/projects-enriched");
     return response.data;
   },
+
+  // Server management functions
+  async list_servers(): Promise<any[]> {
+    const response = await apiClient.get<any[]>("/servers");
+    return response.data;
+  },
+
+  async add_server(server: any): Promise<any[]> {
+    const response = await apiClient.post<any[]>("/servers", server);
+    return response.data;
+  },
+
+  async edit_server(server: any): Promise<any[]> {
+    const response = await apiClient.put<any[]>(`/servers/${server.id}`, server);
+    return response.data;
+  },
+
+  async delete_server(params: { id: string }): Promise<any[]> {
+    const response = await apiClient.delete<any[]>(`/servers/${params.id}`);
+    return response.data;
+  },
+
+  async start_server(params: { id: string }): Promise<any[]> {
+    const response = await apiClient.post<any[]>(`/servers/${params.id}/start`);
+    return response.data;
+  },
+
+  async stop_server(params: { id: string }): Promise<any[]> {
+    const response = await apiClient.post<any[]>(`/servers/${params.id}/stop`);
+    return response.data;
+  },
 };
 
 export interface RecentChat {

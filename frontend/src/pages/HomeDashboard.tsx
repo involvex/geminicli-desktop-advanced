@@ -21,7 +21,7 @@ import {
   CardTitle,
   CardDescription,
 } from "../components/ui/card";
-import { Info, UserRound, FolderKanban } from "lucide-react";
+import { Info, UserRound, FolderKanban, Puzzle, Terminal, MessageSquare, FolderPlus } from "lucide-react";
 import { ModelContextProtocol } from "@/components/common/ModelContextProtocol";
 import { ToolCallConfirmationRequest } from "../utils/toolCallParser";
 
@@ -29,11 +29,9 @@ export const HomeDashboard: React.FC = () => {
   const navigate = useNavigate();
   const {
     currentConversation,
-    isCliInstalled,
     messagesContainerRef,
     handleConfirmToolCall,
     confirmationRequests,
-    selectedModel,
   } = useConversation();
 
   return (
@@ -221,7 +219,7 @@ export const HomeDashboard: React.FC = () => {
           </p>
 
           {/* Dashboard tiles */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-3xl">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 w-full max-w-4xl">
             {/* Gemini CLI Projects Card */}
             <Card
               className="cursor-pointer transition-colors hover:bg-accent w-full"
@@ -240,23 +238,126 @@ export const HomeDashboard: React.FC = () => {
               </CardHeader>
             </Card>
             <Card
-              className="w-full opacity-60 cursor-not-allowed select-none"
-              aria-disabled="true"
-              onClick={(e) => e.preventDefault()}
+              className="cursor-pointer transition-colors hover:bg-accent w-full"
+              onClick={() => navigate("/servers")}
             >
               <CardHeader className="flex flex-row items-center gap-3">
                 <div className="shrink-0 h-6 w-6 flex items-center justify-center">
                   <ModelContextProtocol className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <div className="text-left">
-                  <div className="flex items-center gap-2">
-                    <CardTitle className="text-base">MCP Servers</CardTitle>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground uppercase tracking-wide">
-                      Coming soon
-                    </span>
-                  </div>
+                  <CardTitle className="text-base">ACP Servers</CardTitle>
                   <CardDescription>
-                    Manage MCP configuration and settings.
+                    Manage your Agent Communication Protocol (ACP) server
+                    configurations.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
+            
+            {/* Extensions Card */}
+            <Card
+              className="cursor-pointer transition-colors hover:bg-accent w-full"
+              onClick={() => navigate("/extensions")}
+            >
+              <CardHeader className="flex flex-row items-center gap-3">
+                <div className="shrink-0 h-6 w-6 flex items-center justify-center">
+                  <Puzzle className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div className="text-left">
+                  <CardTitle className="text-base">Extensions & Tools</CardTitle>
+                  <CardDescription>
+                    Browse and manage available extensions and tools.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
+            
+            {/* Command Builder Card */}
+            <Card
+              className="cursor-pointer transition-colors hover:bg-accent w-full"
+              onClick={() => navigate("/command-builder")}
+            >
+              <CardHeader className="flex flex-row items-center gap-3">
+                <div className="shrink-0 h-6 w-6 flex items-center justify-center">
+                  <Terminal className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div className="text-left">
+                  <CardTitle className="text-base">Command Builder</CardTitle>
+                  <CardDescription>
+                    Build and customize Gemini CLI commands with templates.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
+            
+            {/* CLI Chat Card */}
+            <Card
+              className="cursor-pointer transition-colors hover:bg-accent w-full"
+              onClick={() => navigate("/chat")}
+            >
+              <CardHeader className="flex flex-row items-center gap-3">
+                <div className="shrink-0 h-6 w-6 flex items-center justify-center">
+                  <MessageSquare className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div className="text-left">
+                  <CardTitle className="text-base">CLI Chat</CardTitle>
+                  <CardDescription>
+                    Interactive chat with Gemini CLI, logs, and settings.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
+            
+            {/* File Browser Card */}
+            <Card
+              className="cursor-pointer transition-colors hover:bg-accent w-full"
+              onClick={() => navigate("/files")}
+            >
+              <CardHeader className="flex flex-row items-center gap-3">
+                <div className="shrink-0 h-6 w-6 flex items-center justify-center">
+                  <FolderKanban className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div className="text-left">
+                  <CardTitle className="text-base">File Browser</CardTitle>
+                  <CardDescription>
+                    Navigate and explore files and directories.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
+            
+            {/* Project Builder Card */}
+            <Card
+              className="cursor-pointer transition-colors hover:bg-accent w-full"
+              onClick={() => navigate("/project-builder")}
+            >
+              <CardHeader className="flex flex-row items-center gap-3">
+                <div className="shrink-0 h-6 w-6 flex items-center justify-center">
+                  <FolderPlus className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div className="text-left">
+                  <CardTitle className="text-base">Project Builder</CardTitle>
+                  <CardDescription>
+                    AI-powered project initialization and development.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
+            
+            {/* Settings Card */}
+            <Card
+              className="cursor-pointer transition-colors hover:bg-accent w-full"
+              onClick={() => navigate("/settings")}
+            >
+              <CardHeader className="flex flex-row items-center gap-3">
+                <div className="shrink-0 h-6 w-6 flex items-center justify-center">
+                  <Terminal className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div className="text-left">
+                  <CardTitle className="text-base">Settings</CardTitle>
+                  <CardDescription>
+                    Configure themes, models, and application settings.
                   </CardDescription>
                 </div>
               </CardHeader>

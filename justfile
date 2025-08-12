@@ -1,10 +1,11 @@
 export TAURI_APP_PATH := "../crates/tauri-app"  # Relative to `frontend`.
 export TAURI_FRONTEND_PATH := "frontend"
-
+export host := "0.0.0.0"
+export TAURI_DEV_HOST := "0.0.0.0"
 set windows-shell := ["powershell"]
 
 default:
-  just --list
+    just --list
 
 build-all: build build-web
 

@@ -13,6 +13,7 @@ use std::sync::{
     Arc,
     atomic::{AtomicU64, Ordering},
 };
+use std::{env, fs};
 use tokio::sync::{Mutex, mpsc as tokio_mpsc};
 
 // Import backend functionality
@@ -585,8 +586,35 @@ fn websocket_handler(
     }
 }
 
+fn get_configured_port() -> u16 {
+    // Try to read from settings file
+    if let Ok(home) = env::var("USERPROFILE").or_else(|_| env::var("HOME")) {
+        let settings_path = format!("{}/.gemini-desktop/settings.json", home);
+        if let Ok(content) = fs::read_to_string(&settings_path) {
+            if let Ok(settings) = serde_json::from_str::<serde_json::Value>(&content) {
+                if let Some(port) = settings.get("serverPort").and_then(|p| p.as_u64()) {
+                    return port as u16;
+                }
+            }
+        }
+    }
+    
+    // Try environment variable
+    if let Ok(port_str) = env::var("PORT") {
+        if let Ok(port) = port_str.parse::<u16>() {
+            return port;
+        }
+    }
+    
+    // Default port
+    1858
+}
+
 #[rocket::launch]
 fn rocket() -> _ {
+    let port = get_configured_port();
+    println!("🚀 Starting Gemini Desktop server on port {}", port);
+    
     // Create WebSocket manager and backend with WebSockets event emitter
     let ws_manager = WebSocketManager::new();
     let emitter = WebSocketsEventEmitter::new(ws_manager.clone());
@@ -600,7 +628,7 @@ fn rocket() -> _ {
 
     rocket::custom(
         rocket::Config::figment()
-            .merge(("port", 1858))
+            .merge(("port", port))
             .merge(("address", "0.0.0.0")),
     )
     .manage(app_state)

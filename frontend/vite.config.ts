@@ -40,11 +40,11 @@ export default defineConfig({
       : undefined,
     proxy: {
       "/api": {
-        target: "http://localhost:1858",
+        target: "http://0.0.0.0:1420",
         changeOrigin: true,
       },
       "/api/ws": {
-        target: "ws://localhost:1858",
+        target: "ws://0.0.0.0:1420",
         changeOrigin: true,
         ws: true,
       },

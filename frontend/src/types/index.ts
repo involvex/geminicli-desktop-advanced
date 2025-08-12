@@ -79,3 +79,13 @@ export interface ToolCallUpdateEvent {
 }
 
 export type ErrorContent = ToolCallResult | string | null | undefined;
+
+export interface Server {
+  id: string;
+  name: string;
+  port: number;
+  model: string;
+  working_directory: string;
+  status: string;
+  pid?: number;
+}

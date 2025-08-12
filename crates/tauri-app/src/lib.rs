@@ -48,7 +48,13 @@ pub fn run() {
             commands::list_projects,
             commands::list_enriched_projects,
             commands::get_project,
-            commands::get_project_discussions
+            commands::get_project_discussions,
+            commands::list_servers,
+            commands::add_server,
+            commands::edit_server,
+            commands::delete_server,
+            commands::start_server,
+            commands::stop_server
         ]);
 
     builder

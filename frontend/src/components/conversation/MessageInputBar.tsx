@@ -22,6 +22,7 @@ interface MessageInputBarProps {
     _mentions: unknown[]
   ) => void;
   handleSendMessage: (e: React.FormEvent) => Promise<void>;
+  selectedModel: string;
 }
 
 export const MessageInputBar: React.FC<MessageInputBarProps> = ({

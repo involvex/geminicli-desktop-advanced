@@ -22,7 +22,8 @@ frontend/*.local
 *.njsproj
 *.sln
 *.sw?
-
+.env
+.claude/
 target
 
 # Gemini Desktop test artifacts

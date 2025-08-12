@@ -1,6 +1,6 @@
 use tauri::{AppHandle, State};
 use backend::{ProcessStatus, DirEntry, RecentChat, ProjectsResponse, EnrichedProject, 
-              SearchResult, SearchFilters};
+              SearchResult, SearchFilters, Server};
 use crate::state::AppState;
 
 #[tauri::command]
@@ -251,4 +251,55 @@ pub async fn debug_environment() -> Result<String, String> {
         home,
         gemini_result
     ))
+}
+
+#[tauri::command]
+pub async fn list_servers() -> Result<Vec<Server>, String> {
+    backend::servers::list_servers().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn add_server(
+    name: String,
+    port: u16,
+    model: String,
+    working_directory: Option<String>,
+) -> Result<Vec<Server>, String> {
+    let server = backend::Server::new(name, port, model, working_directory.unwrap_or_default());
+    backend::servers::add_server(server).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn edit_server(
+    id: String,
+    name: String,
+    port: u16,
+    model: String,
+    working_directory: String,
+) -> Result<Vec<Server>, String> {
+    let server = backend::Server {
+        id,
+        name,
+        port,
+        model,
+        working_directory,
+        status: "stopped".to_string(), // Status is managed by backend
+        pid: None, // PID is managed by backend
+    };
+    backend::servers::edit_server(server).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn delete_server(id: String) -> Result<Vec<Server>, String> {
+    backend::servers::delete_server(id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn start_server(id: String) -> Result<Vec<Server>, String> {
+    backend::servers::start_server(id).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn stop_server(id: String) -> Result<Vec<Server>, String> {
+    backend::servers::stop_server(id).await.map_err(|e| e.to_string())
 }

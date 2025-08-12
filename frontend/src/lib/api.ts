@@ -93,6 +93,23 @@ export const api = {
             sessionArgs.model
           ) as Promise<T>;
         }
+        case "start_server":
+          if (!args) throw new Error("Missing arguments for start_server");
+          return webApi.start_server(args as { id: string }) as Promise<T>;
+        case "stop_server":
+          if (!args) throw new Error("Missing arguments for stop_server");
+          return webApi.stop_server(args as { id: string }) as Promise<T>;
+        case "list_servers":
+          return webApi.list_servers() as Promise<T>;
+        case "add_server":
+          if (!args) throw new Error("Missing arguments for add_server");
+          return webApi.add_server(args as any) as Promise<T>;
+        case "edit_server":
+          if (!args) throw new Error("Missing arguments for edit_server");
+          return webApi.edit_server(args as any) as Promise<T>;
+        case "delete_server":
+          if (!args) throw new Error("Missing arguments for delete_server");
+          return webApi.delete_server(args as { id: string }) as Promise<T>;
         default:
           throw new Error(`Unknown command: ${command}`);
       }

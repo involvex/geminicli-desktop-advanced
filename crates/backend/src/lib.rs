@@ -9,6 +9,8 @@ pub mod security;
 pub mod session;
 pub mod types;
 
+pub mod servers;
+
 // Test utilities (only available in test builds)
 #[cfg(test)]
 pub mod test_utils;
@@ -33,6 +35,9 @@ pub use projects::{
 pub use rpc::{JsonRpcError, JsonRpcRequest, JsonRpcResponse, RpcLogger};
 pub use search::{MessageMatch, RecentChat, SearchFilters, SearchResult};
 pub use security::{execute_terminal_command, is_command_safe};
+pub use servers::{
+    Server, add_server, delete_server, edit_server, list_servers, start_server, stop_server,
+};
 pub use session::{PersistentSession, ProcessStatus, SessionManager, initialize_session};
 pub use types::{BackendError, BackendResult};
 

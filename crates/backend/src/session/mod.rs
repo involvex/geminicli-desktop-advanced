@@ -704,7 +704,7 @@ mod tests {
 
         let json = serde_json::to_string(&status).unwrap();
         let deserialized: ProcessStatus = serde_json::from_str(&json).unwrap();
-        
+
         assert_eq!(status.conversation_id, deserialized.conversation_id);
         assert_eq!(status.pid, deserialized.pid);
         assert_eq!(status.created_at, deserialized.created_at);
@@ -748,20 +748,23 @@ mod tests {
     #[test]
     fn test_session_manager_get_process_statuses() {
         let manager = SessionManager::new();
-        
+
         // Add a session directly to processes
         {
             let mut processes = manager.processes.lock().unwrap();
-            processes.insert("test-session".to_string(), PersistentSession {
-                conversation_id: "test-session".to_string(),
-                pid: Some(12345),
-                created_at: 1640995200,
-                is_alive: true,
-                stdin: None,
-                message_sender: None,
-                rpc_logger: Arc::new(NoOpRpcLogger),
-                child: None,
-            });
+            processes.insert(
+                "test-session".to_string(),
+                PersistentSession {
+                    conversation_id: "test-session".to_string(),
+                    pid: Some(12345),
+                    created_at: 1640995200,
+                    is_alive: true,
+                    stdin: None,
+                    message_sender: None,
+                    rpc_logger: Arc::new(NoOpRpcLogger),
+                    child: None,
+                },
+            );
         }
 
         let statuses = manager.get_process_statuses().unwrap();
@@ -774,7 +777,7 @@ mod tests {
     #[test]
     fn test_session_manager_kill_process_nonexistent() {
         let manager = SessionManager::new();
-        
+
         // Killing a non-existent process should not error
         let result = manager.kill_process("nonexistent");
         assert!(result.is_ok());
@@ -783,20 +786,23 @@ mod tests {
     #[test]
     fn test_session_manager_kill_process_no_child_no_pid() {
         let manager = SessionManager::new();
-        
+
         // Add a session with no child and no pid
         {
             let mut processes = manager.processes.lock().unwrap();
-            processes.insert("test-session".to_string(), PersistentSession {
-                conversation_id: "test-session".to_string(),
-                pid: None,
-                created_at: 1640995200,
-                is_alive: true,
-                stdin: None,
-                message_sender: None,
-                rpc_logger: Arc::new(NoOpRpcLogger),
-                child: None,
-            });
+            processes.insert(
+                "test-session".to_string(),
+                PersistentSession {
+                    conversation_id: "test-session".to_string(),
+                    pid: None,
+                    created_at: 1640995200,
+                    is_alive: true,
+                    stdin: None,
+                    message_sender: None,
+                    rpc_logger: Arc::new(NoOpRpcLogger),
+                    child: None,
+                },
+            );
         }
 
         let result = manager.kill_process("test-session");
@@ -819,35 +825,39 @@ mod tests {
     #[tokio::test]
     async fn test_send_response_to_cli_no_session() {
         let processes: ProcessMap = Arc::new(Mutex::new(HashMap::new()));
-        
+
         // Should not panic when session doesn't exist
         send_response_to_cli(
             "nonexistent",
             123,
             Some(json!({"status": "ok"})),
             None,
-            &processes
-        ).await;
+            &processes,
+        )
+        .await;
     }
 
     #[tokio::test]
     async fn test_send_response_to_cli_with_session() {
         let processes: ProcessMap = Arc::new(Mutex::new(HashMap::new()));
         let (tx, mut rx) = mpsc::unbounded_channel::<String>();
-        
+
         // Add session with message sender
         {
             let mut guard = processes.lock().unwrap();
-            guard.insert("test-session".to_string(), PersistentSession {
-                conversation_id: "test-session".to_string(),
-                pid: Some(12345),
-                created_at: 1640995200,
-                is_alive: true,
-                stdin: None,
-                message_sender: Some(tx),
-                rpc_logger: Arc::new(NoOpRpcLogger),
-                child: None,
-            });
+            guard.insert(
+                "test-session".to_string(),
+                PersistentSession {
+                    conversation_id: "test-session".to_string(),
+                    pid: Some(12345),
+                    created_at: 1640995200,
+                    is_alive: true,
+                    stdin: None,
+                    message_sender: Some(tx),
+                    rpc_logger: Arc::new(NoOpRpcLogger),
+                    child: None,
+                },
+            );
         }
 
         send_response_to_cli(
@@ -855,11 +865,15 @@ mod tests {
             123,
             Some(json!({"status": "ok"})),
             None,
-            &processes
-        ).await;
+            &processes,
+        )
+        .await;
 
         // Verify the response was sent
-        let response = timeout(Duration::from_millis(100), rx.recv()).await.unwrap().unwrap();
+        let response = timeout(Duration::from_millis(100), rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
         let parsed: JsonRpcResponse = serde_json::from_str(&response).unwrap();
         assert_eq!(parsed.id, 123);
         assert_eq!(parsed.result, Some(json!({"status": "ok"})));
@@ -877,8 +891,9 @@ mod tests {
             "invalid json",
             &tx,
             &mut tool_call_id,
-            &mut pending_requests
-        ).await;
+            &mut pending_requests,
+        )
+        .await;
 
         // tool_call_id should remain unchanged
         assert_eq!(tool_call_id, 1001);
@@ -898,27 +913,50 @@ mod tests {
                     "thought": "I should respond"
                 }
             }
-        }).to_string();
+        })
+        .to_string();
 
         handle_cli_output_line(
             "test-session",
             &input,
             &tx,
             &mut tool_call_id,
-            &mut pending_requests
-        ).await;
+            &mut pending_requests,
+        )
+        .await;
 
         // Should receive both thought and output events
-        let event1 = timeout(Duration::from_millis(100), rx.recv()).await.unwrap().unwrap();
-        let event2 = timeout(Duration::from_millis(100), rx.recv()).await.unwrap().unwrap();
+        let event1 = timeout(Duration::from_millis(100), rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let event2 = timeout(Duration::from_millis(100), rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
 
         match (&event1, &event2) {
-            (InternalEvent::GeminiThought { session_id, payload }, InternalEvent::GeminiOutput { .. }) |
-            (InternalEvent::GeminiOutput { .. }, InternalEvent::GeminiThought { session_id, payload }) => {
+            (
+                InternalEvent::GeminiThought {
+                    session_id,
+                    payload,
+                },
+                InternalEvent::GeminiOutput { .. },
+            )
+            | (
+                InternalEvent::GeminiOutput { .. },
+                InternalEvent::GeminiThought {
+                    session_id,
+                    payload,
+                },
+            ) => {
                 assert_eq!(session_id, "test-session");
                 assert_eq!(payload.thought, "I should respond");
-            },
-            _ => panic!("Expected thought and output events, got: {:?}, {:?}", event1, event2),
+            }
+            _ => panic!(
+                "Expected thought and output events, got: {:?}, {:?}",
+                event1, event2
+            ),
         }
     }
 
@@ -935,26 +973,34 @@ mod tests {
                 "icon": "🔧",
                 "locations": ["file.txt"]
             }
-        }).to_string();
+        })
+        .to_string();
 
         handle_cli_output_line(
             "test-session",
             &input,
             &tx,
             &mut tool_call_id,
-            &mut pending_requests
-        ).await;
+            &mut pending_requests,
+        )
+        .await;
 
-        let event = timeout(Duration::from_millis(500), rx.recv()).await.unwrap().unwrap();
+        let event = timeout(Duration::from_millis(500), rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
         match event {
-            InternalEvent::ToolCall { session_id, payload } => {
+            InternalEvent::ToolCall {
+                session_id,
+                payload,
+            } => {
                 assert_eq!(session_id, "test-session");
                 assert_eq!(payload.id, 1001);
                 assert_eq!(payload.name, "Test Tool");
                 assert_eq!(payload.icon, "🔧".to_string());
                 assert_eq!(payload.label, "Test Tool");
                 assert_eq!(payload.status, "pending");
-            },
+            }
             _ => panic!("Expected ToolCall event, got: {:?}", event),
         }
 
@@ -974,24 +1020,37 @@ mod tests {
                 "status": "completed",
                 "content": "Tool execution complete"
             }
-        }).to_string();
+        })
+        .to_string();
 
         handle_cli_output_line(
             "test-session",
             &input,
             &tx,
             &mut tool_call_id,
-            &mut pending_requests
-        ).await;
+            &mut pending_requests,
+        )
+        .await;
 
-        let event = timeout(Duration::from_millis(500), rx.recv()).await.unwrap().unwrap();
+        let event = timeout(Duration::from_millis(500), rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
         match event {
-            InternalEvent::ToolCallUpdate { session_id, payload } => {
+            InternalEvent::ToolCallUpdate {
+                session_id,
+                payload,
+            } => {
                 assert_eq!(session_id, "test-session");
                 assert_eq!(payload.tool_call_id, 1001);
                 assert_eq!(payload.status, "completed");
-                assert_eq!(payload.content, Some(serde_json::Value::String("Tool execution complete".to_string())));
-            },
+                assert_eq!(
+                    payload.content,
+                    Some(serde_json::Value::String(
+                        "Tool execution complete".to_string()
+                    ))
+                );
+            }
             _ => panic!("Expected ToolCallUpdate event, got: {:?}", event),
         }
     }
@@ -1012,19 +1071,27 @@ mod tests {
                 "confirmation": true,
                 "locations": ["file.txt"]
             }
-        }).to_string();
+        })
+        .to_string();
 
         handle_cli_output_line(
             "test-session",
             &input,
             &tx,
             &mut tool_call_id,
-            &mut pending_requests
-        ).await;
+            &mut pending_requests,
+        )
+        .await;
 
-        let event = timeout(Duration::from_millis(500), rx.recv()).await.unwrap().unwrap();
+        let event = timeout(Duration::from_millis(500), rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
         match event {
-            InternalEvent::ToolCallConfirmation { session_id, payload } => {
+            InternalEvent::ToolCallConfirmation {
+                session_id,
+                payload,
+            } => {
                 assert_eq!(session_id, "test-session");
                 assert_eq!(payload.request_id, 42);
                 assert_eq!(payload.session_id, "test-session");
@@ -1034,7 +1101,7 @@ mod tests {
                 assert!(payload.confirmation.confirmation_type.len() > 0);
                 assert_eq!(payload.locations.len(), 1);
                 assert_eq!(payload.locations[0].path, "file.txt");
-            },
+            }
             _ => panic!("Expected ToolCallConfirmation event, got: {:?}", event),
         }
     }
@@ -1049,21 +1116,26 @@ mod tests {
         let input = json!({
             "id": 123,
             "result": {"status": "ok"}
-        }).to_string();
+        })
+        .to_string();
 
         handle_cli_output_line(
             "test-session",
             &input,
             &tx,
             &mut tool_call_id,
-            &mut pending_requests
-        ).await;
+            &mut pending_requests,
+        )
+        .await;
 
-        let event = timeout(Duration::from_millis(100), rx.recv()).await.unwrap().unwrap();
+        let event = timeout(Duration::from_millis(100), rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
         match event {
             InternalEvent::GeminiTurnFinished { session_id } => {
                 assert_eq!(session_id, "test-session");
-            },
+            }
             _ => panic!("Expected GeminiTurnFinished event, got: {:?}", event),
         }
 
@@ -1080,22 +1152,30 @@ mod tests {
         let input = json!({
             "id": 123,
             "error": {"code": -1, "message": "Something went wrong"}
-        }).to_string();
+        })
+        .to_string();
 
         handle_cli_output_line(
             "test-session",
             &input,
             &tx,
             &mut tool_call_id,
-            &mut pending_requests
-        ).await;
+            &mut pending_requests,
+        )
+        .await;
 
-        let event = timeout(Duration::from_millis(100), rx.recv()).await.unwrap().unwrap();
+        let event = timeout(Duration::from_millis(100), rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
         match event {
-            InternalEvent::Error { session_id, payload } => {
+            InternalEvent::Error {
+                session_id,
+                payload,
+            } => {
                 assert_eq!(session_id, "test-session");
                 assert!(payload.error.contains("Something went wrong"));
-            },
+            }
             _ => panic!("Expected Error event, got: {:?}", event),
         }
 
@@ -1111,7 +1191,8 @@ mod tests {
         let input = json!({
             "method": "unknownMethod",
             "params": {}
-        }).to_string();
+        })
+        .to_string();
 
         // Should not panic or produce events for unknown methods
         handle_cli_output_line(
@@ -1119,8 +1200,9 @@ mod tests {
             &input,
             &tx,
             &mut tool_call_id,
-            &mut pending_requests
-        ).await;
+            &mut pending_requests,
+        )
+        .await;
 
         assert_eq!(tool_call_id, 1001); // Should remain unchanged
     }
@@ -1136,7 +1218,7 @@ mod tests {
 
         let serialized = serde_json::to_string(&request).unwrap();
         let deserialized: JsonRpcRequest = serde_json::from_str(&serialized).unwrap();
-        
+
         assert_eq!(request.jsonrpc, deserialized.jsonrpc);
         assert_eq!(request.id, deserialized.id);
         assert_eq!(request.method, deserialized.method);
@@ -1154,7 +1236,7 @@ mod tests {
 
         let serialized = serde_json::to_string(&response).unwrap();
         let deserialized: JsonRpcResponse = serde_json::from_str(&serialized).unwrap();
-        
+
         assert_eq!(response.jsonrpc, deserialized.jsonrpc);
         assert_eq!(response.id, deserialized.id);
         assert_eq!(response.result, deserialized.result);
@@ -1169,17 +1251,19 @@ mod tests {
         use crate::events::MockEventEmitter;
         use crate::test_utils::{EnvGuard, TestDirManager};
         use tempfile::TempDir;
-        
+
         let mut env_guard = EnvGuard::new();
         let temp_dir = TempDir::new().unwrap();
         env_guard.set_temp_home(&temp_dir);
-        
+
         let test_dir_manager = TestDirManager::new().unwrap();
-        let working_dir = test_dir_manager.create_unique_subdir("test_session").unwrap();
-        
+        let working_dir = test_dir_manager
+            .create_unique_subdir("test_session")
+            .unwrap();
+
         let emitter = MockEventEmitter::new();
         let session_manager = SessionManager::new();
-        
+
         // Test session initialization with mock emitter
         // Note: This will fail if gemini CLI is not installed, but tests the integration logic
         let result = initialize_session(
@@ -1188,8 +1272,9 @@ mod tests {
             "gemini-2.5-flash".to_string(),
             emitter.clone(),
             &session_manager,
-        ).await;
-        
+        )
+        .await;
+
         // The result may fail due to missing CLI, but we can test the error handling
         match result {
             Ok((sender, _logger)) => {
@@ -1198,12 +1283,12 @@ mod tests {
                 assert_eq!(statuses.len(), 1);
                 assert_eq!(statuses[0].conversation_id, "test-session-123");
                 assert!(statuses[0].is_alive);
-                
+
                 // Test that we can send a message (will be queued)
                 let test_message = "test message";
                 let send_result = sender.send(test_message.to_string());
                 assert!(send_result.is_ok());
-            },
+            }
             Err(e) => {
                 // Expected if gemini CLI is not available
                 // Verify it's the expected error type
@@ -1211,12 +1296,12 @@ mod tests {
                     crate::types::BackendError::SessionInitFailed(_) => {
                         // This is expected when CLI is not available
                         println!("Session init failed as expected (CLI not available): {}", e);
-                    },
+                    }
                     _ => panic!("Unexpected error type: {}", e),
                 }
             }
         }
-        
+
         // Verify events were emitted during initialization attempt
         assert!(emitter.total_events() > 0);
         assert!(emitter.has_event("cli-io-test-session-123"));
@@ -1226,34 +1311,37 @@ mod tests {
     async fn test_session_manager_integration() {
         use crate::rpc::NoOpRpcLogger;
         use std::sync::Arc;
-        
+
         let session_manager = SessionManager::new();
-        
+
         // Test adding a mock session
         {
             let mut processes = session_manager.processes.lock().unwrap();
-            processes.insert("integration-test".to_string(), PersistentSession {
-                conversation_id: "integration-test".to_string(),
-                pid: Some(12345),
-                created_at: 1640995200,
-                is_alive: true,
-                stdin: None,
-                message_sender: None,
-                rpc_logger: Arc::new(NoOpRpcLogger),
-                child: None,
-            });
+            processes.insert(
+                "integration-test".to_string(),
+                PersistentSession {
+                    conversation_id: "integration-test".to_string(),
+                    pid: Some(12345),
+                    created_at: 1640995200,
+                    is_alive: true,
+                    stdin: None,
+                    message_sender: None,
+                    rpc_logger: Arc::new(NoOpRpcLogger),
+                    child: None,
+                },
+            );
         }
-        
+
         // Test process status retrieval
         let statuses = session_manager.get_process_statuses().unwrap();
         assert_eq!(statuses.len(), 1);
         assert_eq!(statuses[0].conversation_id, "integration-test");
         assert!(statuses[0].is_alive);
-        
+
         // Test process killing
         let kill_result = session_manager.kill_process("integration-test");
         assert!(kill_result.is_ok());
-        
+
         // Verify process was marked as not alive
         let statuses_after_kill = session_manager.get_process_statuses().unwrap();
         assert_eq!(statuses_after_kill.len(), 1);
@@ -1263,14 +1351,14 @@ mod tests {
     #[tokio::test]
     async fn test_handle_cli_output_line_integration() {
         use crate::events::MockEventEmitter;
-        use tokio::sync::mpsc;
         use std::collections::HashSet;
-        
+        use tokio::sync::mpsc;
+
         let _emitter = MockEventEmitter::new();
         let (tx, mut rx) = mpsc::unbounded_channel();
         let mut tool_call_id = 1001u32;
         let mut pending_requests = HashSet::new();
-        
+
         // Test complete workflow with multiple message types
         let messages = vec![
             // Tool call push
@@ -1282,7 +1370,7 @@ mod tests {
             // Tool call confirmation request
             r#"{"id":42,"method":"requestToolCallConfirmation","params":{"label":"Confirm","icon":"❓","content":{"type":"edit"},"confirmation":{"type":"simple"},"locations":[{"path":"test.rs"}]}}"#,
         ];
-        
+
         for message in messages {
             handle_cli_output_line(
                 "integration-test",
@@ -1290,65 +1378,75 @@ mod tests {
                 &tx,
                 &mut tool_call_id,
                 &mut pending_requests,
-            ).await;
+            )
+            .await;
         }
-        
+
         // Collect all events
         let mut events = Vec::new();
         while let Ok(event) = rx.try_recv() {
             events.push(event);
         }
-        
+
         // Verify we received the expected events (should be at least 4, but could be more due to async timing)
         assert!(events.len() >= 4);
-        
+
         // Verify event types
         match &events[0] {
-            crate::events::InternalEvent::ToolCall { session_id, payload } => {
+            crate::events::InternalEvent::ToolCall {
+                session_id,
+                payload,
+            } => {
                 assert_eq!(session_id, "integration-test");
                 assert_eq!(payload.id, 1001);
                 assert_eq!(payload.label, "Test Tool");
-            },
+            }
             _ => panic!("Expected ToolCall event"),
         }
-        
+
         match &events[1] {
-            crate::events::InternalEvent::ToolCallUpdate { session_id, payload } => {
+            crate::events::InternalEvent::ToolCallUpdate {
+                session_id,
+                payload,
+            } => {
                 assert_eq!(session_id, "integration-test");
                 assert_eq!(payload.tool_call_id, 1001);
                 assert_eq!(payload.status, "completed");
-            },
+            }
             _ => panic!("Expected ToolCallUpdate event"),
         }
-        
+
         // Verify tool_call_id was incremented
         assert_eq!(tool_call_id, 1002);
     }
 
     #[tokio::test]
     async fn test_send_response_to_cli_integration() {
-        use crate::rpc::{NoOpRpcLogger, JsonRpcResponse};
-        use tokio::sync::mpsc;
+        use crate::rpc::{JsonRpcResponse, NoOpRpcLogger};
         use std::sync::Arc;
-        
+        use tokio::sync::mpsc;
+
         let processes: ProcessMap = Arc::new(Mutex::new(HashMap::new()));
         let (tx, mut rx) = mpsc::unbounded_channel::<String>();
-        
+
         // Set up a mock session with message sender
         {
             let mut guard = processes.lock().unwrap();
-            guard.insert("integration-test".to_string(), PersistentSession {
-                conversation_id: "integration-test".to_string(),
-                pid: Some(12345),
-                created_at: 1640995200,
-                is_alive: true,
-                stdin: None,
-                message_sender: Some(tx),
-                rpc_logger: Arc::new(NoOpRpcLogger),
-                child: None,
-            });
+            guard.insert(
+                "integration-test".to_string(),
+                PersistentSession {
+                    conversation_id: "integration-test".to_string(),
+                    pid: Some(12345),
+                    created_at: 1640995200,
+                    is_alive: true,
+                    stdin: None,
+                    message_sender: Some(tx),
+                    rpc_logger: Arc::new(NoOpRpcLogger),
+                    child: None,
+                },
+            );
         }
-        
+
         // Test sending a response
         send_response_to_cli(
             "integration-test",
@@ -1356,97 +1454,107 @@ mod tests {
             Some(serde_json::json!({"status": "success"})),
             None,
             &processes,
-        ).await;
-        
+        )
+        .await;
+
         // Verify the response was sent
         let response_json = rx.recv().await.unwrap();
         let response: JsonRpcResponse = serde_json::from_str(&response_json).unwrap();
-        
+
         assert_eq!(response.id, 123);
-        assert_eq!(response.result, Some(serde_json::json!({"status": "success"})));
+        assert_eq!(
+            response.result,
+            Some(serde_json::json!({"status": "success"}))
+        );
         assert!(response.error.is_none());
     }
 
     #[test]
     fn test_session_thread_safety() {
-        use std::thread;
-        use std::sync::Arc;
         use crate::rpc::NoOpRpcLogger;
-        
+        use std::sync::Arc;
+        use std::thread;
+
         let session_manager = SessionManager::new();
         let session_manager = Arc::new(session_manager);
-        
+
         let mut handles = vec![];
-        
+
         // Spawn multiple threads that add and remove sessions
         for i in 0..10 {
             let manager = Arc::clone(&session_manager);
             let handle = thread::spawn(move || {
                 let session_id = format!("thread-session-{}", i);
-                
+
                 // Add session
                 {
                     let mut processes = manager.processes.lock().unwrap();
-                    processes.insert(session_id.clone(), PersistentSession {
-                        conversation_id: session_id.clone(),
-                        pid: Some(1000 + i as u32),
-                        created_at: 1640995200 + i as u64,
-                        is_alive: true,
-                        stdin: None,
-                        message_sender: None,
-                        rpc_logger: Arc::new(NoOpRpcLogger),
-                        child: None,
-                    });
+                    processes.insert(
+                        session_id.clone(),
+                        PersistentSession {
+                            conversation_id: session_id.clone(),
+                            pid: Some(1000 + i as u32),
+                            created_at: 1640995200 + i as u64,
+                            is_alive: true,
+                            stdin: None,
+                            message_sender: None,
+                            rpc_logger: Arc::new(NoOpRpcLogger),
+                            child: None,
+                        },
+                    );
                 }
-                
+
                 // Get status
                 let statuses = manager.get_process_statuses().unwrap();
                 assert!(statuses.iter().any(|s| s.conversation_id == session_id));
-                
+
                 // Kill session
                 manager.kill_process(&session_id).unwrap();
             });
             handles.push(handle);
         }
-        
+
         // Wait for all threads to complete
         for handle in handles {
             handle.join().unwrap();
         }
-        
+
         // Verify final state
         let final_statuses = session_manager.get_process_statuses().unwrap();
         assert_eq!(final_statuses.len(), 10);
-        
+
         // All sessions should be marked as not alive
         for status in final_statuses {
             assert!(!status.is_alive);
         }
     }
 
-    #[test] 
+    #[test]
     fn test_process_map_thread_safety() {
         use std::thread;
-        
+
         let processes: ProcessMap = Arc::new(Mutex::new(HashMap::new()));
         let processes_clone = processes.clone();
-        
+
         let handle = thread::spawn(move || {
             let mut guard = processes_clone.lock().unwrap();
-            guard.insert("thread-test".to_string(), PersistentSession {
-                conversation_id: "thread-test".to_string(),
-                pid: Some(999),
-                created_at: 1640995200,
-                is_alive: true,
-                stdin: None,
-                message_sender: None,
-                rpc_logger: Arc::new(NoOpRpcLogger),
-                child: None,
-            });
+            guard.insert(
+                "thread-test".to_string(),
+                PersistentSession {
+                    conversation_id: "thread-test".to_string(),
+                    pid: Some(999),
+                    created_at: 1640995200,
+                    is_alive: true,
+                    stdin: None,
+                    message_sender: None,
+                    rpc_logger: Arc::new(NoOpRpcLogger),
+                    child: None,
+                },
+            );
         });
-        
+
         handle.join().unwrap();
-        
+
         let guard = processes.lock().unwrap();
         assert!(guard.contains_key("thread-test"));
         assert_eq!(guard.get("thread-test").unwrap().pid, Some(999));
@@ -1455,32 +1563,35 @@ mod tests {
     #[test]
     fn test_session_manager_stress_add_remove() {
         let manager = SessionManager::new();
-        
+
         // Add multiple sessions
         {
             let mut processes = manager.processes.lock().unwrap();
             for i in 0..10 {
-                processes.insert(format!("session-{}", i), PersistentSession {
-                    conversation_id: format!("session-{}", i),
-                    pid: Some(1000 + i as u32),
-                    created_at: 1640995200 + i as u64,
-                    is_alive: true,
-                    stdin: None,
-                    message_sender: None,
-                    rpc_logger: Arc::new(NoOpRpcLogger),
-                    child: None,
-                });
+                processes.insert(
+                    format!("session-{}", i),
+                    PersistentSession {
+                        conversation_id: format!("session-{}", i),
+                        pid: Some(1000 + i as u32),
+                        created_at: 1640995200 + i as u64,
+                        is_alive: true,
+                        stdin: None,
+                        message_sender: None,
+                        rpc_logger: Arc::new(NoOpRpcLogger),
+                        child: None,
+                    },
+                );
             }
         }
-        
+
         let statuses = manager.get_process_statuses().unwrap();
         assert_eq!(statuses.len(), 10);
-        
+
         // Kill some sessions
         for i in 0..5 {
             manager.kill_process(&format!("session-{}", i)).unwrap();
         }
-        
+
         let statuses = manager.get_process_statuses().unwrap();
         assert_eq!(statuses.len(), 10); // All still there but some not alive
         let alive_count = statuses.iter().filter(|s| s.is_alive).count();

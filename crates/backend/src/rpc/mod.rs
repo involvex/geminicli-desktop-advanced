@@ -216,7 +216,7 @@ mod tests {
 
         let serialized = serde_json::to_string(&request).unwrap();
         let deserialized: JsonRpcRequest = serde_json::from_str(&serialized).unwrap();
-        
+
         assert_eq!(request.jsonrpc, deserialized.jsonrpc);
         assert_eq!(request.id, deserialized.id);
         assert_eq!(request.method, deserialized.method);
@@ -234,7 +234,7 @@ mod tests {
 
         let serialized = serde_json::to_string(&response).unwrap();
         let deserialized: JsonRpcResponse = serde_json::from_str(&serialized).unwrap();
-        
+
         assert_eq!(response.jsonrpc, deserialized.jsonrpc);
         assert_eq!(response.id, deserialized.id);
         assert_eq!(response.result, deserialized.result);
@@ -255,11 +255,11 @@ mod tests {
 
         let serialized = serde_json::to_string(&response).unwrap();
         let deserialized: JsonRpcResponse = serde_json::from_str(&serialized).unwrap();
-        
+
         assert_eq!(response.jsonrpc, deserialized.jsonrpc);
         assert_eq!(response.id, deserialized.id);
         assert!(deserialized.result.is_none());
-        
+
         let error = deserialized.error.unwrap();
         assert_eq!(error.code, -32600);
         assert_eq!(error.message, "Invalid Request");
@@ -274,7 +274,7 @@ mod tests {
 
         let serialized = serde_json::to_string(&error).unwrap();
         let deserialized: JsonRpcError = serde_json::from_str(&serialized).unwrap();
-        
+
         assert_eq!(error.code, deserialized.code);
         assert_eq!(error.message, deserialized.message);
     }
@@ -283,31 +283,35 @@ mod tests {
     fn test_project_hasher_hash_path() {
         let temp_dir = TempDir::new().unwrap();
         let test_path = temp_dir.path().to_str().unwrap();
-        
+
         let hash1 = ProjectHasher::hash_path(test_path).unwrap();
         let hash2 = ProjectHasher::hash_path(test_path).unwrap();
-        
+
         // Same path should produce same hash
         assert_eq!(hash1, hash2);
-        
+
         // Hash should be 64 characters (SHA256 hex)
         assert_eq!(hash1.len(), 64);
-        
+
         // Hash should be lowercase hex
-        assert!(hash1.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+        assert!(
+            hash1
+                .chars()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
+        );
     }
 
     #[test]
     fn test_project_hasher_different_paths() {
         let temp_dir1 = TempDir::new().unwrap();
         let temp_dir2 = TempDir::new().unwrap();
-        
+
         let path1 = temp_dir1.path().to_str().unwrap();
         let path2 = temp_dir2.path().to_str().unwrap();
-        
+
         let hash1 = ProjectHasher::hash_path(path1).unwrap();
         let hash2 = ProjectHasher::hash_path(path2).unwrap();
-        
+
         // Different paths should produce different hashes
         assert_ne!(hash1, hash2);
     }
@@ -316,7 +320,7 @@ mod tests {
     fn test_project_hasher_nonexistent_path() {
         let nonexistent_path = "/path/that/does/not/exist";
         let result = ProjectHasher::hash_path(nonexistent_path);
-        
+
         assert!(result.is_err());
         assert!(matches!(result, Err(BackendError::IoError(_))));
     }
@@ -326,7 +330,7 @@ mod tests {
         let logger = NoOpRpcLogger;
         let result = logger.log_rpc("test message");
         assert!(result.is_ok());
-        
+
         // NoOpRpcLogger should always succeed and do nothing
         let result = logger.log_rpc("");
         assert!(result.is_ok());
@@ -337,13 +341,13 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let mut env_guard = EnvGuard::new();
         env_guard.set("HOME", temp_dir.path().to_str().unwrap());
-        
+
         let working_dir = temp_dir.path().join("test_project");
         fs::create_dir_all(&working_dir).unwrap();
-        
+
         let logger = FileRpcLogger::new(Some(working_dir.to_str().unwrap()));
         assert!(logger.is_ok());
-        
+
         let logger = logger.unwrap();
         assert!(logger.file_path.exists());
     }
@@ -353,7 +357,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let mut env_guard = EnvGuard::new();
         env_guard.set("HOME", temp_dir.path().to_str().unwrap());
-        
+
         let _current_dir = std::env::current_dir().unwrap();
         let logger = FileRpcLogger::new(None);
         assert!(logger.is_ok());
@@ -364,16 +368,16 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let mut env_guard = EnvGuard::new();
         env_guard.set("HOME", temp_dir.path().to_str().unwrap());
-        
+
         let working_dir = temp_dir.path().join("test_project");
         fs::create_dir_all(&working_dir).unwrap();
-        
+
         let logger = FileRpcLogger::new(Some(working_dir.to_str().unwrap())).unwrap();
-        
+
         let test_message = "test RPC message";
         let result = logger.log_rpc(test_message);
         assert!(result.is_ok());
-        
+
         // Verify the message was written to the file
         let content = fs::read_to_string(&logger.file_path).unwrap();
         assert!(content.contains(test_message));
@@ -385,23 +389,23 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let mut env_guard = EnvGuard::new();
         env_guard.set("HOME", temp_dir.path().to_str().unwrap());
-        
+
         let working_dir = temp_dir.path().join("test_project");
         fs::create_dir_all(&working_dir).unwrap();
-        
+
         let logger = FileRpcLogger::new(Some(working_dir.to_str().unwrap())).unwrap();
-        
+
         let messages = vec!["message 1", "message 2", "message 3"];
         for message in &messages {
             let result = logger.log_rpc(message);
             assert!(result.is_ok());
         }
-        
+
         let content = fs::read_to_string(&logger.file_path).unwrap();
         for message in messages {
             assert!(content.contains(message));
         }
-        
+
         // Should have multiple lines with timestamps
         let lines: Vec<&str> = content.lines().collect();
         assert_eq!(lines.len(), 3);
@@ -412,30 +416,30 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let mut env_guard = EnvGuard::new();
         env_guard.set("HOME", temp_dir.path().to_str().unwrap());
-        
+
         let working_dir = temp_dir.path().join("test_project");
         fs::create_dir_all(&working_dir).unwrap();
-        
+
         let logger = FileRpcLogger::new(Some(working_dir.to_str().unwrap())).unwrap();
         let log_dir = logger.file_path.parent().unwrap();
-        
+
         // Create some old log files (simulate old files by setting modified time in the past)
         let old_log1 = log_dir.join("rpc-log-1000000000000.log");
         let old_log2 = log_dir.join("rpc-log-2000000000000.log");
         let not_log_file = log_dir.join("other-file.txt");
-        
+
         fs::write(&old_log1, "old log 1").unwrap();
         fs::write(&old_log2, "old log 2").unwrap();
         fs::write(&not_log_file, "not a log file").unwrap();
-        
+
         // The cleanup should not fail even if there are files it can't process
         let result = logger.cleanup_old_logs();
         assert!(result.is_ok());
-        
+
         // The logger file path should exist (it was created during logger initialization)
         // Note: The file might not exist if it hasn't been written to yet, so we just check that cleanup doesn't fail
         let _ = logger.file_path.exists(); // Don't assert on existence, just verify cleanup works
-        
+
         // Non-log files should not be affected
         assert!(not_log_file.exists());
     }
@@ -445,12 +449,12 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let mut env_guard = EnvGuard::new();
         env_guard.set("HOME", temp_dir.path().to_str().unwrap());
-        
+
         let working_dir = temp_dir.path().join("test_project");
         fs::create_dir_all(&working_dir).unwrap();
-        
+
         let logger = FileRpcLogger::new(Some(working_dir.to_str().unwrap())).unwrap();
-        
+
         // Remove all files to create empty directory scenario
         let log_dir = logger.file_path.parent().unwrap();
         for entry in fs::read_dir(log_dir).unwrap() {
@@ -459,7 +463,7 @@ mod tests {
                 let _ = fs::remove_file(entry.path());
             }
         }
-        
+
         let result = logger.cleanup_old_logs();
         assert!(result.is_ok());
     }
@@ -468,15 +472,15 @@ mod tests {
     fn test_rpc_logger_trait() {
         let no_op_logger: Box<dyn RpcLogger> = Box::new(NoOpRpcLogger);
         assert!(no_op_logger.log_rpc("test").is_ok());
-        
+
         // Test that FileRpcLogger implements the trait
         let temp_dir = TempDir::new().unwrap();
         let mut env_guard = EnvGuard::new();
         env_guard.set("HOME", temp_dir.path().to_str().unwrap());
-        
+
         let working_dir = temp_dir.path().join("test_project");
         fs::create_dir_all(&working_dir).unwrap();
-        
+
         if let Ok(file_logger) = FileRpcLogger::new(Some(working_dir.to_str().unwrap())) {
             let file_logger: Box<dyn RpcLogger> = Box::new(file_logger);
             assert!(file_logger.log_rpc("test").is_ok());
@@ -489,10 +493,10 @@ mod tests {
         let mut env_guard = EnvGuard::new();
         env_guard.remove("HOME");
         env_guard.set("USERPROFILE", temp_dir.path().to_str().unwrap());
-        
+
         let working_dir = temp_dir.path().join("test_project");
         fs::create_dir_all(&working_dir).unwrap();
-        
+
         let logger = FileRpcLogger::new(Some(working_dir.to_str().unwrap()));
         assert!(logger.is_ok());
     }
@@ -502,9 +506,9 @@ mod tests {
         let mut env_guard = EnvGuard::new();
         env_guard.remove("HOME");
         env_guard.remove("USERPROFILE");
-        
+
         let working_dir = std::env::current_dir().unwrap();
-        
+
         // Should use "." as fallback home directory
         let logger = FileRpcLogger::new(Some(working_dir.to_str().unwrap()));
         assert!(logger.is_ok());
@@ -548,13 +552,13 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let mut env_guard = EnvGuard::new();
         env_guard.set("HOME", temp_dir.path().to_str().unwrap());
-        
+
         let working_dir = temp_dir.path().join("test_project");
         fs::create_dir_all(&working_dir).unwrap();
-        
+
         let logger = Arc::new(FileRpcLogger::new(Some(working_dir.to_str().unwrap())).unwrap());
         let mut handles = vec![];
-        
+
         // Spawn multiple threads to log concurrently
         for i in 0..5 {
             let logger_clone = Arc::clone(&logger);
@@ -566,17 +570,17 @@ mod tests {
             });
             handles.push(handle);
         }
-        
+
         // Wait for all threads to complete
         for handle in handles {
             handle.join().unwrap();
         }
-        
+
         // Verify all messages were logged
         let content = fs::read_to_string(&logger.file_path).unwrap();
         let lines: Vec<&str> = content.lines().collect();
         assert_eq!(lines.len(), 50); // 5 threads * 10 messages each
-        
+
         // Verify all expected messages are present
         for i in 0..5 {
             for j in 0..10 {
