@@ -49,10 +49,23 @@ build-web $GEMINI_DESKTOP_WEB="true":
 ### RELEASE
 
 [group('release')]
-release version:
+version-patch:
+    node scripts/version.js patch
+
+[group('release')]
+version-minor:
+    node scripts/version.js minor
+
+[group('release')]
+version-major:
+    node scripts/version.js major
+
+[group('release')]
+release type="patch":
+    node scripts/version.js {{type}}
     git add .
-    git commit -m "🚀 Release {{version}}"
-    git tag -a {{version}} -m "Release {{version}}"
+    git commit -m "🚀 Release v$(node -p "require('./frontend/package.json').version")"
+    git tag -a "v$(node -p "require('./frontend/package.json').version")" -m "Release v$(node -p "require('./frontend/package.json').version")"
     git push origin main --tags
 
 [group('release')]

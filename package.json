@@ -9,7 +9,7 @@
     "email": "lukaswill97@gmail.com"
   },
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "scripts": {
     "format": "pnpm -r format",
     "lint": "pnpm -r lint",

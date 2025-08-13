@@ -143,6 +143,15 @@ just format       # Format code
 
 Copyright © 2025 [Involvex](https://github.com/involvex)
 
+## 💖 Support the Project
+
+If you find Gemini Desktop useful, consider supporting its development:
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/involvex)
+[![GitHub Sponsors](https://img.shields.io/badge/GitHub%20Sponsors-EA4AAA?style=for-the-badge&logo=github-sponsors&logoColor=white)](https://github.com/sponsors/involvex)
+
+Your support helps maintain and improve this project! 🚀
+
 ## 🔗 Links
 
 - 🌐 **[Homepage & Docs](https://involvex.github.io/geminicli-desktop-advanced/)**
