@@ -1,95 +1,156 @@
 # Gemini Desktop
 
-A powerful, modern desktop and web UI for Gemini CLI.  Built with Tauri and web technologies.  Cross-platform, open-source on [GitHub.](https://github.com/Piebald-AI/gemini-desktop)
+A powerful, modern desktop and web UI for Gemini CLI. Built with Tauri and web technologies. Cross-platform, open-source by [Involvex](https://github.com/involvex).
 
-> [!WARNING]
-> We're working on implementing automatic saving on top of Gemini CLI, but it's ultimately a hack.  It would be more robust to have automatic recording incorporated into the Gemini CLI itself.  We've opened PR [#4401](https://github.com/google-gemini/gemini-cli/pull/4401) on the Gemini CLI repo with a complete implementation; please :+1: it to encourage it to be merged!
+🌐 **[Live Demo & Documentation](https://involvex.github.io/geminicli-desktop-advanced/)**
 
 ![Screenshot of Gemini Desktop](./assets/screenshot.png)
 
-## Features
+## ✨ Features
 
-- Choose between models (Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.5 Flash-Lite)
-- Send messages to/from Gemini and receive responses
-- Handle tool call requests
-- Markdown support ([#1](https://github.com/Piebald-AI/gemini-desktop/issues/1))
-- Automatic chat history saving ([#2](https://github.com/Piebald-AI/gemini-desktop/issues/2)).  Note: See related PRs [#4401](https://github.com/google-gemini/gemini-cli/pull/4401) and [#4609](https://github.com/google-gemini/gemini-cli/pull/4609) on the Gemini CLI repo.
-- More advanced tool call support
+### 🚀 Core Features
+- **Multiple Models**: Gemini 2.5 Pro, Flash, and Flash-Lite support
+- **Cross-Platform**: Native desktop app for Windows, macOS, and Linux
+- **Web Version**: Standalone web server with Rocket backend
+- **Real-time Communication**: JSON-RPC 2.0 integration with Gemini CLI
+- **Modern UI**: React + TypeScript with beautiful design
 
-### Planned
+### 🎨 Interface & Experience
+- **Markdown Support**: Rich text rendering with syntax highlighting
+- **Theme System**: Dark/light modes with customizable themes
+- **System Tray**: Background operation with global hotkeys
+- **File Browser**: Integrated file management and project tools
+- **Persistent Chat**: Floating chat window for quick access
 
-- MCP server management
-- Token/cost information
-- LLxprt/Qwen Coder integration ([#24](https://github.com/Piebald-AI/gemini-desktop/issues/24))
+### 🔧 Advanced Features
+- **Tool Call Support**: Advanced tool integration and handling
+- **MCP Server Management**: Model Context Protocol server support
+- **Settings Management**: Comprehensive configuration system
+- **Screenshot Integration**: Built-in screenshot capabilities
+- **Auto-save**: Automatic chat history preservation
 
-## How it works
+### 📦 Distribution
+- **Windows Installers**: MSI and NSIS packages
+- **GitHub Actions**: Automated builds and releases
+- **Documentation**: Interactive GitHub Pages site
 
-Gemini CLI can function as an ACP (Agent Communication Protocol) server, which enables real-time communication via JSON-RPC 2.0 between the client, Gemini Desktop, and the server, Gemini CLI.
+## 🏗️ Architecture
 
-## Building from source
+- **Frontend**: React + TypeScript + Vite + Tailwind CSS
+- **Desktop**: Rust + Tauri (cross-platform native)
+- **Web Server**: Rust + Rocket (standalone web version)
+- **Build System**: Just + pnpm (unified development experience)
+- **CI/CD**: GitHub Actions (automated testing and releases)
 
-### Prerequisites
+## 🚀 Quick Start
 
-Gemini Desktop is written using Rust and Tauri for the backend and web technologies for the frontend.  When building it from source or running it in development you'll need to install the following tools:
+### 📥 Download
 
-- [Rust](https://rust-lang.org)
-- [Node.js](https://nodejs.org)
-- [pnpm](https://pnpm.io)
-- [just](https://just.systems)
+Visit our [**Releases Page**](https://github.com/involvex/geminicli-desktop-advanced/releases) to download:
 
-#### Installing Just
+**Windows:**
+- `Gemini Desktop_0.1.0_x64_en-US.msi` (MSI Installer)
+- `Gemini Desktop_0.1.0_x64-setup.exe` (NSIS Installer)
 
-If you're on macOS/Linux and you use [asdf](https://asdf-vm.com), you can install `just` with the following commands:
+**Other Platforms:**
+- macOS and Linux builds available in releases
+
+### 🛠️ Building from Source
+
+#### Prerequisites
+
+- [Rust](https://rust-lang.org) (latest stable)
+- [Node.js](https://nodejs.org) (v18+)
+- [pnpm](https://pnpm.io) (v8+)
+- [just](https://just.systems) (task runner)
+
+#### Installation
 
 ```bash
-asdf plugin add just
-asdf install just latest
+# Clone repository
+git clone https://github.com/involvex/geminicli-desktop-advanced
+cd geminicli-desktop-advanced
+
+# Install dependencies
+just deps
+
+# Development
+just dev          # Desktop app
+just dev-web      # Web version (http://localhost:1420)
+
+# Production builds
+just build        # Desktop app
+just build-web    # Web server
+just build-all    # Both versions
 ```
 
-If you're on Windows, you can use Winget:
+#### Platform-Specific Dependencies
 
+**Linux (Ubuntu/Debian):**
+```bash
+sudo apt install libgdk-pixbuf-2.0-dev libpango1.0-dev \
+  libjavascriptcoregtk-4.1-dev libatk1.0-dev \
+  libsoup-3.0-dev libwebkit2gtk-4.1-dev
+```
+
+**Windows:**
 ```powershell
+# Install Just via Winget
 winget install --id Casey.Just
 ```
 
-#### Linux Dependencies
-
-On Linux building Tauri apps requires several dependencies.  If you're using Ubuntu, you can install them all using this command:
-
+**macOS:**
 ```bash
-sudo apt install libgdk-pixbuf-2.0-dev \
-   libpango1.0-dev \
-   libjavascriptcoregtk-4.1-dev \
-   libatk1.0-dev \
-   libsoup-3.0-dev \
-   libwebkit2gtk-4.1-dev
+# Install Just via Homebrew
+brew install just
 ```
 
-### Build
+## 🔄 How It Works
 
-Then clone the repository:
+Gemini CLI functions as an ACP (Agent Communication Protocol) server, enabling real-time communication via JSON-RPC 2.0 between:
+
+1. **Client**: Gemini Desktop (this application)
+2. **Server**: Gemini CLI (Google's official CLI tool)
+3. **Protocol**: JSON-RPC 2.0 over WebSocket/HTTP
+
+This architecture provides seamless integration while maintaining the power and flexibility of the official Gemini CLI.
+
+## 🤝 Contributing
+
+We welcome contributions! Here's how to get started:
+
+1. **Fork** the repository
+2. **Clone** your fork: `git clone https://github.com/YOUR_USERNAME/geminicli-desktop-advanced`
+3. **Create** a feature branch: `git checkout -b feature/amazing-feature`
+4. **Make** your changes and add tests
+5. **Test** your changes: `just test`
+6. **Commit** your changes: `git commit -m "Add amazing feature"`
+7. **Push** to your branch: `git push origin feature/amazing-feature`
+8. **Open** a Pull Request
+
+### Development Commands
 
 ```bash
-git clone https://github.com/Piebald-AI/gemini-desktop
-cd gemini-desktop
+just lint         # Run linters (Rust + TypeScript)
+just test         # Run test suite
+just check        # Type checking
+just format       # Format code
 ```
 
-You can run the app in development mode, or build it for production.  The desktop, being a Tauri app, follows the standard setup for development and production.  For the webapp, there are two servers that run in development mode: a Rust/Rocket backend API server on port 1858, and a Vite frontend webserver with hot reloading on port 1420.  In production a single executable hosts the backend API and the frontend, both on port 1858.
+## 📄 License
 
-**Development:** Run `just deps dev` to start the desktop app in development.  Alternatively, run `just deps dev-web` to start the webapp version in development and go to http://localhost:1420 in your browser.
+[MIT License](./LICENSE)
 
-**Production:** Run `just deps build-all`.  Two binaries built in release mode will be produced in `target/release`: `gemini-desktop` (`gemini-desktop.exe`) for the desktop app, and `gemini-desktop-web` (`gemini-desktop-web.exe`) for the webapp version.
- 
-## Contributing
+Copyright © 2025 [Involvex](https://github.com/involvex)
 
-Contributions are welcome!
-1. Fork the repo.
-2. Clone it, optionally create a new branch, and then and make your changes.
-3. Add tests.
-4. Commit your changes and open a PR.
+## 🔗 Links
 
-## License
+- 🌐 **[Homepage & Docs](https://involvex.github.io/geminicli-desktop-advanced/)**
+- 📦 **[Releases](https://github.com/involvex/geminicli-desktop-advanced/releases)**
+- 🐛 **[Issues](https://github.com/involvex/geminicli-desktop-advanced/issues)**
+- 💬 **[Discussions](https://github.com/involvex/geminicli-desktop-advanced/discussions)**
+- 👤 **[Involvex Profile](https://github.com/involvex)**
 
-[MIT](./LICENSE)
+---
 
-Copyright © 2025 [Piebald LLC.](https://piebald.ai)
+⭐ **Star this repo** if you find it useful!
