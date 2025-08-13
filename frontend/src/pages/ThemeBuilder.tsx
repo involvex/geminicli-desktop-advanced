@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -143,12 +143,12 @@ export default function ThemeBuilderPage() {
     }
   };
 
-  const applyTheme = () => {
+  const applyTheme = useCallback(() => {
     const root = document.documentElement;
     Object.entries(theme.colors).forEach(([key, value]) => {
       root.style.setProperty(`--${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`, value);
     });
-  };
+  }, [theme.colors]);
 
   const exportTheme = () => {
     const css = `:root {\n${Object.entries(theme.colors)
@@ -170,7 +170,7 @@ export default function ThemeBuilderPage() {
 
   useEffect(() => {
     applyTheme();
-  }, [theme.colors]);
+  }, [applyTheme]);
 
   return (
     <div className="flex-1 flex flex-col min-h-0">

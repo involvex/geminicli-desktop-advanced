@@ -8,7 +8,7 @@ import { Switch } from '../ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 
-interface AppSettings {
+interface AppSettingsType {
   settings_location: 'ProjectRoot' | 'Global' | 'User';
   hotkeys: {
     quick_open: string;
@@ -24,7 +24,7 @@ interface AppSettings {
 }
 
 export function AppSettings() {
-  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [settings, setSettings] = useState<AppSettingsType | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -34,7 +34,7 @@ export function AppSettings() {
 
   const loadSettings = async () => {
     try {
-      const loadedSettings = await invoke<AppSettings>('get_settings');
+      const loadedSettings = await invoke<AppSettingsType>('get_settings');
       setSettings(loadedSettings);
     } catch (error) {
       console.error('Failed to load settings:', error);
@@ -56,12 +56,12 @@ export function AppSettings() {
     }
   };
 
-  const updateSettings = (updates: Partial<AppSettings>) => {
+  const updateSettings = (updates: Partial<AppSettingsType>) => {
     if (!settings) return;
     setSettings({ ...settings, ...updates });
   };
 
-  const updateHotkeys = (updates: Partial<AppSettings['hotkeys']>) => {
+  const updateHotkeys = (updates: Partial<AppSettingsType['hotkeys']>) => {
     if (!settings) return;
     setSettings({
       ...settings,
@@ -69,7 +69,7 @@ export function AppSettings() {
     });
   };
 
-  const updateUI = (updates: Partial<AppSettings['ui']>) => {
+  const updateUI = (updates: Partial<AppSettingsType['ui']>) => {
     if (!settings) return;
     setSettings({
       ...settings,
