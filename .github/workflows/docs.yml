@@ -32,17 +32,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
         
-      - name: Build frontend for GitHub Pages
-        run: |
-          cd frontend
-          NODE_ENV=production pnpm build
-        
       - name: Prepare GitHub Pages
         run: |
           mkdir -p docs-build
-          cp -r frontend/dist/* docs-build/
-          cp frontend/public/index.html docs-build/
-          rm -f docs-build/reload.js
+          cp -r docs/* docs-build/
           touch docs-build/.nojekyll
           
       - name: Setup Pages

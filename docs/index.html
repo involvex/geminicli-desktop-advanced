@@ -1,23 +1,50 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gemini Desktop - Modern UI for Gemini CLI</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              background: 'hsl(var(--background))',
+              foreground: 'hsl(var(--foreground))'
+            }
+          }
+        }
+      }
+    </script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+      :root {
+        --background: 0 0% 100%;
+        --foreground: 222.2 84% 4.9%;
+      }
+      .dark {
+        --background: 222.2 84% 4.9%;
+        --foreground: 210 40% 98%;
+      }
+      body { background: hsl(var(--background)); color: hsl(var(--foreground)); }
+    </style>
 </head>
-<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+<body class="bg-background text-foreground min-h-screen">
     <!-- Header -->
-    <nav class="bg-white shadow-lg">
+    <nav class="bg-background border-b border-gray-200 dark:border-gray-800 shadow-lg">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
                 <div class="flex items-center">
                     <i class="fas fa-robot text-2xl text-indigo-600 mr-3"></i>
-                    <span class="text-xl font-bold text-gray-900">Gemini Desktop</span>
+                    <span class="text-xl font-bold">Gemini Desktop</span>
                 </div>
                 <div class="flex items-center space-x-4">
-                    <a href="https://github.com/involvex/geminicli-desktop-advanced" class="text-gray-600 hover:text-indigo-600">
+                    <button onclick="toggleTheme()" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
+                        <i id="theme-icon" class="fas fa-moon text-xl"></i>
+                    </button>
+                    <a href="https://github.com/involvex/geminicli-desktop-advanced" class="hover:text-indigo-600">
                         <i class="fab fa-github text-xl"></i>
                     </a>
                 </div>
@@ -133,24 +160,58 @@
     </div>
 
     <!-- Footer -->
-    <footer class="bg-gray-900 text-white py-8">
+    <footer class="bg-background border-t border-gray-200 dark:border-gray-800 py-8">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <p>&copy; 2025 <a href="https://github.com/involvex" class="text-indigo-400 hover:text-indigo-300">Involvex</a>. MIT License.</p>
             <div class="mt-4 space-x-4">
-                <a href="https://github.com/involvex/geminicli-desktop-advanced" class="text-gray-400 hover:text-white">
+                <a href="https://github.com/involvex/geminicli-desktop-advanced" class="hover:text-indigo-600">
                     <i class="fab fa-github"></i> GitHub
                 </a>
-                <a href="https://github.com/involvex/geminicli-desktop-advanced/issues" class="text-gray-400 hover:text-white">
+                <a href="https://github.com/involvex/geminicli-desktop-advanced/issues" class="hover:text-indigo-600">
                     <i class="fas fa-bug"></i> Issues
                 </a>
-                <a href="https://github.com/involvex/geminicli-desktop-advanced/releases" class="text-gray-400 hover:text-white">
+                <a href="https://github.com/involvex/geminicli-desktop-advanced/releases" class="hover:text-indigo-600">
                     <i class="fas fa-tag"></i> Releases
                 </a>
-                <a href="https://buymeacoffee.com/involvex" class="text-gray-400 hover:text-yellow-400">
+                <a href="https://buymeacoffee.com/involvex" class="hover:text-yellow-400">
                     <i class="fas fa-coffee"></i> Support
                 </a>
             </div>
         </div>
     </footer>
+    
+    <script>
+      function toggleTheme() {
+        const html = document.documentElement;
+        const icon = document.getElementById('theme-icon');
+        
+        if (html.classList.contains('dark')) {
+          html.classList.remove('dark');
+          html.classList.add('light');
+          icon.className = 'fas fa-moon text-xl';
+          localStorage.setItem('theme', 'light');
+        } else {
+          html.classList.remove('light');
+          html.classList.add('dark');
+          icon.className = 'fas fa-sun text-xl';
+          localStorage.setItem('theme', 'dark');
+        }
+      }
+      
+      // Initialize theme
+      const savedTheme = localStorage.getItem('theme') || 'dark';
+      const html = document.documentElement;
+      const icon = document.getElementById('theme-icon');
+      
+      if (savedTheme === 'light') {
+        html.classList.remove('dark');
+        html.classList.add('light');
+        icon.className = 'fas fa-moon text-xl';
+      } else {
+        html.classList.remove('light');
+        html.classList.add('dark');
+        icon.className = 'fas fa-sun text-xl';
+      }
+    </script>
 </body>
 </html>
