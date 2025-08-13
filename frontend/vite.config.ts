@@ -9,7 +9,7 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: process.env.VITE_BASE_PATH || (process.env.NODE_ENV === 'production' ? '/geminicli-desktop-advanced/' : '/'),
+  base: './',
   resolve: {
     alias: {
       // eslint-disable-next-line no-undef

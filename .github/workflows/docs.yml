@@ -35,13 +35,12 @@ jobs:
       - name: Build frontend for GitHub Pages
         run: |
           cd frontend
-          NODE_ENV=production pnpm build
+          pnpm build
         
       - name: Prepare GitHub Pages
         run: |
           mkdir -p docs-build
           cp -r frontend/dist/* docs-build/
-          rm -f docs-build/reload.js
           touch docs-build/.nojekyll
           
       - name: Setup Pages
