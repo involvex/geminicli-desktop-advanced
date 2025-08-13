@@ -1,217 +1,83 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gemini Desktop - Modern UI for Gemini CLI</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            colors: {
-              background: 'hsl(var(--background))',
-              foreground: 'hsl(var(--foreground))'
-            }
-          }
-        }
-      }
-    </script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <title>Gemini Desktop</title>
     <style>
-      :root {
-        --background: 0 0% 100%;
-        --foreground: 222.2 84% 4.9%;
-      }
-      .dark {
-        --background: 222.2 84% 4.9%;
-        --foreground: 210 40% 98%;
-      }
-      body { background: hsl(var(--background)); color: hsl(var(--foreground)); }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+        header { background: #1a1a1a; color: white; padding: 1rem 0; }
+        .header-content { display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 1.5rem; font-weight: bold; }
+        .hero { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 4rem 0; text-align: center; }
+        .hero h1 { font-size: 3rem; margin-bottom: 1rem; }
+        .hero p { font-size: 1.2rem; margin-bottom: 2rem; }
+        .btn { display: inline-block; background: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 0 10px; }
+        .btn:hover { background: #45a049; }
+        .features { padding: 4rem 0; }
+        .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; margin-top: 2rem; }
+        .feature { background: #f9f9f9; padding: 2rem; border-radius: 8px; }
+        .feature h3 { color: #333; margin-bottom: 1rem; }
+        footer { background: #1a1a1a; color: white; text-align: center; padding: 2rem 0; }
     </style>
 </head>
-<body class="bg-background text-foreground min-h-screen">
-    <!-- Header -->
-    <nav class="bg-background border-b border-gray-200 dark:border-gray-800 shadow-lg">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
-                <div class="flex items-center">
-                    <i class="fas fa-robot text-2xl text-indigo-600 mr-3"></i>
-                    <span class="text-xl font-bold">Gemini Desktop</span>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">🤖 Gemini Desktop</div>
+                <a href="https://github.com/involvex/geminicli-desktop-advanced" class="btn">GitHub</a>
+            </div>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="container">
+            <h1>Gemini Desktop</h1>
+            <p>Modern desktop and web UI for Gemini CLI. Cross-platform, open-source.</p>
+            <a href="https://github.com/involvex/geminicli-desktop-advanced/releases" class="btn">Download v0.2.0</a>
+            <a href="https://github.com/involvex/geminicli-desktop-advanced" class="btn">View Source</a>
+        </div>
+    </section>
+
+    <section class="features">
+        <div class="container">
+            <h2 style="text-align: center; margin-bottom: 2rem;">Features</h2>
+            <div class="features-grid">
+                <div class="feature">
+                    <h3>🖥️ Cross-Platform</h3>
+                    <p>Native desktop app for Windows, macOS, and Linux built with Tauri</p>
                 </div>
-                <div class="flex items-center space-x-4">
-                    <button onclick="toggleTheme()" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
-                        <i id="theme-icon" class="fas fa-moon text-xl"></i>
-                    </button>
-                    <a href="https://github.com/involvex/geminicli-desktop-advanced" class="hover:text-indigo-600">
-                        <i class="fab fa-github text-xl"></i>
-                    </a>
+                <div class="feature">
+                    <h3>🌐 Web Version</h3>
+                    <p>Standalone web server with Rocket backend for browser access</p>
+                </div>
+                <div class="feature">
+                    <h3>🤖 Multiple Models</h3>
+                    <p>Support for Gemini 2.5 Pro, Flash, and Flash-Lite models</p>
+                </div>
+                <div class="feature">
+                    <h3>🛒 Marketplace</h3>
+                    <p>Browse and install extensions, themes, and commands</p>
+                </div>
+                <div class="feature">
+                    <h3>☁️ AWS Toolkit</h3>
+                    <p>Integrated AWS development tools and services</p>
+                </div>
+                <div class="feature">
+                    <h3>📊 System Monitor</h3>
+                    <p>Monitor model performance, resource usage, and throttling</p>
                 </div>
             </div>
         </div>
-    </nav>
+    </section>
 
-    <!-- Hero Section -->
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div class="text-center">
-            <h1 class="text-5xl font-bold text-gray-900 mb-6">
-                Modern Desktop UI for <span class="text-indigo-600">Gemini CLI</span>
-            </h1>
-            <p class="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-                A powerful, cross-platform desktop and web application built with Tauri and React. 
-                Seamlessly integrate with Gemini CLI for enhanced AI interactions.
-            </p>
-            <div class="flex justify-center space-x-4">
-                <a href="https://github.com/involvex/geminicli-desktop-advanced/releases" 
-                   class="bg-indigo-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition">
-                    <i class="fas fa-download mr-2"></i>Download v0.1.0
-                </a>
-                <a href="https://github.com/involvex/geminicli-desktop-advanced" 
-                   class="border border-indigo-600 text-indigo-600 px-8 py-3 rounded-lg font-semibold hover:bg-indigo-50 transition">
-                    <i class="fab fa-github mr-2"></i>View Source
-                </a>
-                <a href="https://buymeacoffee.com/involvex" 
-                   class="bg-yellow-500 text-white px-8 py-3 rounded-lg font-semibold hover:bg-yellow-600 transition">
-                    <i class="fas fa-coffee mr-2"></i>Support Project
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <!-- Features Grid -->
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <h2 class="text-3xl font-bold text-center text-gray-900 mb-12">Features</h2>
-        <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <div class="bg-white p-6 rounded-xl shadow-lg">
-                <i class="fas fa-desktop text-3xl text-indigo-600 mb-4"></i>
-                <h3 class="text-xl font-semibold mb-3">Cross-Platform Desktop</h3>
-                <p class="text-gray-600">Native desktop app for Windows, macOS, and Linux built with Tauri</p>
-            </div>
-            <div class="bg-white p-6 rounded-xl shadow-lg">
-                <i class="fas fa-globe text-3xl text-indigo-600 mb-4"></i>
-                <h3 class="text-xl font-semibold mb-3">Web Version</h3>
-                <p class="text-gray-600">Standalone web server with Rocket backend for browser access</p>
-            </div>
-            <div class="bg-white p-6 rounded-xl shadow-lg">
-                <i class="fas fa-robot text-3xl text-indigo-600 mb-4"></i>
-                <h3 class="text-xl font-semibold mb-3">Multiple Models</h3>
-                <p class="text-gray-600">Support for Gemini 2.5 Pro, Flash, and Flash-Lite models</p>
-            </div>
-            <div class="bg-white p-6 rounded-xl shadow-lg">
-                <i class="fas fa-code text-3xl text-indigo-600 mb-4"></i>
-                <h3 class="text-xl font-semibold mb-3">Syntax Highlighting</h3>
-                <p class="text-gray-600">Beautiful markdown rendering with code syntax highlighting</p>
-            </div>
-            <div class="bg-white p-6 rounded-xl shadow-lg">
-                <i class="fas fa-tools text-3xl text-indigo-600 mb-4"></i>
-                <h3 class="text-xl font-semibold mb-3">Tool Integration</h3>
-                <p class="text-gray-600">Advanced tool call support and MCP server management</p>
-            </div>
-            <div class="bg-white p-6 rounded-xl shadow-lg">
-                <i class="fas fa-palette text-3xl text-indigo-600 mb-4"></i>
-                <h3 class="text-xl font-semibold mb-3">Theme System</h3>
-                <p class="text-gray-600">Dark/light themes with customizable interface</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- Tech Stack -->
-    <div class="bg-white py-16">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 class="text-3xl font-bold text-center text-gray-900 mb-12">Built With</h2>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-                <div class="flex flex-col items-center">
-                    <i class="fab fa-rust text-4xl text-orange-600 mb-2"></i>
-                    <span class="font-semibold">Rust + Tauri</span>
-                </div>
-                <div class="flex flex-col items-center">
-                    <i class="fab fa-react text-4xl text-blue-500 mb-2"></i>
-                    <span class="font-semibold">React + TypeScript</span>
-                </div>
-                <div class="flex flex-col items-center">
-                    <i class="fas fa-rocket text-4xl text-red-500 mb-2"></i>
-                    <span class="font-semibold">Rocket Server</span>
-                </div>
-                <div class="flex flex-col items-center">
-                    <i class="fas fa-bolt text-4xl text-yellow-500 mb-2"></i>
-                    <span class="font-semibold">Vite + pnpm</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Download Section -->
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div class="bg-indigo-600 rounded-2xl p-8 text-center text-white">
-            <h2 class="text-3xl font-bold mb-4">Ready to Get Started?</h2>
-            <p class="text-xl mb-6">Download the latest release or build from source</p>
-            <div class="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4">
-                <a href="https://github.com/involvex/geminicli-desktop-advanced/releases" 
-                   class="bg-white text-indigo-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition">
-                    <i class="fas fa-download mr-2"></i>Download Release
-                </a>
-                <a href="https://github.com/involvex/geminicli-desktop-advanced#building-from-source" 
-                   class="border border-white text-white px-6 py-3 rounded-lg font-semibold hover:bg-white hover:text-indigo-600 transition">
-                    <i class="fas fa-hammer mr-2"></i>Build from Source
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <!-- Footer -->
-    <footer class="bg-background border-t border-gray-200 dark:border-gray-800 py-8">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <p>&copy; 2025 <a href="https://github.com/involvex" class="text-indigo-400 hover:text-indigo-300">Involvex</a>. MIT License.</p>
-            <div class="mt-4 space-x-4">
-                <a href="https://github.com/involvex/geminicli-desktop-advanced" class="hover:text-indigo-600">
-                    <i class="fab fa-github"></i> GitHub
-                </a>
-                <a href="https://github.com/involvex/geminicli-desktop-advanced/issues" class="hover:text-indigo-600">
-                    <i class="fas fa-bug"></i> Issues
-                </a>
-                <a href="https://github.com/involvex/geminicli-desktop-advanced/releases" class="hover:text-indigo-600">
-                    <i class="fas fa-tag"></i> Releases
-                </a>
-                <a href="https://buymeacoffee.com/involvex" class="hover:text-yellow-400">
-                    <i class="fas fa-coffee"></i> Support
-                </a>
-            </div>
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 <a href="https://github.com/involvex" style="color: #4CAF50;">Involvex</a>. MIT License.</p>
         </div>
     </footer>
-    
-    <script>
-      function toggleTheme() {
-        const html = document.documentElement;
-        const icon = document.getElementById('theme-icon');
-        
-        if (html.classList.contains('dark')) {
-          html.classList.remove('dark');
-          html.classList.add('light');
-          icon.className = 'fas fa-moon text-xl';
-          localStorage.setItem('theme', 'light');
-        } else {
-          html.classList.remove('light');
-          html.classList.add('dark');
-          icon.className = 'fas fa-sun text-xl';
-          localStorage.setItem('theme', 'dark');
-        }
-      }
-      
-      // Initialize theme
-      const savedTheme = localStorage.getItem('theme') || 'dark';
-      const html = document.documentElement;
-      const icon = document.getElementById('theme-icon');
-      
-      if (savedTheme === 'light') {
-        html.classList.remove('dark');
-        html.classList.add('light');
-        icon.className = 'fas fa-moon text-xl';
-      } else {
-        html.classList.remove('light');
-        html.classList.add('dark');
-        icon.className = 'fas fa-sun text-xl';
-      }
-    </script>
 </body>
 </html>
