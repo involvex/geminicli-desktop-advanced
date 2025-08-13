@@ -22,7 +22,7 @@ import McpBrowserPage from "./pages/McpBrowser";
 import ThemeBuilderPage from "./pages/ThemeBuilder";
 import ModelManagerPage from "./pages/ModelManager";
 import MarketplacePage from "./pages/Marketplace";
-import AWSToolkitPage from "./pages/AWSToolkit";
+import AWSToolkitPage from "./pages/AwsToolkit";
 import SystemMonitorPage from "./pages/SystemMonitor";
 import { PersistentChat } from "./components/chat/PersistentChat";
 

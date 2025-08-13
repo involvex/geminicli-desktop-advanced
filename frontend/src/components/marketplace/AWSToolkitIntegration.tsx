@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Cloud, Database, Lambda, Settings, Terminal, FileText } from 'lucide-react';
+import { Cloud, Database, Zap, Settings, Terminal, FileText } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
@@ -19,7 +19,7 @@ export const AWSToolkitIntegration: React.FC = () => {
     {
       id: 'lambda',
       name: 'AWS Lambda',
-      icon: <Lambda className="w-5 h-5" />,
+      icon: <Zap className="w-5 h-5" />,
       description: 'Serverless function management',
       status: 'available'
     },

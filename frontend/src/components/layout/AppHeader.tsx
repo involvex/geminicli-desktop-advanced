@@ -3,6 +3,7 @@ import { GeminiLogo } from "../branding/GeminiLogo";
 import { PiebaldLogo } from "../branding/PiebaldLogo";
 import { SidebarTrigger } from "../ui/sidebar";
 import { StatsWidget } from "./StatsWidget";
+import { ThemeToggle } from "../ui/theme-toggle";
 
 export const AppHeader: React.FC = () => {
   return (
@@ -33,8 +34,9 @@ export const AppHeader: React.FC = () => {
               </div>
             </div>
             
-            {/* Stats Widget */}
-            <div className="flex items-center">
+            {/* Stats Widget and Theme Toggle */}
+            <div className="flex items-center gap-3">
+              <ThemeToggle />
               <StatsWidget />
             </div>
           </div>
