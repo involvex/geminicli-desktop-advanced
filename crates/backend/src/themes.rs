@@ -90,12 +90,11 @@ pub async fn list_themes() -> BackendResult<Vec<String>> {
     
     if let Ok(entries) = fs::read_dir(themes_dir) {
         for entry in entries.flatten() {
-            if let Some(file_name) = entry.file_name().to_str() {
-                if file_name.ends_with(".json") {
+            if let Some(file_name) = entry.file_name().to_str()
+                && file_name.ends_with(".json") {
                     let theme_name = file_name.trim_end_matches(".json");
                     themes.push(theme_name.replace('_', " "));
                 }
-            }
         }
     }
     

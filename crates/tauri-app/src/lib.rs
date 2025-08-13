@@ -32,14 +32,12 @@ pub fn run() {
             app.manage(app_state);
             
             // Create system tray
-            if let Err(e) = tray::create_tray(&app.handle()) {
-                eprintln!("Failed to create system tray: {}", e);
+            if let Err(e) = tray::create_tray(app.handle()) {
+                eprintln!("Failed to create system tray: {e}");
             }
             
             // Register global hotkeys
-            if let Err(e) = hotkeys::register_hotkeys(&app.handle(), &settings) {
-                eprintln!("Failed to register hotkeys: {}", e);
-            }
+            hotkeys::register_hotkeys(app.handle(), &settings);
             
             // Show window if not starting minimized
             if !settings.ui.start_minimized {

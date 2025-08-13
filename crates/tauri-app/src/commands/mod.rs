@@ -316,9 +316,7 @@ pub async fn save_settings(settings: AppSettings, app_handle: AppHandle) -> Resu
     crate::settings::save_settings(&settings).map_err(|e| e.to_string())?;
     
     // Re-register hotkeys with new settings
-    if let Err(e) = crate::hotkeys::register_hotkeys(&app_handle, &settings) {
-        eprintln!("Failed to register hotkeys: {}", e);
-    }
+    crate::hotkeys::register_hotkeys(&app_handle, &settings);
     
     Ok(())
 }

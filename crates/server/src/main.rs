@@ -32,6 +32,12 @@ pub struct WebSocketManager {
     connection_counter: Arc<AtomicU64>,
 }
 
+impl Default for WebSocketManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WebSocketManager {
     pub fn new() -> Self {
         Self {
@@ -266,7 +272,7 @@ fn index(path: PathBuf) -> Result<(ContentType, &'static [u8]), Status> {
     let file = FRONTEND_DIR.get_file(path).ok_or(Status::NotFound)?;
 
     Ok((
-        ContentType::from_extension(path.split('.').last().unwrap()).unwrap(),
+        ContentType::from_extension(path.split('.').next_back().unwrap()).unwrap(),
         file.contents(),
     ))
 }
@@ -559,6 +565,7 @@ async fn add_server(server: Json<backend::servers::Server>) -> Result<Json<Vec<b
     }
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize)]
 struct ServerRequest {
     name: String,
@@ -567,6 +574,7 @@ struct ServerRequest {
     working_directory: String,
 }
 
+#[allow(dead_code)]
 #[post("/servers", data = "<request>", rank = 2)]
 async fn add_server_from_request(request: Json<ServerRequest>) -> Result<Json<Vec<backend::servers::Server>>, Status> {
     let req = request.into_inner();
@@ -733,21 +741,18 @@ fn get_configured_port() -> u16 {
     // Try to read from settings file
     if let Ok(home) = env::var("USERPROFILE").or_else(|_| env::var("HOME")) {
         let settings_path = format!("{}/.gemini-desktop/settings.json", home);
-        if let Ok(content) = fs::read_to_string(&settings_path) {
-            if let Ok(settings) = serde_json::from_str::<serde_json::Value>(&content) {
-                if let Some(port) = settings.get("serverPort").and_then(|p| p.as_u64()) {
-                    return port as u16;
-                }
+        if let Ok(content) = fs::read_to_string(&settings_path)
+            && let Ok(settings) = serde_json::from_str::<serde_json::Value>(&content)
+            && let Some(port) = settings.get("serverPort").and_then(|p| p.as_u64()) {
+                return port as u16;
             }
-        }
     }
     
     // Try environment variable
-    if let Ok(port_str) = env::var("PORT") {
-        if let Ok(port) = port_str.parse::<u16>() {
+    if let Ok(port_str) = env::var("PORT")
+        && let Ok(port) = port_str.parse::<u16>() {
             return port;
         }
-    }
     
     // Default port
     1858

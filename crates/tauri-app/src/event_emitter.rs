@@ -8,7 +8,7 @@ pub struct TauriEventEmitter {
 }
 
 impl TauriEventEmitter {
-    pub fn new(app_handle: AppHandle) -> Self {
+    pub const fn new(app_handle: AppHandle) -> Self {
         Self { app_handle }
     }
 }
