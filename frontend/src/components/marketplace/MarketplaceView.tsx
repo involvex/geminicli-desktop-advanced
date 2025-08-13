@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Filter, Download, Star, Tag, ExternalLink } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Search, Download, Star, Tag, ExternalLink } from 'lucide-react';
 import { MarketplaceItem, MarketplaceFilter } from '../../types/marketplace';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -14,14 +14,8 @@ interface MarketplaceViewProps {
 export const MarketplaceView: React.FC<MarketplaceViewProps> = ({ onInstall }) => {
   const [items, setItems] = useState<MarketplaceItem[]>([]);
   const [filter, setFilter] = useState<MarketplaceFilter>({});
-  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    loadMarketplaceItems();
-  }, [filter]);
-
-  const loadMarketplaceItems = async () => {
-    setLoading(true);
+  const loadMarketplaceItems = useCallback(async () => {
     try {
       const mockItems: MarketplaceItem[] = [
         {
@@ -64,10 +58,12 @@ export const MarketplaceView: React.FC<MarketplaceViewProps> = ({ onInstall }) =
       }));
     } catch (error) {
       console.error('Failed to load marketplace items:', error);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [filter]);
+
+  useEffect(() => {
+    loadMarketplaceItems();
+  }, [loadMarketplaceItems]);
 
   return (
     <div className="p-6 space-y-6">
@@ -91,7 +87,7 @@ export const MarketplaceView: React.FC<MarketplaceViewProps> = ({ onInstall }) =
         </div>
         
         <Select value={filter.category || 'all'} onValueChange={(value) => 
-          setFilter({ ...filter, category: value === 'all' ? undefined : value as any })
+          setFilter({ ...filter, category: value === 'all' ? undefined : value as 'extension' | 'command' | 'theme' })
         }>
           <SelectTrigger className="w-48">
             <SelectValue placeholder="Category" />

@@ -28,7 +28,7 @@ export const ExtensionManager: React.FC = () => {
   const uninstallItem = (type: 'extension' | 'command' | 'theme', id: string) => {
     const storageKey = `installed_${type}s`;
     const items = JSON.parse(localStorage.getItem(storageKey) || '[]');
-    const filtered = items.filter((item: any) => item.id !== id);
+    const filtered = items.filter((item: { id: string }) => item.id !== id);
     localStorage.setItem(storageKey, JSON.stringify(filtered));
     loadInstalledItems();
   };

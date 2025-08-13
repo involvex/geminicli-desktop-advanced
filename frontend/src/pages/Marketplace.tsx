@@ -4,7 +4,7 @@ import { useMarketplace } from '../hooks/useMarketplace';
 import { MarketplaceItem } from '../types/marketplace';
 
 const MarketplacePage: React.FC = () => {
-  const { installItem, loading, error } = useMarketplace();
+  const { installItem, error } = useMarketplace();
 
   const handleInstall = (item: MarketplaceItem) => {
     installItem(item);

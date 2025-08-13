@@ -20,7 +20,7 @@ export interface MarketplaceItem {
 export interface Extension extends MarketplaceItem {
   category: 'extension';
   manifest: ExtensionManifest;
-  bundle: string; // Base64 encoded bundle
+  bundle: string;
 }
 
 export interface Command extends MarketplaceItem {
@@ -54,7 +54,7 @@ export interface CommandParameter {
   type: 'string' | 'number' | 'boolean' | 'file' | 'folder';
   required: boolean;
   description: string;
-  default?: any;
+  default?: string | number | boolean;
 }
 
 export interface ThemeColors {
