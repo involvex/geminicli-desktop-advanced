@@ -30,7 +30,7 @@ import {
   Database,
 } from "lucide-react";
 import { webApi, DirEntry } from "../../lib/webApi";
-import { cn } from "@/lib/utils";
+import { cn } from "../../lib/utils";
 
 interface DirectorySelectionDialogProps {
   open: boolean;

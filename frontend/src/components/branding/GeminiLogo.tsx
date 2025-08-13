@@ -168,9 +168,9 @@ export function GeminiLogo() {
           width="39.2739"
           height="43.2171"
           filterUnits="userSpaceOnUse"
-          color-interpolation-filters="sRGB"
+          colorInterpolationFilters="sRGB"
         >
-          <feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood>
+          <feFlood floodOpacity="0" result="BackgroundImageFix"></feFlood>
           <feBlend
             mode="normal"
             in="SourceGraphic"
@@ -400,10 +400,10 @@ export function GeminiLogo() {
           y2="15.0035"
           gradientUnits="userSpaceOnUse"
         >
-          <stop stop-color="#4893FC"></stop>
-          <stop offset="0.27" stop-color="#4893FC"></stop>
-          <stop offset="0.776981" stop-color="#969DFF"></stop>
-          <stop offset="1" stop-color="#BD99FE"></stop>
+          <stop stopColor="#4893FC"></stop>
+          <stop offset="0.27" stopColor="#4893FC"></stop>
+          <stop offset="0.776981" stopColor="#969DFF"></stop>
+          <stop offset="1" stopColor="#BD99FE"></stop>
         </linearGradient>
       </defs>
     </svg>

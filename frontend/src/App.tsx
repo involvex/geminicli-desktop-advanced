@@ -1,12 +1,14 @@
 import { useState, useRef, useCallback } from "react";
 import { Routes, Route, Outlet, Navigate } from "react-router-dom";
 import { api } from "./lib/api";
-import { AppSidebar } from "./components/layout/AppSidebar";
+
 import { MessageInputBar } from "./components/conversation/MessageInputBar";
 import { AppHeader } from "./components/layout/AppHeader";
+import { CustomizableLayout } from "./components/layout/CustomizableLayout";
 import { AppFooter } from "./components/layout/AppFooter";
+import { QuickPanelToggle } from "./components/layout/QuickPanelToggle";
+import { PanelManager } from "./components/layout/PanelManager";
 import { CliWarnings } from "./components/common/CliWarnings";
-import { SidebarInset } from "./components/ui/sidebar";
 import { ConversationContext } from "./contexts/ConversationContext";
 import { HomeDashboard } from "./pages/HomeDashboard";
 import ProjectsPage from "./pages/Projects";
@@ -26,6 +28,7 @@ import AWSToolkitPage from "./pages/AwsToolkit";
 import SystemMonitorPage from "./pages/SystemMonitor";
 import LayoutCustomizerPage from "./pages/LayoutCustomizer";
 import TaskManagerPage from "./pages/TaskManager";
+import ModularUIDemoPage from "./pages/ModularUIDemo";
 import { PersistentChat } from "./components/chat/PersistentChat";
 
 // Hooks
@@ -44,7 +47,7 @@ function RootLayout() {
     useState<string>("gemini-2.5-flash");
   const [cliIOLogs, setCliIOLogs] = useState<CliIO[]>([]);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+
 
   // Custom hooks for cleaner code
   const isCliInstalled = useCliInstallation();
@@ -127,64 +130,71 @@ function RootLayout() {
   );
 
   return (
-    <AppSidebar
+    <CustomizableLayout
       conversations={conversations}
       activeConversation={activeConversation}
       processStatuses={processStatuses}
       onConversationSelect={handleConversationSelect}
       onKillProcess={handleKillProcess}
       onModelChange={handleModelChange}
-      open={sidebarOpen}
-      onOpenChange={setSidebarOpen}
     >
-      <SidebarInset>
-        <AppHeader />
-
-        <div className="flex-1 flex flex-col bg-background min-h-0 pb-12">
-          <CliWarnings
-            selectedModel={selectedModel}
-            isCliInstalled={isCliInstalled}
-          />
-
-          <ConversationContext.Provider
-            value={{
-              conversations,
-              activeConversation,
-              currentConversation,
-              input,
-              isCliInstalled,
-              messagesContainerRef,
-              cliIOLogs,
-              handleInputChange,
-              handleSendMessage,
-              selectedModel,
-              startNewConversation,
-              handleConfirmToolCall,
-              confirmationRequests,
-            }}
-          >
-            <Outlet />
-          </ConversationContext.Provider>
-
-          {activeConversation &&
-            processStatuses.find(
-              (status) =>
-                status.conversation_id === activeConversation && status.is_alive
-            ) && (
-              <MessageInputBar
-                input={input}
-                isCliInstalled={isCliInstalled}
-                cliIOLogs={cliIOLogs}
-                handleInputChange={handleInputChange}
-                handleSendMessage={handleSendMessage}
-                selectedModel={selectedModel}
-              />
-            )}
+      <div className="flex-1 flex flex-col bg-background min-h-0">
+        <div className="flex items-center justify-between border-b">
+          <div className="flex-1">
+            <AppHeader />
+          </div>
+          <div className="flex items-center gap-2 p-2">
+            <QuickPanelToggle />
+            <PanelManager />
+          </div>
         </div>
+        
+        <CliWarnings
+          selectedModel={selectedModel}
+          isCliInstalled={isCliInstalled}
+        />
+
+        <ConversationContext.Provider
+          value={{
+            conversations,
+            activeConversation,
+            currentConversation,
+            input,
+            isCliInstalled,
+            messagesContainerRef,
+            cliIOLogs,
+            handleInputChange,
+            handleSendMessage,
+            selectedModel,
+            startNewConversation,
+            handleConfirmToolCall,
+            confirmationRequests,
+          }}
+        >
+          <div className="flex-1 overflow-hidden">
+            <Outlet />
+          </div>
+        </ConversationContext.Provider>
+
+        {activeConversation &&
+          processStatuses.find(
+            (status) =>
+              status.conversation_id === activeConversation && status.is_alive
+          ) && (
+            <MessageInputBar
+              input={input}
+              isCliInstalled={isCliInstalled}
+              cliIOLogs={cliIOLogs}
+              handleInputChange={handleInputChange}
+              handleSendMessage={handleSendMessage}
+              selectedModel={selectedModel}
+            />
+          )}
+        
         <AppFooter />
-      </SidebarInset>
+      </div>
       <PersistentChat />
-    </AppSidebar>
+    </CustomizableLayout>
   );
 }
 
@@ -210,6 +220,7 @@ function App() {
         <Route path="system-monitor" element={<SystemMonitorPage />} />
         <Route path="layout-customizer" element={<LayoutCustomizerPage />} />
         <Route path="task-manager" element={<TaskManagerPage />} />
+        <Route path="modular-ui-demo" element={<ModularUIDemoPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

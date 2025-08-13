@@ -7,10 +7,20 @@ export interface PanelConfig {
   visible: boolean;
   pinned: boolean;
   order: number;
+  minimized?: boolean;
+  floatingPosition?: { x: number; y: number };
+  zIndex?: number;
 }
 
 export interface LayoutConfig {
   panels: PanelConfig[];
   sidebarPosition: 'left' | 'right';
   theme: 'dark' | 'light' | 'system';
+}
+
+export interface DragState {
+  isDragging: boolean;
+  draggedPanel?: string;
+  dropZone?: 'left' | 'right' | 'bottom' | 'center';
+  dragOffset?: { x: number; y: number };
 }

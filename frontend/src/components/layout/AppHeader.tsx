@@ -1,7 +1,7 @@
 import React from "react";
-import { GeminiLogo } from "../branding/GeminiLogo";
-import { PiebaldLogo } from "../branding/PiebaldLogo";
-import { SidebarTrigger } from "../ui/sidebar";
+import { GeminiLogo } from "../branding/GeminiLogoFixed";
+import { PiebaldLogo } from "../branding/PiebaldLogoFixed";
+
 import { StatsWidget } from "./StatsWidget";
 import { ThemeToggle } from "../ui/theme-toggle";
 
@@ -10,9 +10,8 @@ export const AppHeader: React.FC = () => {
     <div className="border-b border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex-shrink-0">
       <div className="px-6 py-4">
         <div className="flex items-center w-full">
-          {/* Left section - Sidebar trigger */}
+          {/* Left section */}
           <div className="flex items-center gap-3">
-            <SidebarTrigger />
           </div>
 
           {/* Center section - Logos and branding inline */}
