@@ -70,7 +70,11 @@ release type="patch":
 
 [group('release')]
 docs:
+    node scripts/build-docs.js
+
+[group('release')]
+docs-ghpages $VITE_BASE_PATH="/geminicli-desktop-advanced/":
     cd frontend && pnpm build
     mkdir -p docs-build
-    cp -r docs/* docs-build/
     cp -r frontend/dist/* docs-build/
+    cp docs/index.html docs-build/docs.html

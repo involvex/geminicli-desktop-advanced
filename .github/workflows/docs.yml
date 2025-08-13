@@ -32,15 +32,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
         
-      - name: Build frontend
-        run: cd frontend && pnpm build
+      - name: Build frontend for GitHub Pages
+        run: |
+          cd frontend
+          NODE_ENV=production pnpm build
         
-      - name: Generate docs
+      - name: Prepare GitHub Pages
         run: |
           mkdir -p docs-build
-          cp -r docs/* docs-build/ 2>/dev/null || true
           cp -r frontend/dist/* docs-build/
-          echo "# Gemini Desktop Documentation" > docs-build/README.md
+          rm -f docs-build/reload.js
+          touch docs-build/.nojekyll
           
       - name: Setup Pages
         uses: actions/configure-pages@v4

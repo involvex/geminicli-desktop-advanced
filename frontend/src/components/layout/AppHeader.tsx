@@ -2,6 +2,7 @@ import React from "react";
 import { GeminiLogo } from "../branding/GeminiLogo";
 import { PiebaldLogo } from "../branding/PiebaldLogo";
 import { SidebarTrigger } from "../ui/sidebar";
+import { StatsWidget } from "./StatsWidget";
 
 export const AppHeader: React.FC = () => {
   return (
@@ -14,20 +15,27 @@ export const AppHeader: React.FC = () => {
           </div>
 
           {/* Center section - Logos and branding inline */}
-          <div className="flex-1 flex items-center justify-center gap-6">
-            <div className="flex items-center gap-2">
-              <GeminiLogo />
-              <span className="text-lg font-medium gradient-text-desktop">
-                Desktop
-              </span>
+          <div className="flex-1 flex items-center justify-between">
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                <GeminiLogo />
+                <span className="text-lg font-medium gradient-text-desktop">
+                  Desktop
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-lg font-medium text-neutral-400">
+                <span>Improved by InvolveX</span>
+                <img src="/icon.png" alt="App Icon" className="w-6 h-6 rounded-md" />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-neutral-400">From the creators of</span>
+                <PiebaldLogo />
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-lg font-medium text-neutral-400">
-              <span>Improved by InvolveX</span>
-              <img src="/icon.png" alt="App Icon" className="w-6 h-6 rounded-md" />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-neutral-400">From the creators of</span>
-              <PiebaldLogo />
+            
+            {/* Stats Widget */}
+            <div className="flex items-center">
+              <StatsWidget />
             </div>
           </div>
         </div>

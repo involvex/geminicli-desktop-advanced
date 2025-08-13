@@ -1,15 +1,18 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import App from "./App";
-import { ThemeProvider } from "./components/theme/theme-provider";
+import { TooltipProvider } from "./components/ui/tooltip";
+import App from "./App.tsx";
+import "./index.css";
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <ThemeProvider defaultTheme="system" storageKey="gemini-ui-theme">
+const basename = import.meta.env.PROD ? "/geminicli-desktop-advanced" : "";
+
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <BrowserRouter basename={basename}>
+      <TooltipProvider>
         <App />
-      </ThemeProvider>
+      </TooltipProvider>
     </BrowserRouter>
-  </React.StrictMode>
+  </StrictMode>
 );

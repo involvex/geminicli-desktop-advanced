@@ -21,7 +21,7 @@ import {
   CardTitle,
   CardDescription,
 } from "../components/ui/card";
-import { Info, UserRound, FolderKanban, Puzzle, Terminal, MessageSquare, FolderPlus, Palette, Cpu, Search } from "lucide-react";
+import { Info, UserRound, FolderKanban, Puzzle, Terminal, MessageSquare, FolderPlus, Palette, Cpu, Search, Store, Cloud, Activity } from "lucide-react";
 import { ModelContextProtocol } from "@/components/common/ModelContextProtocol";
 import { ToolCallConfirmationRequest } from "../utils/toolCallParser";
 
@@ -394,6 +394,60 @@ export const HomeDashboard: React.FC = () => {
                   <CardTitle className="text-base">Theme Builder</CardTitle>
                   <CardDescription>
                     Create and customize your own themes with live preview.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
+            
+            {/* Marketplace Card */}
+            <Card
+              className="cursor-pointer transition-colors hover:bg-accent w-full"
+              onClick={() => navigate("/marketplace")}
+            >
+              <CardHeader className="flex flex-row items-center gap-3">
+                <div className="shrink-0 h-6 w-6 flex items-center justify-center">
+                  <Store className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div className="text-left">
+                  <CardTitle className="text-base">Marketplace</CardTitle>
+                  <CardDescription>
+                    Browse and install extensions, themes, and commands.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
+            
+            {/* AWS Toolkit Card */}
+            <Card
+              className="cursor-pointer transition-colors hover:bg-accent w-full"
+              onClick={() => navigate("/aws-toolkit")}
+            >
+              <CardHeader className="flex flex-row items-center gap-3">
+                <div className="shrink-0 h-6 w-6 flex items-center justify-center">
+                  <Cloud className="h-5 w-5 text-orange-500" />
+                </div>
+                <div className="text-left">
+                  <CardTitle className="text-base">AWS Toolkit</CardTitle>
+                  <CardDescription>
+                    Integrated AWS development tools and services.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
+            
+            {/* System Monitor Card */}
+            <Card
+              className="cursor-pointer transition-colors hover:bg-accent w-full"
+              onClick={() => navigate("/system-monitor")}
+            >
+              <CardHeader className="flex flex-row items-center gap-3">
+                <div className="shrink-0 h-6 w-6 flex items-center justify-center">
+                  <Activity className="h-5 w-5 text-blue-500" />
+                </div>
+                <div className="text-left">
+                  <CardTitle className="text-base">System Monitor</CardTitle>
+                  <CardDescription>
+                    Monitor model performance, resource usage, and throttling.
                   </CardDescription>
                 </div>
               </CardHeader>

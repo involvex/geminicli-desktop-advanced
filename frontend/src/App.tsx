@@ -21,6 +21,9 @@ import ProjectBuilderPage from "./pages/ProjectBuilder";
 import McpBrowserPage from "./pages/McpBrowser";
 import ThemeBuilderPage from "./pages/ThemeBuilder";
 import ModelManagerPage from "./pages/ModelManager";
+import MarketplacePage from "./pages/Marketplace";
+import AWSToolkitPage from "./pages/AWSToolkit";
+import SystemMonitorPage from "./pages/SystemMonitor";
 import { PersistentChat } from "./components/chat/PersistentChat";
 
 // Hooks
@@ -200,6 +203,9 @@ function App() {
         <Route path="mcp-browser" element={<McpBrowserPage />} />
         <Route path="theme-builder" element={<ThemeBuilderPage />} />
         <Route path="model-manager" element={<ModelManagerPage />} />
+        <Route path="marketplace" element={<MarketplacePage />} />
+        <Route path="aws-toolkit" element={<AWSToolkitPage />} />
+        <Route path="system-monitor" element={<SystemMonitorPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
