@@ -21,7 +21,7 @@ import {
   CardTitle,
   CardDescription,
 } from "../components/ui/card";
-import { Info, UserRound, FolderKanban, Puzzle, Terminal, MessageSquare, FolderPlus, Palette, Cpu, Search, Store, Cloud, Activity } from "lucide-react";
+import { Info, UserRound, FolderKanban, Puzzle, Terminal, MessageSquare, FolderPlus, Palette, Cpu, Search, Store, Cloud, Activity, Layout, Zap } from "lucide-react";
 import { ModelContextProtocol } from "@/components/common/ModelContextProtocol";
 import { ToolCallConfirmationRequest } from "../utils/toolCallParser";
 
@@ -448,6 +448,42 @@ export const HomeDashboard: React.FC = () => {
                   <CardTitle className="text-base">System Monitor</CardTitle>
                   <CardDescription>
                     Monitor model performance, resource usage, and throttling.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
+            
+            {/* Layout Customizer Card */}
+            <Card
+              className="cursor-pointer transition-colors hover:bg-accent w-full"
+              onClick={() => navigate("/layout-customizer")}
+            >
+              <CardHeader className="flex flex-row items-center gap-3">
+                <div className="shrink-0 h-6 w-6 flex items-center justify-center">
+                  <Layout className="h-5 w-5 text-purple-500" />
+                </div>
+                <div className="text-left">
+                  <CardTitle className="text-base">Layout Customizer</CardTitle>
+                  <CardDescription>
+                    Customize UI layout, move panels, and personalize workspace.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
+            
+            {/* Task Manager Card */}
+            <Card
+              className="cursor-pointer transition-colors hover:bg-accent w-full"
+              onClick={() => navigate("/task-manager")}
+            >
+              <CardHeader className="flex flex-row items-center gap-3">
+                <div className="shrink-0 h-6 w-6 flex items-center justify-center">
+                  <Zap className="h-5 w-5 text-red-500" />
+                </div>
+                <div className="text-left">
+                  <CardTitle className="text-base">Task Manager</CardTitle>
+                  <CardDescription>
+                    Kill stuck processes and discover network agents.
                   </CardDescription>
                 </div>
               </CardHeader>

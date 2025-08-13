@@ -24,6 +24,8 @@ import ModelManagerPage from "./pages/ModelManager";
 import MarketplacePage from "./pages/Marketplace";
 import AWSToolkitPage from "./pages/AwsToolkit";
 import SystemMonitorPage from "./pages/SystemMonitor";
+import LayoutCustomizerPage from "./pages/LayoutCustomizer";
+import TaskManagerPage from "./pages/TaskManager";
 import { PersistentChat } from "./components/chat/PersistentChat";
 
 // Hooks
@@ -206,6 +208,8 @@ function App() {
         <Route path="marketplace" element={<MarketplacePage />} />
         <Route path="aws-toolkit" element={<AWSToolkitPage />} />
         <Route path="system-monitor" element={<SystemMonitorPage />} />
+        <Route path="layout-customizer" element={<LayoutCustomizerPage />} />
+        <Route path="task-manager" element={<TaskManagerPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
