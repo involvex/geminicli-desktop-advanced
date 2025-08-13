@@ -10,15 +10,18 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   base: './',
+  build: {
+    rollupOptions: {
+      external: process.env.NODE_ENV === 'production' ? ['reload.js'] : []
+    }
+  },
   resolve: {
     alias: {
       // eslint-disable-next-line no-undef
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  build: {
-    target: "esnext",
-  },
+
   define: {
     // eslint-disable-next-line no-undef
     __WEB__: JSON.stringify(process.env.GEMINI_DESKTOP_WEB === "true"),

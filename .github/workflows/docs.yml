@@ -41,6 +41,7 @@ jobs:
         run: |
           mkdir -p docs-build
           cp -r frontend/dist/* docs-build/
+          cp frontend/public/index.html docs-build/
           rm -f docs-build/reload.js
           touch docs-build/.nojekyll
           
